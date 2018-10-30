@@ -16,7 +16,7 @@ independent of the decision about which environment we are using so we can adjus
 Notes on setup:
 * You should follow their installation instructions in their readme 
     * Should run pip on their requirements.txt
-    * Should run pip `install -e .` in the gym-compete directory
+    * Should run `pip install -e .` in the gym-compete directory
 * I had to change the version of gym to 0.9.1. I changed this in their requirements.txt
 * You also need a different version of mujocu, I have mjpro131
 * If you have everything installed correctly `bash demo_tasks.sh` should run and should show all of the environments 
