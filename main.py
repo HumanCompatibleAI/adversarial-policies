@@ -74,24 +74,30 @@ def get_env_and_policy_type(env_name):
 
 class Agent(object):
 
-    def __init__(self, actable, reseter):
+    def __init__(self, action_selector, reseter):
         """
         Takes policies from their format to mine
         :param actable: a policy in the format used by mult-agent-compeitition
         """
-        self._actable = actable
+        self._action_selector = action_selector
         self._reseter = reseter
 
+
     def get_action(self, observation):
-        return self._actable.act(stochastic=True, observation=observation)[0]
+        return self._action_selector(observation)
 
     def reset(self):
         return self._reseter()
 
 
+
 def load_agent(file, policy_type, scope, env, index):
     policy = load_policy(file, policy_type, scope, env, index)
-    return Agent(policy, policy.reset)
+
+    def get_action(observation):
+        return policy.act(stochastic=True, observation=observation)[0]
+
+    return Agent(get_action, policy.reset)
 
 
 def make_session():
@@ -105,11 +111,13 @@ def make_session():
 def run(config):
     env, policy_type = get_env_and_policy_type(config.env)
 
-    with(make_session()):
+    ant_paths = get_trained_sumo_ant_locations()
 
+    with(make_session()):
+        agent_paths = [ant_paths[1], ant_paths[3]]
         agents = []
         for i in range(2):
-            agents.append(load_agent(config.param_paths[i], policy_type, "policy" + str(i), env, i))
+            agents.append(load_agent(agent_paths[i], policy_type, "policy" + str(i), env, i))
 
         for _ in range(config.max_episodes):
             anounce_winner(simulate(env, agents))
@@ -130,7 +138,6 @@ if __name__ == "__main__":
     p.add_argument("--env", default="sumo-humans", type=str,
                    help="competitive environment: run-to-goal-humans, run-to-goal-ants,\
                          you-shall-not-pass, sumo-humans, sumo-ants, kick-and-defend")
-    p.add_argument("--param-paths", nargs='+', required=True, type=str)
     p.add_argument("--max-episodes", default=10, help="max number of matches", type=int)
 
     configs = p.parse_args()

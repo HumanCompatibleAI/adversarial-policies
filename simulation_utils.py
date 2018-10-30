@@ -1,7 +1,7 @@
 from typing import TypeVar, Generator, Callable, Generic, Any
 
 
-def simulate(env, agents) -> Generator[Any, None, None]:
+def simulate(env, agents, render=False) -> Generator[Any, None, None]:
     """
     Run Environment env with the agents in agents
     :param env: any enviroment following the openai-gym spec
@@ -12,7 +12,8 @@ def simulate(env, agents) -> Generator[Any, None, None]:
     dones = [False]
 
     while not dones[0]:
-        env.render()
+        if render:
+            env.render()
         actions = []
         for agent, observation in zip(agents, observations):
             actions.append(agent.get_action(observation))
@@ -20,6 +21,23 @@ def simulate(env, agents) -> Generator[Any, None, None]:
         observations, rewards, dones, infos = env.step(actions)
 
         yield observations, rewards, dones, infos
+
+def simulate_single(env, agent) -> Generator[Any, None, None]:
+    """
+    Run Environment env with the agents in agents
+    :param env: any enviroment following the openai-gym spec
+    :param agents: agents that have get-action functions
+    :return: streams information about the simulation
+    """
+    observation = env.reset()
+    done = False
+
+    while not done:
+        action = agent.get_action(observation)
+
+        observation, reward, done, info = env.step(action)
+
+        yield observation, reward, done, info
 
 
 def anounce_winner(sim_stream):
@@ -34,6 +52,7 @@ def anounce_winner(sim_stream):
                 print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
 
 
+#TODO Curently unused
 def utility(sim_stream):
     """
     Calculates the utility acheived from a simulation stream
@@ -47,6 +66,7 @@ def utility(sim_stream):
     return util
 
 
+#TODO Curently unused
 class FiniteHorizonEnv(object):
     def __init__(self, env, horizon):
         """
@@ -84,7 +104,7 @@ class MultiToSingle(object):
         self._env = env
 
     def step(self, action):
-        observations, rewards, dones, infos = self._env([action])
+        observations, rewards, dones, infos = self._env.step([action])
 
         return observations[0], rewards[0], dones[0], infos[0]
 
@@ -113,8 +133,13 @@ class CurryEnv(object):
     #TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
     def step(self, actions):
         action = self._agent.get_action(self._last_obs)
-        actions = actions.insert(self._agent_to_fix, action)
-        observations, rewards, done, infos = self._env(actions)
+        actions.insert(self._agent_to_fix, action)
+        observations, rewards, done, infos = self._env.step(actions)
+
+        observations = list(observations)
+        rewards = list(rewards)
+        done = list(done)
+        infos = list(infos)
 
         self._last_obs = observations.pop(self._agent_to_fix)
         self._last_reward = rewards.pop(self._agent_to_fix)
@@ -124,29 +149,8 @@ class CurryEnv(object):
 
     def reset(self):
         observations = self._env.reset()
+        observations = list(observations)
 
         self._last_obs = observations.pop(self._agent_to_fix)
 
         return observations
-
-
-def randomSearch(env, policy_sampler, samples=10000):
-    """
-    Performs random search for policies from "policy_sampler" which maximize reward on "env"
-    :param env: The environment to be optimized for
-    :param policy_sampler: The policy sampler to optimize from
-    :param samples: how many samples to take
-    :return: the best policy that has been found
-    """
-    first_itteration = True
-    best_util = 0
-    best_policy = None
-    for _ in range(samples):
-        policy = policy_sampler()
-        util = utility(simulate(env, policy))
-
-        if best_util < util or first_itteration:
-            best_util = util
-            best_policy = policy
-
-    return best_policy
