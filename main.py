@@ -117,6 +117,14 @@ def run(config):
                 agent.reset()
 
 
+def get_trained_sumo_ant_locations():
+    policy_loc = "multiagent-competition/agent-zoo/sumo/ants/"
+    return [policy_loc + "agent_parameters-v1.pkl",
+            policy_loc + "agent_parameters-v2.pkl",
+            policy_loc + "agent_parameters-v3.pkl",
+            policy_loc + "agent_parameters-v4.pkl"]
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
     p.add_argument("--env", default="sumo-humans", type=str,
