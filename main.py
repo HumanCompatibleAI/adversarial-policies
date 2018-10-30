@@ -74,20 +74,25 @@ def get_env_and_policy_type(env_name):
 
 class Agent(object):
 
-    def __init__(self, action_selector, reseter):
+    def __init__(self, action_selector, reseter, reiniter=None):
         """
         Takes policies from their format to mine
         :param actable: a policy in the format used by mult-agent-compeitition
         """
         self._action_selector = action_selector
         self._reseter = reseter
-
+        self.reinter = reiniter
 
     def get_action(self, observation):
-        return self._action_selector(observation)
+        action = self._action_selector(observation)
+        #print(action)
+        return action
 
     def reset(self):
         return self._reseter()
+
+    def reinti(self):
+        self.reinter()
 
 
 
