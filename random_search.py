@@ -4,6 +4,8 @@ from main import *
 import numpy as np
 from numpy.random import random
 import datetime
+import pickle
+import time
 
 def random_search(env, agent_sampler, samples=5):
     """
@@ -43,14 +45,12 @@ def LSTM_agent_sampler(env, sess):
 
         sess.run(tf.initialize_variables(policy.get_variables()))
 
-        assigns = []
+        values = {}
         for var in policy.get_variables():
-            assigns.append(var.assign(sess.run(var)))
+            values[var] = sess.run(var)
 
-        def reiniter():
-            sess.run(assigns)
 
-        return Agent(get_action, policy.reset, reiniter=reiniter)
+        return Agent(get_action, policy.reset, values=values, sess=sess)
 
     return sampler
 
@@ -85,9 +85,9 @@ def matrix_agent_sampler(obs_dim=137, act_dim=8, magnitude = 100, mem_dim = 8):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
-    p.add_argument("--samples", default=100, help="number of samples for random search", type=int)
+    p.add_argument("--samples", default=1, help="number of samples for random search", type=int)
     p.add_argument("--max-episodes", default=500, help="max number of matches", type=int)
-
+    p.add_argument("--run_other", default=None, help="True if you should run last best", type=str)
     configs = p.parse_args()
 
     env, policy_type = get_env_and_policy_type("sumo-ants")
@@ -98,11 +98,40 @@ if __name__ == "__main__":
     with sess:
 
         attacked_agent = load_agent(ant_paths[1], policy_type, "zoo_ant_policy", env, 0)
-        trained_agent, reward = random_search(MultiToSingle(CurryEnv(env, attacked_agent)),
-                                              LSTM_agent_sampler(env, sess), configs.samples)
 
-        print("Got {} reward!".format(reward))
-        trained_agent.reinti()
+        if configs.run_other is not None:
+            policy = LSTMPolicy(scope="agent_new", reuse=False,
+                                ob_space=env.observation_space.spaces[0],
+                                ac_space=env.action_space.spaces[0],
+                                hiddens=[128, 128], normalize=True)
+
+            def get_action(observation):
+                return policy.act(stochastic=True, observation=observation)[0]
+
+
+            trained_agent = Agent(get_action, policy.reset)
+
+            with open(configs.run_other, "rb") as file:
+                values_from_save = pickle.load(file)
+
+            for key, value in values_from_save.items():
+                var = tf.get_default_graph().get_tensor_by_name(key)
+                sess.run(tf.assign(var, value))
+
+        else:
+            trained_agent, reward = random_search(MultiToSingle(CurryEnv(env, attacked_agent)),
+                                                  LSTM_agent_sampler(env, sess), configs.samples)
+
+            print("Got {} reward!".format(reward))
+            trained_agent.reinti()
+
+            values_to_save = {}
+            for key, value in trained_agent._values.items():
+                values_to_save[key.name] = value
+            print(values_to_save)
+            with open("out_{}.pkl".format(int(round(time.time() * 1000))), "wb") as file:
+                pickle.dump(values_to_save, file, pickle.HIGHEST_PROTOCOL)
+
 
         agents = [attacked_agent, trained_agent]
         for _ in range(configs.max_episodes):
