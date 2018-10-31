@@ -7,7 +7,7 @@ import datetime
 import pickle
 import time
 
-def random_search(env, agent_sampler, samples=5):
+def random_search(env, agent_sampler, samples=5, samples_per_agent=5):
     """
     Performs random search for policies from "agent_sampler" which maximize reward on "env"
     :param env: The environment to be optimized for
@@ -20,16 +20,19 @@ def random_search(env, agent_sampler, samples=5):
     best_agent = None
     for i in range(samples):
         agent = agent_sampler()
-        util = utility(simulate_single(env, agent))
+        total_utility=0
+        for _ in range(samples_per_agent):
+            util = utility(simulate_single(env, agent))
+            total_utility+= util
 
-        if best_util < util or first_iteration:
-            best_util = util
+        if best_util < total_utility or first_iteration:
+            best_util = total_utility
             best_agent = agent
 
         if i %100 ==0 :
             print("Itteration {} at time {}".format(i,datetime.datetime.now()))
 
-    return best_agent, best_util
+    return best_agent, best_util/samples_per_agent
 
 
 def LSTM_agent_sampler(env, sess):
@@ -113,7 +116,8 @@ def constant_agent_sampler(act_dim=8, magnitude = 100):
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
     p.add_argument("--samples", default=1, help="number of samples for random search", type=int)
-    p.add_argument("--max-episodes", default=10, help="max number of matches", type=int)
+    p.add_argument("--samples_per_agent", default=5, help= "number of samples per agent in random search", type=int)
+    p.add_argument("--max-episodes", default=0, help="max number of matches during visualization", type=int)
     p.add_argument("--run_other", default=None, help="True if you should run last best", type=str)
     configs = p.parse_args()
 
@@ -145,12 +149,15 @@ if __name__ == "__main__":
             #    var = tf.get_default_graph().get_tensor_by_name(key)
             #    sess.run(tf.assign(var, value))
 
+
+
             trained_agent = constant_agent_sampler()
+
             trained_agent.load(configs.run_other)
 
         else:
             trained_agent, reward = random_search(MultiToSingle(CurryEnv(env, attacked_agent)),
-                                                  constant_agent_sampler, configs.samples)
+                                                  constant_agent_sampler, configs.samples, samples_per_agent=configs.samples_per_agent)
 
             print("Got {} reward!".format(reward))
             #trained_agent.reinti()
