@@ -83,10 +83,37 @@ def matrix_agent_sampler(obs_dim=137, act_dim=8, magnitude = 100, mem_dim = 8):
     return Temp()
 
 
+def constant_agent_sampler(act_dim=8, magnitude = 100):
+    constant_action = random((act_dim,)) * magnitude -magnitude/2
+
+
+    class Temp():
+
+        def __init__(self, constants):
+            self.constants = constants
+
+        def get_action(self, observation):
+
+            return self.constants
+
+        def reset(self):
+            pass
+
+        def save(self, filename):
+            with open(filename, "wb") as file:
+                pickle.dump(self.constants, file, pickle.HIGHEST_PROTOCOL)
+
+        def load(self, filename):
+            with open(filename, "rb") as file:
+                self.constants = pickle.load(file)
+
+    return Temp(constant_action)
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
     p.add_argument("--samples", default=1, help="number of samples for random search", type=int)
-    p.add_argument("--max-episodes", default=500, help="max number of matches", type=int)
+    p.add_argument("--max-episodes", default=10, help="max number of matches", type=int)
     p.add_argument("--run_other", default=None, help="True if you should run last best", type=str)
     configs = p.parse_args()
 
@@ -109,29 +136,31 @@ if __name__ == "__main__":
                 return policy.act(stochastic=True, observation=observation)[0]
 
 
-            trained_agent = Agent(get_action, policy.reset)
+            #trained_agent = Agent(get_action, policy.reset)
 
-            with open(configs.run_other, "rb") as file:
-                values_from_save = pickle.load(file)
+            #with open(configs.run_other, "rb") as file:
+            #    values_from_save = pickle.load(file)
 
-            for key, value in values_from_save.items():
-                var = tf.get_default_graph().get_tensor_by_name(key)
-                sess.run(tf.assign(var, value))
+            #for key, value in values_from_save.items():
+            #    var = tf.get_default_graph().get_tensor_by_name(key)
+            #    sess.run(tf.assign(var, value))
+
+            trained_agent = constant_agent_sampler()
+            trained_agent.load(configs.run_other)
 
         else:
             trained_agent, reward = random_search(MultiToSingle(CurryEnv(env, attacked_agent)),
-                                                  LSTM_agent_sampler(env, sess), configs.samples)
+                                                  constant_agent_sampler, configs.samples)
 
             print("Got {} reward!".format(reward))
-            trained_agent.reinti()
+            #trained_agent.reinti()
 
-            values_to_save = {}
-            for key, value in trained_agent._values.items():
-                values_to_save[key.name] = value
-            print(values_to_save)
-            with open("out_{}.pkl".format(int(round(time.time() * 1000))), "wb") as file:
-                pickle.dump(values_to_save, file, pickle.HIGHEST_PROTOCOL)
+            #values_to_save = {}
+            #for key, value in trained_agent._values.items():
+            #    values_to_save[key.name] = value
+            #print(values_to_save)
 
+            trained_agent.save("out_{}.pkl".format(int(round(time.time() * 1000))))
 
         agents = [attacked_agent, trained_agent]
         for _ in range(configs.max_episodes):

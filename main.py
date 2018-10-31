@@ -134,7 +134,7 @@ def run(config):
 
 
 def get_trained_sumo_ant_locations():
-    policy_loc = "multiagent-competition/agent-zoo/sumo/ants/"
+    policy_loc = "agent-zoo/sumo/ants/"
     return [policy_loc + "agent_parameters-v1.pkl",
             policy_loc + "agent_parameters-v2.pkl",
             policy_loc + "agent_parameters-v3.pkl",
