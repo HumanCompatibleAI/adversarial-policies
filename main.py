@@ -112,6 +112,7 @@ def make_session():
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
         intra_op_parallelism_threads=1)
+    tf_config.gpu_options.allow_growth = True
     sess = tf.Session(config=tf_config)
     return sess
 
