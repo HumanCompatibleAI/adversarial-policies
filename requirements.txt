@@ -2,3 +2,4 @@ gym==0.9.1
 mujoco-py==0.5.7
 numpy
 tensorflow>=1.1.0
+git+https://github.com/openai/baselines.git@ab59de
