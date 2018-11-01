@@ -1,3 +1,4 @@
+from gym import Env
 from typing import TypeVar, Generator, Callable, Generic, Any
 
 
@@ -41,7 +42,7 @@ def simulate_single(env, agent) -> Generator[Any, None, None]:
 
 
 def anounce_winner(sim_stream):
-    for _, _, dones, infos in sim_stream:
+    for _, r, dones, infos in sim_stream:
         if dones[0]:
             draw = True
             for i in range(len(infos)):
@@ -92,7 +93,7 @@ class FiniteHorizonEnv(object):
         return self._env.reset()
 
 
-class MultiToSingle(object):
+class MultiToSingle(Env):
     def __init__(self, env):
         """
         Converts a multi-agent environment with one agent(actions as lists) to
@@ -100,20 +101,19 @@ class MultiToSingle(object):
         :param env: a multi agent environment with one agent
         :return: a single agent environment
         """
-
         self._env = env
+        self.action_space = env.action_space.spaces[0]
+        self.observation_space = env.observation_space.spaces[0]
+        super(Env).__init__()
 
     def step(self, action):
         observations, rewards, dones, infos = self._env.step([action])
-
         return observations[0], rewards[0], dones[0], infos[0]
 
     def reset(self):
         return self._env.reset()[0]
 
-
 class CurryEnv(object):
-
     def __init__(self, env, agent, agent_to_fix=0):
         """
         Take a multi agent environment and fix one of the agents
@@ -123,12 +123,13 @@ class CurryEnv(object):
         :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
         """
         self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
         self._agent_to_fix = agent_to_fix
         self._agent = agent
         self._last_obs = None
         self._last_reward = None
         self._last_infos = None
-
 
     #TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
     def step(self, actions):
