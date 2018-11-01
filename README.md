@@ -1,7 +1,7 @@
 # aerl
 
 This is an preliminary test bed for experiements involving adversarial examples for multi-agent RL.  Specifically, we 
-are looking for adversairial examples which lie within the strategy space for the opponent.
+are looking for adversarial examples which lie within the strategy space for the opponent.
 
 ## Work So Far
 
