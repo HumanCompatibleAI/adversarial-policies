@@ -1,0 +1,1 @@
+Preliminary research investigating adversarial policies: given a victim policy in a multi-agent RL, find a policy which will break the victim. See [proposal](https://docs.google.com/document/d/1Rxn4uNSGGUHUxgZjpXNIU3gPqJG2esLkXjPwumkvpe4/edit)
