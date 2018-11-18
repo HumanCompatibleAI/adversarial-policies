@@ -1,0 +1,5 @@
+name: adversarial_policies
+dependencies:
+    - ipython
+    - jupyter
+    - qtconsole
