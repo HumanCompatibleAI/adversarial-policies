@@ -1,8 +1,12 @@
 name: aprl
 dependencies:
-    - python=3.7
+    - python=3.6
+    - mkl=2019.0 # speed up NumPy on Intel CPUs
     - numpy=1.15
-    - mkl=2019.0
+    - tensorflow=1.12.0
+    - cffi=1.11.5 # needed for mujoco-py
     - pip>=18.0
     - pip:
-        - gym==0.10.8
+        - git+git://github.com/openai/gym.git@a488c2fe2
+        - git+git://github.com/openai/baselines.git@d3fed18
+        - mujoco-py=1.50

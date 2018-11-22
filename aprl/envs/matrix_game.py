@@ -1,4 +1,4 @@
-from gym.spaces.multi_discrete import MultiDiscrete
+from gym.spaces.discrete import Discrete
 import numpy as np
 
 from aprl.envs import MultiAgentEnv
@@ -10,11 +10,14 @@ class MatrixGame(MultiAgentEnv):
 
     def __init__(self, num_actions, payoff):
         '''payoff_matrices must be a pair of num_actions*num_actions payoff matrices.'''
+        agent_space = Discrete(num_actions)
+        super().__init__(num_agents=2,
+                         agent_action_space=agent_space,
+                         agent_observation_space=agent_space)
+
         payoff = np.array(payoff)
-        assert(payoff.shape == (2, num_actions, num_actions))
+        assert (payoff.shape == (2, num_actions, num_actions))
         self.payoff = payoff
-        self.action_space = MultiDiscrete([num_actions, num_actions])
-        self.observation_space = self.action_space
 
     def step(self, action_n):
         assert(len(action_n) == 2)
@@ -22,8 +25,8 @@ class MatrixGame(MultiAgentEnv):
         # observation is the other players move
         self.obs_n = [j, i]
         rew_n = self.payoff[:, i, j]
-        done_n = [False, False]
-        return self.obs_n, rew_n, done_n, dict()
+        done = False
+        return self.obs_n, rew_n, done, dict()
 
     def reset(self):
         # State is previous players action, so this doesn't make much sense;

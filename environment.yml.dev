@@ -1,4 +1,4 @@
-name: adversarial_policies
+name: aprl
 dependencies:
     - ipython
     - jupyter
