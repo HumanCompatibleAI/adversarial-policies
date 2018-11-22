@@ -258,7 +258,8 @@ class PPOSelfPlay(SelfPlay):
 
             self.models[i] = model
 
-        self.epinfobufs = [deque(maxlen=100) for _ in range(population_size)]
+        self.epinfobufs = [deque(maxlen=1000) for _ in range(population_size)]
+        #TODO: eval_env?
         # if eval_env is not None:
         #     eval_epinfobuf = deque(maxlen=100)
 
@@ -275,12 +276,6 @@ class PPOSelfPlay(SelfPlay):
             assert callable(cliprange)
 
         total_timesteps = int(total_timesteps)
-
-        # runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma,
-        #                 lam=lam)
-        # if eval_env is not None:
-        #     eval_runner = Runner(env=eval_env, model=model, nsteps=nsteps,
-        #                          gamma=gamma, lam=lam)
 
         nupdates = total_timesteps // self.nbatch
         # Start total timer
@@ -301,17 +296,15 @@ class PPOSelfPlay(SelfPlay):
                 epinfobuf = self.epinfobufs[pi]
                 #TODO: parallelize
                 obs, returns, masks, actions, values, neglogpacs, states = traj
-                #TODO: how to extract mean reward? This won't work when two players!
-                # This comes from bench.Monitor.
-                # Which will itself break in multi-agent environments.
-                # But I could subclass it...
-                # Length and time is the same for all.
-                # So just need reward summation to handle being vector.
-                # Could then just index into it here, seems OK, or during runner.
-                # On the other hand: I've always found the dependence on Monitor hacky.
-                # Does have the benefit of being before any preprocessing, though.
-                # Think subclass is the best option still, then.
-                epinfobuf.extend(epinfos)
+                # Extract relevant subset of epinfo
+                our_epinfos = [{
+                        'r': epinfo['r{:d}'.format(i)],
+                        'l': epinfo['l'],
+                        't': epinfo['t'],
+                    }
+                    for epinfo in epinfos
+                ]
+                epinfobuf.extend(our_epinfos)
 
                 # Here what we're going to do is for each minibatch calculate the loss and append it.
                 mblossvals = []
@@ -331,7 +324,6 @@ class PPOSelfPlay(SelfPlay):
                             mblossvals.append(model.train(lrnow, cliprangenow, *slices))
                 else:  # recurrent version
                     assert self.nenv % self.nminibatches == 0
-                    envsperbatch = self.nenv // self.nminibatches
                     envinds = np.arange(self.nenv)
                     flatinds = np.arange(self.nenv * self.nsteps).reshape(self.nenv, self.nsteps)
                     envsperbatch = self.nbatch_train // self.nsteps
@@ -357,15 +349,21 @@ class PPOSelfPlay(SelfPlay):
                     # Calculates if value function is a good predicator of the returns (ev > 1)
                     # or if it's just worse than predicting nothing (ev =< 0)
                     ev = explained_variance(values, returns)
+                    # SOMEDAY: better metrics?
+                    # Mean reward is not very meaningful in self-play.
                     logger.logkv("player", pi)
                     logger.logkv("serial_timesteps", update * self.nsteps)
                     logger.logkv("nupdates", update)
                     logger.logkv("total_timesteps", update * self.nbatch)
                     logger.logkv("fps", fps)
                     logger.logkv("explained_variance", float(ev))
-                    eprew = [epinfo['r{:d}'.format(i)] for epinfo in epinfobuf]
-                    logger.logkv('eprewmean', safemean(eprew))
-                    logger.logkv('eplenmean',
+                    logger.logkv('eprewmean_rollout',
+                                 safemean([epinfo['r'] for epinfo in our_epinfos]))
+                    logger.logkv('eplenmean_rollout',
+                                 safemean([epinfo['l'] for epinfo in our_epinfos]))
+                    logger.logkv('eprewmean_all',
+                                 safemean([epinfo['r'] for epinfo in epinfobuf]))
+                    logger.logkv('eplenmean_all',
                                  safemean([epinfo['l'] for epinfo in epinfobuf]))
                     logger.logkv('time_elapsed', tnow - tfirststart)
                     for (lossval, lossname) in zip(lossvals, model.loss_names):
