@@ -1,7 +1,7 @@
 from gym.envs.registration import register
 
 from aprl.envs.multi_agent import MultiAgentEnv, MultiToSingleObs, MultiToSingleObsVec, DummyVecMultiEnv
-from aprl.envs.matrix_game import IteratedMatchingPennies, RockPaperScissors
+from aprl.envs.matrix_game import MatrixGame, IteratedMatchingPennies, RockPaperScissors
 
 register(
     id='aprl/IMP-v0',

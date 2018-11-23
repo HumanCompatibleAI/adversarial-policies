@@ -5,6 +5,7 @@ from aprl.envs import MultiAgentEnv
 
 class MatrixGame(MultiAgentEnv):
     '''Models two-player, normal-form games with symetrically sized action space.'''
+    metadata = {'render.modes': ['human']}
     ACTION_TO_SYM = None
 
     def __init__(self, num_actions, payoff):
@@ -22,15 +23,15 @@ class MatrixGame(MultiAgentEnv):
         assert(len(action_n) == 2)
         i, j = action_n
         # observation is the other players move
-        self.obs_n = [j, i]
+        self.obs_n = np.array([j, i])
         rew_n = self.payoff[:, i, j]
         done = False
         return self.obs_n, rew_n, done, dict()
 
     def reset(self):
         # State is previous players action, so this doesn't make much sense;
-        # just give a random result.
-        self.obs_n = self.observation_space.sample()
+        # just assume [0, 0] is start.
+        self.obs_n = np.array([0, 0])
         return self.obs_n
 
     def seed(self, seed=None):
@@ -38,10 +39,10 @@ class MatrixGame(MultiAgentEnv):
         return
 
     def render(self, mode='human'):
-        if self.ACTION_TO_SYM is None:
-            raise NotImplementedError
         # note observations are flipped -- observe other agents actions
-        p2, p1 = list(map(self.ACTION_TO_SYM.get, self.obs_n))
+        p2, p1 = self.obs_n
+        if self.ACTION_TO_SYM is not None:
+            p1, p2 = list(map(self.ACTION_TO_SYM.get, [p1, p2]))
         return f'P1: {p1}, P2: {p2}'
 
 

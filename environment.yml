@@ -5,6 +5,7 @@ dependencies:
     - numpy=1.15
     - tensorflow=1.12.0
     - cffi=1.11.5 # needed for mujoco-py
+    - pytest=4.0.0
     - pip>=18.0
     - pip:
         - git+git://github.com/openai/gym.git@a488c2fe2

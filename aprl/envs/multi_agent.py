@@ -7,6 +7,7 @@ from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 
 from aprl.utils import getattr_unwrapped
 
+
 def _vec_space(space, num_agents):
     if isinstance(space, gym.spaces.Discrete):
         return gym.spaces.MultiDiscrete([space.n for _ in range(num_agents)])
@@ -17,10 +18,12 @@ def _vec_space(space, num_agents):
         high = np.asarray([space.high for _ in range(num_agents)])
         return gym.spaces.Box(low=low, high=high)
 
+
 def _check_space(num_agents, agent, full):
     if agent.shape is not None:
         assert full.shape[0] == num_agents
         assert full.shape[1:] == agent.shape
+
 
 class MultiAgentEnv(Env):
     '''Abstract class for multi-agent environments.
