@@ -7,20 +7,7 @@ from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 
 from aprl.utils import getattr_unwrapped
 
-# class PowerTuple(Tuple):
-#     '''Cartesian product of a space N times with itself. Special type of Tuple.'''
-#     def __init__(self, space, num_copies):
-#         spaces = [space for _ in range(num_copies)]
-#         super().__init__(spaces=spaces)
-#         self.shape = None if space.shape is None else (num_copies,) + space.shape
-#
-#     def sample(self):
-#         return tuple([self._base_space.sample() for _ in range(self._num_copies)])
-#
-#     def __repr__(self):
-#         return "PowerTuple(" + str(self.spaces[0]) + ")"
-
-def make_multi_space(space, num_agents):
+def _vec_space(space, num_agents):
     if isinstance(space, gym.spaces.Discrete):
         return gym.spaces.MultiDiscrete([space.n for _ in range(num_agents)])
     elif isinstance(space, gym.spaces.MultiDiscrete):
@@ -29,6 +16,11 @@ def make_multi_space(space, num_agents):
         low = np.asarray([space.low for _ in range(num_agents)])
         high = np.asarray([space.high for _ in range(num_agents)])
         return gym.spaces.Box(low=low, high=high)
+
+def _check_space(num_agents, agent, full):
+    if agent.shape is not None:
+        assert full.shape[0] == num_agents
+        assert full.shape[1:] == agent.shape
 
 class MultiAgentEnv(Env):
     '''Abstract class for multi-agent environments.
@@ -50,21 +42,17 @@ class MultiAgentEnv(Env):
         self.agent_observation_space = agent_observation_space
 
         if action_space is None:
-            action_space = make_multi_space(agent_action_space, num_agents)
+            action_space = _vec_space(agent_action_space, num_agents)
         if observation_space is None:
-            observation_space = make_multi_space(agent_observation_space, num_agents)
+            observation_space = _vec_space(agent_observation_space, num_agents)
 
         self.action_space = action_space
         self.action_space.agent_space = agent_action_space
         self.observation_space = observation_space
         self.observation_space.agent_space = agent_observation_space
 
-        def check_space(agent, full):
-            if agent.shape is not None:
-                assert full.shape[0] == num_agents
-                assert full.shape[1:] == agent.shape
-        check_space(agent_action_space, action_space)
-        check_space(agent_observation_space, observation_space)
+        _check_space(num_agents, agent_action_space, action_space)
+        _check_space(num_agents, agent_observation_space, observation_space)
 
     def step(self, action_n):
         '''Run one timestep of the environment's dynamics.
@@ -118,6 +106,9 @@ class MultiToSingleObsVec(VecEnvWrapper):
 
 
 class DummyVecMultiEnv(DummyVecEnv):
+    '''Stand-in for DummyVecEnv when applied to MultiEnv's.
+       Handles the larger reward size.
+       Note SubprocVecEnv works out of the box.'''
     def __init__(self, env_fns):
         super().__init__(env_fns)
         num_agents = getattr_unwrapped(self.envs[0], 'num_agents')

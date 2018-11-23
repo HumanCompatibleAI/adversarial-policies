@@ -5,7 +5,6 @@ from aprl.envs import MultiAgentEnv
 
 class MatrixGame(MultiAgentEnv):
     '''Models two-player, normal-form games with symetrically sized action space.'''
-    num_agents = 2
     ACTION_TO_SYM = None
 
     def __init__(self, num_actions, payoff):
@@ -35,14 +34,14 @@ class MatrixGame(MultiAgentEnv):
         return self.obs_n
 
     def seed(self, seed=None):
-        '''No-op, there is no randomness in this environment.'''
+        # No-op, there is no randomness in this environment.
         return
 
     def render(self, mode='human'):
         if self.ACTION_TO_SYM is None:
             raise NotImplementedError
-        p2, p1 = list(map(self.ACTION_TO_SYM.get, self.obs_n))
         # note observations are flipped -- observe other agents actions
+        p2, p1 = list(map(self.ACTION_TO_SYM.get, self.obs_n))
         return f'P1: {p1}, P2: {p2}'
 
 
