@@ -4,6 +4,7 @@ from gym import Env, Wrapper
 from gym.spaces import Tuple
 from baselines.common.vec_env import VecEnvWrapper
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 from aprl.utils import getattr_unwrapped
 
@@ -114,6 +115,15 @@ class DummyVecMultiEnv(DummyVecEnv):
        Note SubprocVecEnv works out of the box.'''
     def __init__(self, env_fns):
         super().__init__(env_fns)
-        num_agents = getattr_unwrapped(self.envs[0], 'num_agents')
-        self.buf_rews = np.zeros((self.num_envs, num_agents),
+        self.num_agents = getattr_unwrapped(self.envs[0], 'num_agents')
+        self.buf_rews = np.zeros((self.num_envs, self.num_agents),
                                  dtype=np.float32)
+
+class SubprocVecMultiEnv(SubprocVecEnv):
+    '''Stand-in for SubprocVecEnv when applied to MultiEnv's.
+       Includes some extra attributes.'''
+    def __init__(self, env_fns):
+        super().__init__(env_fns)
+        env = env_fns[0]()
+        self.num_agents = getattr_unwrapped(env[0], 'num_agents')
+        env.close()

@@ -2,7 +2,6 @@ import functools
 import gym
 import numpy as np
 import pytest
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.test_vec_env import assert_envs_equal
 
 from aprl import envs
@@ -68,10 +67,9 @@ class SimpleMultiEnv(envs.MatrixGame):
 
 
 def test_vec_env():
-    '''Test that our DummyVecMultiEnv gives the same results as the baseline
-       SubprocVecEnv implementation. (Note that baseline DummyVecEnv breaks on
-       any MultiAgentEnv.)'''
+    '''Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
+       each other.'''
     env_fns = [functools.partial(SimpleMultiEnv, i) for i in range(4)]
     venv1 = envs.DummyVecMultiEnv(env_fns)
-    venv2 = SubprocVecEnv(env_fns)
+    venv2 = envs.SubprocVecMultiEnv(env_fns)
     assert_envs_equal(venv1, venv2, 100)

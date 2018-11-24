@@ -1,6 +1,8 @@
 import numpy as np
 from baselines.common.runners import AbstractEnvRunner
 
+from aprl.utils import getattr_unwrapped
+
 
 class AbstractMultiEnvRunner(AbstractEnvRunner):
     def __init__(self, *, env, models, nsteps):
@@ -14,10 +16,9 @@ class AbstractMultiEnvRunner(AbstractEnvRunner):
 class SelfPlay(object):
     TRAINING_TYPES = ['best']
 
-    def __init__(self, population_size, num_competitors,
-                 training_type, runner_class, env):
+    def __init__(self, population_size, training_type, runner_class, env):
         self.population_size = int(population_size)
-        self.num_competitors = num_competitors
+        self.num_agents = getattr_unwrapped(env, 'num_agents')
         if training_type not in self.TRAINING_TYPES:
             raise NotImplementedError
         self.training_type = training_type
@@ -27,9 +28,9 @@ class SelfPlay(object):
         self.models = [None for _ in range(population_size)]
 
     def rollout(self, nsteps):
-        # Select num_competitors models to play each other.
+        # Select num_agents models to play each other.
         players = np.random.choice(self.population_size,
-                                   size=self.num_competitors,
+                                   size=self.num_agents,
                                    replace=False)
         if self.training_type == 'best':
             # Use latest version of models
@@ -55,7 +56,7 @@ class SelfPlay(object):
                 }
                 for epinfo in epinfos
             ]
-            for i in range(self.num_competitors)
+            for i in range(self.num_agents)
         ]
 
         return list(zip(players, models, trajs, agent_epinfos))

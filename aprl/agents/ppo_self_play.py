@@ -133,14 +133,13 @@ def _safemean(xs):
 
 
 class PPOSelfPlay(SelfPlay):
-    def __init__(self, population_size, num_competitors, training_type, env,
+    def __init__(self, population_size, training_type, env,
                  network, make_sess=tf_util.make_session, seed=None,
                  nsteps=2048, gamma=0.99, lam=0.95, ent_coef=0.0,  vf_coef=0.5,
                  max_grad_norm=0.5, nminibatches=4, load_paths=None,
                  model_fn=None, **network_kwargs):
         runner = functools.partial(PPOMultiRunner, gamma=gamma, lam=lam)
-        super().__init__(population_size, num_competitors,
-                         training_type, runner, env)
+        super().__init__(population_size, training_type, runner, env)
 
         set_global_seeds(seed)
 

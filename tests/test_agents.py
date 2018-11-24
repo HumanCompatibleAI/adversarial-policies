@@ -33,7 +33,6 @@ def test_ppo_self_play():
         env_fns = [functools.partial(make_env, i) for i in range(4)]
         venv = DummyVecMultiEnv(env_fns)
         self_play = PPOSelfPlay(population_size=4,
-                                num_competitors=2,
                                 training_type='best',
                                 env=venv,
                                 network='mlp')
