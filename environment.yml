@@ -3,11 +3,12 @@ dependencies:
     - python=3.6
     - mkl=2019.0 # speed up NumPy on Intel CPUs
     - numpy=1.15
-    - tensorflow=1.12.0
     - cffi=1.11.5 # needed for mujoco-py
     - pytest=4.0.0
     - pip>=18.0
     - pip:
         - git+git://github.com/openai/gym.git@a488c2fe2
         - git+git://github.com/openai/baselines.git@d3fed18
+        - git+git://github.com/anassinator/ilqr.git@e4d8190
         - mujoco-py=1.50
+        - https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.12.0-cp36-cp36m-linux_x86_64.whl

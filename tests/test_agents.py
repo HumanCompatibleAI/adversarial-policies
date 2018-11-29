@@ -1,9 +1,11 @@
 import functools
 import gym
+from ilqr import iLQR
 import tempfile
 import os
+import numpy as np
 
-from aprl.agents import MultiMonitor, PPOSelfPlay
+from aprl.agents import MultiMonitor, PPOSelfPlay, MujocoFiniteDiffDynamics, MujocoFiniteDiffCost
 from aprl.envs import DummyVecMultiEnv
 
 
@@ -37,3 +39,22 @@ def test_ppo_self_play():
                                 env=venv,
                                 network='mlp')
         self_play.learn(total_timesteps=10000)
+
+
+def test_lqr_mujoco():
+    '''Smoke test for MujcooFiniteDiff{Dynamics,Cost}.
+    Jupyter notebook examples/mujoco_control.ipynb has quantitative results
+    attained; for efficiency, we only run for a few iterations here.'''
+    env = gym.make('Reacher-v2').unwrapped
+    env.reset()
+    dynamics = MujocoFiniteDiffDynamics(env)
+    cost = MujocoFiniteDiffCost(env)
+    N = 10
+    ilqr = iLQR(dynamics, cost, N)
+    x0 = dynamics.get_state()
+    us_init = np.array([env.action_space.sample() for _ in range(N)])
+    xs, us = ilqr.fit(x0, us_init, n_iterations=3)
+    assert x0.shape == xs[0].shape
+    assert xs.shape == (N + 1, 9)
+    assert us.shape == (N, 2)
+    assert env.action_space.contains(us[0])
