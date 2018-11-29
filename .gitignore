@@ -1,3 +1,7 @@
 .idea
 *.pyc
 results/
+MUJOCO_LOG.TXT
+*.DS_Store
+*.pkl
+venv/
