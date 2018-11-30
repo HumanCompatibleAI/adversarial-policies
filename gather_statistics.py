@@ -1,24 +1,23 @@
 import argparse
-from simulation_utils import *
-from main import *
-from random_search import *
 import numpy as np
-from numpy.random import random
-import datetime
 import pickle
-import time
-import gym
-from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-import main
-from rl_baseline import StatefulModel
-from baselines.ppo2 import ppo2
-from gym.wrappers import Monitor
+import os
 import os.path as osp
 import functools
-from random_search import constant_agent_sampler
-from baselines import logger
 
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+from baselines.ppo2 import ppo2
+import gym
+from gym.core import Wrapper
+from gym.monitoring.video_recorder import VideoRecorder
+import tensorflow as tf
+
+import main
+from random_search import constant_agent_sampler
+from rl_baseline import StatefulModel
+from simulation_utils import simulate
+from main import load_agent, LSTMPolicy, Agent, Gymify, MultiToSingle, CurryEnv
+from main import get_env_and_policy_type, get_trained_sumo_ant_locations, make_session
 
 def get_emperical_score(agents, trials, render=False):
     tiecount = 0
@@ -129,6 +128,37 @@ def evaluate_agent(attacked_agent, type_in, name, policy_type, env, samples, vis
                                                                                  tiecount, wincounts))
     return tiecount, wincounts
 
+
+class VideoWrapper(Wrapper):
+    def __init__(self, env, directory):
+        super(VideoWrapper, self).__init__(env)
+        self.directory = osp.abspath(directory)
+        os.makedirs(self.directory, exist_ok=True)
+        self.episode_id = 0
+        self.video_recorder = None
+
+    def _step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        if all(done):
+            self._reset_video_recorder()
+        self.video_recorder.capture_frame()
+        return obs, rew, done, info
+
+    def _reset(self):
+        self._reset_video_recorder()
+        self.episode_id += 1
+        return self.env.reset()
+
+    def _reset_video_recorder(self):
+        if self.video_recorder:
+            self.video_recorder.close()
+        self.video_recorder = VideoRecorder(
+            env=self.env,
+            base_path=osp.join(self.directory, 'video.{:06}'.format(self.episode_id)),
+            metadata={'episode_id': self.episode_id},
+        )
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Collecting Win/Loss/Tie Statistics against ant_pats[1]")
     p.add_argument("--samples", default=0, help="max number of matches during visualization", type=int)
@@ -142,7 +172,7 @@ if __name__ == "__main__":
     print(configs.no_visuals)
     env, policy_type = get_env_and_policy_type("sumo-ants")
     if configs.save_video:
-        env = Monitor(env, directory=configs.save_video, video_callable=lambda _i: True)
+        env = VideoWrapper(env, configs.save_video)
 
     ant_paths = get_trained_sumo_ant_locations()
 
