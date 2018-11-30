@@ -13,7 +13,7 @@ from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 import main
 from rl_baseline import StatefulModel
 from baselines.ppo2 import ppo2
-from baselines.bench.monitor import Monitor
+from gym.wrappers import Monitor
 import os.path as osp
 import functools
 from random_search import constant_agent_sampler
@@ -25,7 +25,7 @@ def get_emperical_score(agents, trials, render=False):
     wincount = [0] * len(agents)
     for _ in range(trials):
         result = new_anounce_winner(simulate(env, agents, render=render))
-        if result == 1:
+        if result == -1:
             tiecount += 1
         else:
             wincount[result] += 1
@@ -75,10 +75,7 @@ def get_agent_any_type(type_opps, name, policy_type, env):
 
         return trained_agent
     elif type_opps == "our_mlp":
-        trashbin = "trash/"
         #TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
-        logger.configure(dir=osp.join(trashbin, 'mon'))
-
         def make_env(id):
             # TODO: seed (not currently supported)
             # TODO: VecNormalize? (typically good for MuJoCo)
@@ -92,14 +89,11 @@ def get_agent_any_type(type_opps, name, policy_type, env):
 
                 attacked_agent = constant_agent_sampler(act_dim=8, magnitude = 100)
 
-                single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+                single_env = Gymify(MultiToSingle(CurryEnv(multi_env, attacked_agent)))
                 single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
 
                 # TODO: upgrade Gym so don't have to do thi0s
                 single_env.observation_space.dtype = np.dtype(np.float32)
-
-
-                single_env = Monitor(single_env, osp.join(trashbin, 'mon', 'log{}'.format(id)))
             return single_env
             # TODO: close session?
 
@@ -142,10 +136,13 @@ if __name__ == "__main__":
     p.add_argument("--agent_type", default="zoo", help="Either zoo, const, lstm or matrix, our_mlp", type=str)
     p.add_argument("--all", default=False, help="run evaluation on all of the default agents", type=bool)
     p.add_argument("--no_visuals", type=bool)
+    p.add_argument("--save-video", type=str, default="")
     configs = p.parse_args()
 
     print(configs.no_visuals)
     env, policy_type = get_env_and_policy_type("sumo-ants")
+    if configs.save_video:
+        env = Monitor(env, directory=configs.save_video, video_callable=lambda _i: True)
 
     ant_paths = get_trained_sumo_ant_locations()
 
@@ -165,7 +162,10 @@ if __name__ == "__main__":
                               "random_const": {"agent_to_eval": "out_random_const.pkl",
                                                "agent_type": "const"},
                               "random_lstm": {"agent_to_eval": "out_lstm_rand.pkl",
-                                              "agent_type": "lstm"}}
+                                              "agent_type": "lstm"},
+                              "trained_mlp": {"agent_to_eval": "20181129_184109 mlp_train_test",
+                                              "agent_type": "our_mlp"}
+                              }
             results = {}
             for key, value in trained_agents.items():
                 results[key] = evaluate_agent(attacked_agent, value["agent_type"], value["agent_to_eval"], policy_type, env,

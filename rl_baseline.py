@@ -16,8 +16,9 @@ from baselines.ppo2 import ppo2
 import gym
 import numpy as np
 import tensorflow as tf
+import numpy.linalg
 
-from simulation_utils import MultiToSingle, CurryEnv
+from simulation_utils import MultiToSingle, CurryEnv, Gymify
 import main, policy
 
 def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
@@ -87,12 +88,107 @@ def restore_stats(path, venv):
         env_wrapper.ret = np.zeros(env_wrapper.num_envs)
     return env_wrapper
 
-def shape_reward(env, reward_type):
+def shape_reward(env, reward_type, me_imp=0.5, dist_imp=0.5, magnitude=1):
     if reward_type=="default":
         return env
     elif reward_type == "no_shape":
         env.move_reward_weight = 0
         return env
+    elif reward_type == "custom_shaping":
+        env.move_reward_weight = 0
+        return ShapeToRewardPosition(ShapeToRewardMagnitudes(env, me_imp=me_imp,
+                                                             magnitude=magnitude),
+                                     dist_imp=dist_imp , me_imp=me_imp, magnitude=magnitude)
+
+class ShapeToRewardPosition(object):
+    def __init__(self, env, dist_imp=0.5, me_imp=0.5, magnitude=1):
+        """
+        Take a multi agent environment and fix one of the agents
+        :param env: The multi-agent environment
+        :param agent: The agent to be fixed
+        :param agent_to_fix: The index of the agent that should be fixed
+        :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
+        """
+        self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        self.dist_imp = dist_imp
+        self.me_imp = me_imp
+        self.magnitude = magnitude
+
+    #TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
+    def step(self, actions):
+        observations, rewards, done, infos = self._env.step(actions)
+
+
+        x_me  = observations[0]
+        y_me = observations[1]
+        z_me = observations[2]
+        square_dist_me = x_me*x_me + y_me*y_me
+        goodness_me = self.dist_imp * square_dist_me + (1-self.dist_imp) * z_me*z_me
+
+
+        x_opp = observations[-29]
+        y_opp = observations[-28]
+        z_opp = observations[-27]
+        square_dist_opp = x_opp*x_opp + y_opp*y_opp
+
+        goodness_opp = self.dist_imp * square_dist_me + (1 - self.dist_imp) * z_me * z_me
+
+        rewards += self.magnitude * (self.me_imp *goodness_me - (1-self.me_imp) * goodness_opp)
+
+        return observations, rewards, done, infos
+
+    def reset(self):
+        observations = self._env.reset()
+        return observations
+
+
+def fancy_euclid(a,b):
+    return numpy.linalg.norm(a-b)
+
+
+class ShapeToRewardMagnitudes(object):
+    def __init__(self, env, me_imp=0.5, magnitude=1):
+        """
+        Take a multi agent environment and fix one of the agents
+        :param env: The multi-agent environment
+        :param agent: The agent to be fixed
+        :param agent_to_fix: The index of the agent that should be fixed
+        :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
+        """
+        self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        self.last_obs = None
+        self.me_imp = me_imp
+        self.magnitude = magnitude
+
+    # TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
+    def step(self, actions):
+        observations, rewards, done, infos = self._env.step(actions)
+
+        if self.last_obs is not None:
+
+            last_opp_pos = self.last_obs[-30:0]
+            cur_opp_pos = observations[-30:0]
+            opp_delta = fancy_euclid(cur_opp_pos, last_opp_pos)
+
+            last_me_pos  = self.last_obs[0:30]
+            cur_me_pos = observations[0:30]
+            me_delta = fancy_euclid(cur_me_pos, last_me_pos)
+
+            rewards += self.magnitude * (-self.me_imp * me_delta * me_delta + (1 - self.me_imp) * opp_delta * opp_delta)
+
+        self.last_obs = observations
+
+        return observations, rewards, done, infos
+
+    def reset(self):
+        self.last_obs = None
+        observations = self._env.reset()
+        return observations
+
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 if __name__ == "__main__":
@@ -105,7 +201,10 @@ if __name__ == "__main__":
     p.add_argument('--network', default='our-lstm')
     p.add_argument('--no-normalize', type=bool)
     p.add_argument('exp_name', type=str)
-    p.add_argument('--reward', type=str, default="default", help="default, no_shape")
+    p.add_argument('--reward', type=str, default="default", help="default, no_shape, custom_shaping")
+    p.add_argument('--me_imp', type=float, default=0.5)
+    p.add_argument('--dist_imp', type=float, default=0.5)
+    p.add_argument('--magnitude', type=float, default=1)
     configs = p.parse_args()
 
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
@@ -130,11 +229,15 @@ if __name__ == "__main__":
         with sess.as_default():
             multi_env, policy_type = main.get_env_and_policy_type("sumo-ants")
 
-            multi_env = shape_reward(multi_env, configs.reward)
-
             attacked_agent = main.load_agent(ant_paths[1], policy_type,
                                              "zoo_ant_policy_{}".format(id), multi_env, 0)
+
+
+
             single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+            single_env = shape_reward(single_env, configs.reward, configs.me_imp, configs.dist_imp, configs.magnitude)
+
+            single_env = Gymify(single_env)
             single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
 
             #TODO: upgrade Gym so don't have to do thi0s
