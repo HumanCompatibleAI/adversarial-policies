@@ -1,6 +1,6 @@
-AGENTS="mlp_train_default_shape mlp_train_no_shape out_lstm_rand out_random_const"
-START_EP=2
-END_EP=12
+AGENTS="pretrainedv1 mlp_train_default_shape mlp_train_no_shape out_lstm_rand out_random_const"
+START_EP=3
+END_EP=23
 
 for agent in ${AGENTS}; do
 	rm mylist.txt >/dev/null 2>&1; touch mylist.txt
