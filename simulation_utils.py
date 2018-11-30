@@ -126,7 +126,7 @@ class Gymify(Env):
         super(Env).__init__()
 
     def step(self, action):
-        return self._env.step([action])
+        return self._env.step(action)
 
     def reset(self):
         return self._env.reset()
