@@ -178,7 +178,7 @@ class ShapeToRewardMagnitudes(object):
             cur_me_pos = observations[0:30]
             me_delta = cur_me_pos - last_me_pos
 
-            rewards += self.magnitude * (-self.me_imp * me_delta * me_delta + (1 - self.me_imp) * opp_delta * opp_delta)
+            rewards += self.magnitude * (-self.me_imp * np.sum(me_delta * me_delta) + (1 - self.me_imp) * np.sum(opp_delta * opp_delta))
 
         self.last_obs = observations
 
