@@ -123,8 +123,8 @@ def evaluate_agent(attacked_agent, type_in, name, policy_type, env, samples, vis
     agents = [attacked_agent, trained_agent]
     tiecount, wincounts = get_emperical_score(agents, samples, render=visuals, silent=silent)
 
-    print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
-                                                                                 tiecount, wincounts))
+    #print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
+    #                                                                             tiecount, wincounts))
     return tiecount, wincounts
 
 
@@ -169,7 +169,6 @@ if __name__ == "__main__":
     p.add_argument("--nearly_silent", type=bool, default=False)
     configs = p.parse_args()
 
-    print(configs.no_visuals)
     env, policy_type = get_env_and_policy_type("sumo-ants")
     if configs.save_video:
         env = VideoWrapper(env, configs.save_video)
@@ -183,8 +182,11 @@ if __name__ == "__main__":
         attacked_agent = load_agent(ant_paths[0], policy_type, "zoo_ant_policy", env, 0)
 
         if not configs.all:
-            evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
+            ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
                            not configs.no_visuals, silent=configs.nearly_silent)
+
+            print("In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
+
 
         else:
             trained_agents = {"pretrained": {"agent_to_eval": get_trained_sumo_ant_locations()[3],
