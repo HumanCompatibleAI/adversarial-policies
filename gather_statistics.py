@@ -19,11 +19,11 @@ from simulation_utils import simulate
 from main import load_agent, LSTMPolicy, Agent, Gymify, MultiToSingle, CurryEnv
 from main import get_env_and_policy_type, get_trained_sumo_ant_locations, make_session
 
-def get_emperical_score(agents, trials, render=False):
+def get_emperical_score(agents, trials, render=False, silent=False):
     tiecount = 0
     wincount = [0] * len(agents)
     for _ in range(trials):
-        result = new_anounce_winner(simulate(env, agents, render=render))
+        result = new_anounce_winner(simulate(env, agents, render=render), silent=silent)
         if result == -1:
             tiecount += 1
         else:
@@ -33,7 +33,7 @@ def get_emperical_score(agents, trials, render=False):
     return tiecount, wincount
 
 #I copied this over to avoid possible merge conflicts, the other one should be removed T
-def new_anounce_winner(sim_stream):
+def new_anounce_winner(sim_stream, silent=False):
     for _, _, dones, infos in sim_stream:
 
         if dones[0]:
@@ -41,10 +41,12 @@ def new_anounce_winner(sim_stream):
             for i in range(len(infos)):
                 if 'winner' in infos[i]:
                     draw = False
-                    print("Winner: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
+                    if not silent:
+                        print("Winner: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
                     return i
             if draw:
-                print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
+                if not silent:
+                    print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
                 return -1
 
 def get_agent_any_type(type_opps, name, policy_type, env):
@@ -99,10 +101,8 @@ def get_agent_any_type(type_opps, name, policy_type, env):
 
         #TODO DO NOT EVEN READ THE ABOVE CODE :'(
 
-        print("pre-in")
         denv = SubprocVecEnv([functools.partial(make_env, 0)])
 
-        print("in")
         model = ppo2.learn(network="mlp", env=denv,
                    total_timesteps=1,
                    seed=0,
@@ -110,7 +110,6 @@ def get_agent_any_type(type_opps, name, policy_type, env):
                    log_interval=1,
                    save_interval=1)
 
-        print("out")
         stateful_model = StatefulModel(denv, model)
         trained_agent = main.Agent(action_selector=stateful_model.get_action,
                                    reseter=stateful_model.reset)
@@ -118,14 +117,14 @@ def get_agent_any_type(type_opps, name, policy_type, env):
         return trained_agent
 
 
-def evaluate_agent(attacked_agent, type_in, name, policy_type, env, samples, visuals):
+def evaluate_agent(attacked_agent, type_in, name, policy_type, env, samples, visuals, silent=False):
     trained_agent = get_agent_any_type(type_in, name, policy_type, env)
 
     agents = [attacked_agent, trained_agent]
-    tiecount, wincounts = get_emperical_score(agents, samples, render=visuals)
+    tiecount, wincounts = get_emperical_score(agents, samples, render=visuals, silent=silent)
 
-    print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
-                                                                                 tiecount, wincounts))
+    #print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
+    #                                                                             tiecount, wincounts))
     return tiecount, wincounts
 
 
@@ -171,9 +170,9 @@ if __name__ == "__main__":
     p.add_argument("--all", default=False, help="run evaluation on all of the default agents", type=bool)
     p.add_argument("--no_visuals", type=bool)
     p.add_argument("--save-video", type=str, default="")
+    p.add_argument("--nearly_silent", type=bool, default=False)
     configs = p.parse_args()
 
-    print(configs.no_visuals)
     env, policy_type = get_env_and_policy_type("sumo-ants")
     if configs.save_video:
         env = VideoWrapper(env, configs.save_video)
@@ -187,8 +186,11 @@ if __name__ == "__main__":
         attacked_agent = load_agent(ant_paths[0], policy_type, "zoo_ant_policy", env, 0)
 
         if not configs.all:
-            evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
-                           not configs.no_visuals)
+            ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
+                           not configs.no_visuals, silent=configs.nearly_silent)
+
+            print("In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
+
 
         else:
             trained_agents = {"pretrained": {"agent_to_eval": get_trained_sumo_ant_locations()[3],

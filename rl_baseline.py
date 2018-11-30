@@ -172,13 +172,13 @@ class ShapeToRewardMagnitudes(object):
 
             last_opp_pos = self.last_obs[-30:0]
             cur_opp_pos = observations[-30:0]
-            opp_delta = fancy_euclid(cur_opp_pos, last_opp_pos)
+            opp_delta = cur_opp_pos - last_opp_pos
 
-            last_me_pos  = self.last_obs[0:30]
+            last_me_pos = self.last_obs[0:30]
             cur_me_pos = observations[0:30]
-            me_delta = fancy_euclid(cur_me_pos, last_me_pos)
+            me_delta = cur_me_pos - last_me_pos
 
-            rewards += self.magnitude * (-self.me_imp * me_delta * me_delta + (1 - self.me_imp) * opp_delta * opp_delta)
+            rewards += self.magnitude * (-self.me_imp * np.sum(me_delta * me_delta) + (1 - self.me_imp) * np.sum(opp_delta * opp_delta))
 
         self.last_obs = observations
 
