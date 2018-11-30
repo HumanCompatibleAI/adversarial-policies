@@ -140,7 +140,9 @@ class VideoWrapper(Wrapper):
     def _step(self, action):
         obs, rew, done, info = self.env.step(action)
         if all(done):
-            self._reset_video_recorder()
+            winners = [i for i, d in enumerate(info) if 'winner' in d]
+            metadata = {'winners': winners}
+            self._reset_video_recorder(metadata)
         self.video_recorder.capture_frame()
         return obs, rew, done, info
 
@@ -149,8 +151,10 @@ class VideoWrapper(Wrapper):
         self.episode_id += 1
         return self.env.reset()
 
-    def _reset_video_recorder(self):
+    def _reset_video_recorder(self, metadata=None):
         if self.video_recorder:
+            if metadata is not None:
+                self.video_recorder.metadata.update(metadata)
             self.video_recorder.close()
         self.video_recorder = VideoRecorder(
             env=self.env,
