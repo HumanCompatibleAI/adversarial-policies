@@ -189,7 +189,7 @@ if __name__ == "__main__":
             ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
                            not configs.no_visuals, silent=configs.nearly_silent)
 
-            print("In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
+            print("[MAGIC NUMBER 87623123] In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
 
 
         else:
