@@ -87,6 +87,12 @@ def restore_stats(path, venv):
         env_wrapper.ret = np.zeros(env_wrapper.num_envs)
     return env_wrapper
 
+def shape_reward(env, reward_type):
+    if reward_type=="default":
+        return env
+    elif reward_type == "no_shape":
+        env.move_reward_weight = 0
+        return env
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 if __name__ == "__main__":
@@ -99,6 +105,7 @@ if __name__ == "__main__":
     p.add_argument('--network', default='our-lstm')
     p.add_argument('--no-normalize', type=bool)
     p.add_argument('exp_name', type=str)
+    p.add_argument('--reward', type=str, default="default", help="default, no_shape")
     configs = p.parse_args()
 
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
@@ -122,12 +129,15 @@ if __name__ == "__main__":
         sess = main.make_session()
         with sess.as_default():
             multi_env, policy_type = main.get_env_and_policy_type("sumo-ants")
+
+            multi_env = shape_reward(multi_env, configs.reward)
+
             attacked_agent = main.load_agent(ant_paths[1], policy_type,
                                              "zoo_ant_policy_{}".format(id), multi_env, 0)
             single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
             single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
 
-            #TODO: upgrade Gym so don't have to do this
+            #TODO: upgrade Gym so don't have to do thi0s
             single_env.observation_space.dtype = np.dtype(np.float32)
 
             single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))

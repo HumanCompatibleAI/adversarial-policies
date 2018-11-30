@@ -7,6 +7,18 @@ from numpy.random import random
 import datetime
 import pickle
 import time
+import gym
+from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+import main
+from rl_baseline import StatefulModel
+from baselines.ppo2 import ppo2
+from baselines.bench.monitor import Monitor
+import os.path as osp
+import functools
+from random_search import constant_agent_sampler
+from baselines import logger
+
 
 def get_emperical_score(agents, trials, render=False):
     tiecount = 0
@@ -36,14 +48,14 @@ def new_anounce_winner(sim_stream):
                 print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
                 return -1
 
-def get_agent_any_type(type, name, policy_type, env):
-    if type == "zoo":
+def get_agent_any_type(type_opps, name, policy_type, env):
+    if type_opps == "zoo":
         return load_agent(name, policy_type,"zoo_ant_policy_2", env, 1)
-    elif type == "const":
+    elif type_opps == "const":
         trained_agent = constant_agent_sampler()
         trained_agent.load(name)
         return trained_agent
-    elif type =="lstm":
+    elif type_opps == "lstm":
         policy = LSTMPolicy(scope="agent_new", reuse=False,
                             ob_space=env.observation_space.spaces[0],
                             ac_space=env.action_space.spaces[0],
@@ -62,13 +74,62 @@ def get_agent_any_type(type, name, policy_type, env):
             sess.run(tf.assign(var, value))
 
         return trained_agent
+    elif type_opps == "our_mlp":
+        trashbin = "trash/"
+        #TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
+        logger.configure(dir=osp.join(trashbin, 'mon'))
+
+        def make_env(id):
+            # TODO: seed (not currently supported)
+            # TODO: VecNormalize? (typically good for MuJoCo)
+            # TODO: baselines logger?
+            # TODO: we're loading identical policy weights into different
+            # variables, this is to work-around design choice of Agent's
+            # having state stored inside of them.
+            sess = main.make_session()
+            with sess.as_default():
+                multi_env=env
+
+                attacked_agent = constant_agent_sampler(act_dim=8, magnitude = 100)
+
+                single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+                single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+
+                # TODO: upgrade Gym so don't have to do thi0s
+                single_env.observation_space.dtype = np.dtype(np.float32)
 
 
-def evaluate_agent(attacked_agent, type_in, name, policy_type, env, samples):
+                single_env = Monitor(single_env, osp.join(trashbin, 'mon', 'log{}'.format(id)))
+            return single_env
+            # TODO: close session?
+
+
+        #TODO DO NOT EVEN READ THE ABOVE CODE :'(
+
+        print("pre-in")
+        denv = SubprocVecEnv([functools.partial(make_env, 0)])
+
+        print("in")
+        model = ppo2.learn(network="mlp", env=denv,
+                   total_timesteps=1,
+                   seed=0,
+                   nminibatches=4,
+                   log_interval=1,
+                   save_interval=1)
+
+        print("out")
+        stateful_model = StatefulModel(denv, model)
+        trained_agent = main.Agent(action_selector=stateful_model.get_action,
+                                   reseter=stateful_model.reset)
+
+        return trained_agent
+
+
+def evaluate_agent(attacked_agent, type_in, name, policy_type, env, samples, visuals):
     trained_agent = get_agent_any_type(type_in, name, policy_type, env)
 
     agents = [attacked_agent, trained_agent]
-    tiecount, wincounts = get_emperical_score(agents, samples, render=False)
+    tiecount, wincounts = get_emperical_score(agents, samples, render=visuals)
 
     print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
                                                                                  tiecount, wincounts))
@@ -78,10 +139,12 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Collecting Win/Loss/Tie Statistics against ant_pats[1]")
     p.add_argument("--samples", default=0, help="max number of matches during visualization", type=int)
     p.add_argument("--agent_to_eval", default=None, help="True if you should run last best", type=str)
-    p.add_argument("--agent_type", default="zoo", help="Either zoo, const, lstm or matrix", type=str)
+    p.add_argument("--agent_type", default="zoo", help="Either zoo, const, lstm or matrix, our_mlp", type=str)
     p.add_argument("--all", default=False, help="run evaluation on all of the default agents", type=bool)
+    p.add_argument("--no_visuals", type=bool)
     configs = p.parse_args()
 
+    print(configs.no_visuals)
     env, policy_type = get_env_and_policy_type("sumo-ants")
 
     ant_paths = get_trained_sumo_ant_locations()
@@ -90,10 +153,11 @@ if __name__ == "__main__":
     with sess:
 
         #TODO Load Agent should be changed to "load_zoo_agent"
-        attacked_agent = load_agent(ant_paths[1], policy_type, "zoo_ant_policy", env, 0)
+        attacked_agent = load_agent(ant_paths[0], policy_type, "zoo_ant_policy", env, 0)
 
         if not configs.all:
-            evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples)
+            evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
+                           not configs.no_visuals)
 
         else:
             trained_agents = {"pretrained": {"agent_to_eval": get_trained_sumo_ant_locations()[3],
@@ -105,7 +169,8 @@ if __name__ == "__main__":
             results = {}
             for key, value in trained_agents.items():
                 results[key] = evaluate_agent(attacked_agent, value["agent_type"], value["agent_to_eval"], policy_type, env,
-                               configs.samples)
+                               configs.samples,
+                               not configs.no_visuals)
 
             print()
             print()
