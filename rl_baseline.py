@@ -280,3 +280,6 @@ if __name__ == "__main__":
             main.anounce_winner(main.simulate(multi_env, agents, render=True))
             for agent in agents:
                 agent.reset()
+
+    sess.close()
+    venv.close()
