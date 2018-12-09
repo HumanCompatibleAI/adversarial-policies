@@ -12,12 +12,12 @@ from gym.core import Wrapper
 from gym.monitoring.video_recorder import VideoRecorder
 import tensorflow as tf
 
-import main
+import utils
 from random_search import constant_agent_sampler
 from rl_baseline import StatefulModel
 from simulation_utils import simulate
-from main import load_agent, LSTMPolicy, Agent, Gymify, MultiToSingle, CurryEnv
-from main import get_env_and_policy_type, get_trained_sumo_ant_locations, make_session
+from utils import load_agent, LSTMPolicy, Agent, Gymify, MultiToSingle, CurryEnv
+from utils import get_env_and_policy_type, get_trained_sumo_ant_locations, make_session
 
 def get_emperical_score(agents, trials, render=False, silent=False):
     tiecount = 0
@@ -84,7 +84,7 @@ def get_agent_any_type(type_opps, name, policy_type, env):
             # TODO: we're loading identical policy weights into different
             # variables, this is to work-around design choice of Agent's
             # having state stored inside of them.
-            sess = main.make_session()
+            sess = utils.make_session()
             with sess.as_default():
                 multi_env=env
 
@@ -111,8 +111,8 @@ def get_agent_any_type(type_opps, name, policy_type, env):
                    save_interval=1)
 
         stateful_model = StatefulModel(denv, model)
-        trained_agent = main.Agent(action_selector=stateful_model.get_action,
-                                   reseter=stateful_model.reset)
+        trained_agent = utils.Agent(action_selector=stateful_model.get_action,
+                                    reseter=stateful_model.reset)
 
         return trained_agent
 

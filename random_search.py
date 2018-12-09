@@ -1,6 +1,6 @@
 import argparse
 from simulation_utils import *
-from main import *
+from utils import *
 import numpy as np
 from numpy.random import random
 import datetime

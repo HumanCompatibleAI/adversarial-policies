@@ -17,9 +17,10 @@ import gym
 import numpy as np
 import tensorflow as tf
 import numpy.linalg
-
 from simulation_utils import MultiToSingle, CurryEnv, Gymify
-import main, policy
+import utils
+import policy
+
 
 def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
     """Builds MLP for hiddens[:-1] and LSTM for hiddens[-1].
@@ -55,6 +56,7 @@ def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
 
     return network_fn
 
+
 class StatefulModel(policy.Policy):
     def __init__(self, env, model):
         self.nenv = env.num_envs
@@ -69,6 +71,7 @@ class StatefulModel(policy.Policy):
 
     def reset(self):
         self._dones = [True] * self.nenv
+
 
 def save_stats(env_wrapper, path):
     venv = env_wrapper.venv
@@ -88,97 +91,88 @@ def restore_stats(path, venv):
         env_wrapper.ret = np.zeros(env_wrapper.num_envs)
     return env_wrapper
 
-def shape_reward(env, reward_type, me_imp=0.5, dist_imp=0.5, magnitude=1):
-    if reward_type=="default":
-        return env
-    elif reward_type == "no_shape":
-        env.move_reward_weight = 0
-        return env
-    elif reward_type == "custom_shaping":
-        env.move_reward_weight = 0
-        return ShapeToRewardPosition(ShapeToRewardMagnitudes(env, me_imp=me_imp,
-                                                             magnitude=magnitude),
-                                     dist_imp=dist_imp , me_imp=me_imp, magnitude=magnitude)
 
-class ShapeToRewardPosition(object):
-    def __init__(self, env, dist_imp=0.5, me_imp=0.5, magnitude=1):
-        """
-        Take a multi agent environment and fix one of the agents
-        :param env: The multi-agent environment
-        :param agent: The agent to be fixed
-        :param agent_to_fix: The index of the agent that should be fixed
-        :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
-        """
+def get_reward_wrapper(rewards=None):
+    if rewards is None or not rewards:
+        raise(Exception("Gave no reward function for agent.  It has no purpose :( "))
+
+    if "their_win_loss" not in rewards:
+        rewards.append("not_their_win_loss")
+    else:
+        rewards.remove("their_win_loss")
+    return functools.partial(shape_reward, rewards)
+
+
+def shape_reward(rewards=None, env=None):
+    if env is None:
+        raise(Exception("Env was unspecified, other args were:{}".format([rewards])))
+
+    if rewards is None or not rewards:
+        return env
+
+    '''
+        Note that when we are using their rewards we modify then recurse and when we are using ours we recurse and then 
+        modify.  This is because we have to implement their rewards by modifying the environment while we can implement
+        ours with wrappers
+    '''
+
+    reward_type = rewards.pop()
+    if reward_type == "not_their_win_loss":
+        env = env
+
+        return shape_reward(rewards=rewards, env=env)
+    elif reward_type == "their_shape":
+        env.move_reward_weight = 0
+        return shape_reward(rewards=rewards, env=env)
+
+    else:
+        env = shape_reward(rewards=rewards, env=env)
+        args = reward_type.split(";")
+        if len(args) != 4:
+            raise (Exception("Unknown reward type {}".format(reward_type)))
+
+        name = args[0]
+        shape_style = args[1]
+        const = float(args[2])
+        cutoff = args[3]
+
+        shapeing_functions = {
+            "me_mag": me_mag,
+            "opp_mag": opp_mag,
+            "me_pos": me_pos_shape,
+            "you_pos": you_pos_shape,
+        }
+
+        if name not in shapeing_functions:
+            raise (Exception("Unknown reward type {}".format(reward_type)))
+
+        return ShapeingWrapper(env, shapeing_functions[name], shape_style, const, cutoff)
+
+
+class ShapeingWrapper(object):
+
+    def __init__(self, env, shapeing_fun, shape_style, const, cutoff):
         self._env = env
         self.action_space = env.action_space
         self.observation_space = env.observation_space
-        self.dist_imp = dist_imp
-        self.me_imp = me_imp
-        self.magnitude = magnitude
-
-    #TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
-    def step(self, actions):
-        observations, rewards, done, infos = self._env.step(actions)
-
-
-        x_me  = observations[0]
-        y_me = observations[1]
-        z_me = observations[2]
-        square_dist_me = x_me*x_me + y_me*y_me
-        goodness_me = self.dist_imp * square_dist_me + (1-self.dist_imp) * z_me*z_me
-
-
-        x_opp = observations[-29]
-        y_opp = observations[-28]
-        z_opp = observations[-27]
-        square_dist_opp = x_opp*x_opp + y_opp*y_opp
-
-        goodness_opp = self.dist_imp * square_dist_me + (1 - self.dist_imp) * z_me * z_me
-
-        rewards += self.magnitude * (self.me_imp *goodness_me - (1-self.me_imp) * goodness_opp)
-
-        return observations, rewards, done, infos
-
-    def reset(self):
-        observations = self._env.reset()
-        return observations
-
-
-def fancy_euclid(a,b):
-    return numpy.linalg.norm(a-b)
-
-
-class ShapeToRewardMagnitudes(object):
-    def __init__(self, env, me_imp=0.5, magnitude=1):
-        """
-        Take a multi agent environment and fix one of the agents
-        :param env: The multi-agent environment
-        :param agent: The agent to be fixed
-        :param agent_to_fix: The index of the agent that should be fixed
-        :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
-        """
-        self._env = env
-        self.action_space = env.action_space
-        self.observation_space = env.observation_space
+        self.shapeing_fun = shapeing_fun
+        self.const = const
+        self.shape_style = shape_style
         self.last_obs = None
-        self.me_imp = me_imp
-        self.magnitude = magnitude
+        self.cutoff = cutoff
 
-    # TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
     def step(self, actions):
         observations, rewards, done, infos = self._env.step(actions)
 
-        if self.last_obs is not None:
+        delta = self.shapeing_fun(observations, self.last_obs)
+        points = np.linalg.norm(delta, ord=float(self.shape_style))
 
-            last_opp_pos = self.last_obs[-30:0]
-            cur_opp_pos = observations[-30:0]
-            opp_delta = cur_opp_pos - last_opp_pos
-
-            last_me_pos = self.last_obs[0:30]
-            cur_me_pos = observations[0:30]
-            me_delta = cur_me_pos - last_me_pos
-
-            rewards += self.magnitude * (-self.me_imp * np.sum(me_delta * me_delta) + (1 - self.me_imp) * np.sum(opp_delta * opp_delta))
+        if self.cutoff == "smooth":
+            rewards += points * self.const
+        else:
+            cutoff_float = float(self.cutoff)
+            if points > cutoff_float:
+                rewards += self.const
 
         self.last_obs = observations
 
@@ -190,10 +184,131 @@ class ShapeToRewardMagnitudes(object):
         return observations
 
 
+def me_pos_shape(obs, last_obs):
+    x_me = obs[0]
+    y_me = obs[1]
+    z_me = obs[2]
+
+    return [x_me, y_me]
+
+
+def you_pos_shape(obs, last_obs):
+
+        x_opp = obs[-29]
+        y_opp = obs[-28]
+        z_opp = obs[-27]
+
+        return [x_opp, y_opp]
+
+def me_mag(obs, last_obs):
+    if last_obs is not None:
+
+        last_me_pos = last_obs[0:30]
+        cur_me_pos = obs[0:30]
+        me_delta = cur_me_pos - last_me_pos
+
+        return me_delta
+    return [0]
+
+
+def opp_mag(obs, last_obs):
+    if last_obs is not None:
+        last_opp_pos = last_obs[-30:0]
+        cur_opp_pos = obs[-30:0]
+        opp_delta = cur_opp_pos - last_opp_pos
+
+        return opp_delta
+    return [0]
+
+
+def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False):
+    sess = utils.make_session()
+    with sess:
+        ### TRAIN AGENT  ####
+        if network == 'our-lstm':
+            network = mlp_lstm([128, 128], layer_norm=True)
+        # TODO: speed up construction of mlp_lstm?
+        model = ppo2.learn(network=network, env=env,
+                           total_timesteps=total_timesteps,
+                           seed=seed,
+                           nminibatches=min(4, vector),
+                           log_interval=1,
+                           save_interval=1)
+        model.save(osp.join(out_dir, 'model.pkl'))
+        if not no_normalize:
+            save_stats(env, osp.join(out_dir, 'normalize.pkl'))
+
+    sess.close()
+    env.close()
+
+
+def setup_logger(out_dir="results", exp_name="test"):
+    timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
+    out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
+    os.mkdir(out_dir)
+    logger.configure(dir=osp.join(out_dir, 'mon'))
+    return out_dir
+
+
+def get_env(no_normalize = False, out_dir="results", vector=8, reward_wrapper=lambda env: env):
+    ant_paths = utils.get_trained_sumo_ant_locations()
+
+    ### ENV SETUP ###
+    # TODO: upgrade Gym so this monkey-patch isn't needed
+    gym.spaces.Dict = type(None)
+
+    def make_env(id):
+        # TODO: seed (not currently supported)
+        # TODO: VecNormalize? (typically good for MuJoCo)
+        # TODO: baselines logger?
+        # TODO: we're loading identical policy weights into different
+        # variables, this is to work-around design choice of Agent's
+        # having state stored inside of them.
+        sess = utils.make_session()
+        with sess.as_default():
+            multi_env, policy_type = utils.get_env_and_policy_type("sumo-ants")
+
+            attacked_agent = utils.load_agent(ant_paths[1], policy_type,
+                                             "zoo_ant_policy_{}".format(id), multi_env, 0)
+
+            single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+            single_env = reward_wrapper(single_env)
+
+            single_env = Gymify(single_env)
+            single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+
+            # TODO: upgrade Gym so don't have to do thi0s
+            single_env.observation_space.dtype = np.dtype(np.float32)
+
+            single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
+        return single_env
+        # TODO: close session?
+
+    venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
+
+    if not no_normalize:
+        venv = VecNormalize(venv)
+
+    return venv
+
+
+def main(configs):
+
+    out_dir = setup_logger(configs.out_dir, configs.exp_name)
+
+    reward_wrapper = get_reward_wrapper(configs.reward)
+
+    env = get_env(out_dir=out_dir, no_normalize=configs.no_normalize, vector=configs.vector,
+                  reward_wrapper=reward_wrapper)
+
+    train(env, out_dir=out_dir, seed=configs.seed, total_timesteps=configs.total_timesteps, vector=configs.vector,
+          network=configs.network, no_normalize=configs.no_normalize)
+
+
+
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
-    p.add_argument("--max-episodes", default=0, help="max number of matches during visualization", type=int)
+    p = argparse.ArgumentParser(description="Runs RL against fixed opponent")
     p.add_argument('--vector', default=8, help="parallel vector sampling", type=int)
     p.add_argument('--total-timesteps', default=1000000, type=int)
     p.add_argument('--out-dir', default='results', type=str)
@@ -201,85 +316,6 @@ if __name__ == "__main__":
     p.add_argument('--network', default='our-lstm')
     p.add_argument('--no-normalize', type=bool)
     p.add_argument('exp_name', type=str)
-    p.add_argument('--reward', type=str, default="default", help="default, no_shape, custom_shaping")
-    p.add_argument('--me_imp', type=float, default=0.5)
-    p.add_argument('--dist_imp', type=float, default=0.5)
-    p.add_argument('--magnitude', type=float, default=1)
-    configs = p.parse_args()
+    p.add_argument('--reward', action='append', required=True)
 
-    timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
-    out_dir = osp.join(configs.out_dir, '{} {}'.format(timestamp, configs.exp_name))
-    os.mkdir(out_dir)
-    logger.configure(dir=osp.join(out_dir, 'mon'))
-
-    ant_paths = main.get_trained_sumo_ant_locations()
-
-    ### ENV SETUP ###
-    #TODO: upgrade Gym so this monkey-patch isn't needed
-    gym.spaces.Dict = type(None)
-
-    def make_env(id):
-        #TODO: seed (not currently supported)
-        #TODO: VecNormalize? (typically good for MuJoCo)
-        #TODO: baselines logger?
-        #TODO: we're loading identical policy weights into different
-        #variables, this is to work-around design choice of Agent's
-        #having state stored inside of them.
-        sess = main.make_session()
-        with sess.as_default():
-            multi_env, policy_type = main.get_env_and_policy_type("sumo-ants")
-
-            attacked_agent = main.load_agent(ant_paths[1], policy_type,
-                                             "zoo_ant_policy_{}".format(id), multi_env, 0)
-
-
-
-            single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
-            single_env = shape_reward(single_env, configs.reward, configs.me_imp, configs.dist_imp, configs.magnitude)
-
-            single_env = Gymify(single_env)
-            single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
-
-            #TODO: upgrade Gym so don't have to do thi0s
-            single_env.observation_space.dtype = np.dtype(np.float32)
-
-            single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
-        return single_env
-        #TODO: close session?
-    venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(configs.vector)])
-
-    if not configs.no_normalize:
-        venv = VecNormalize(venv)
-
-    sess = main.make_session()
-    with sess:
-        ### TRAIN AGENT  ####
-        network = configs.network
-        if configs.network == 'our-lstm':
-            network = mlp_lstm([128, 128], layer_norm=True)
-        #TODO: speed up construction of mlp_lstm?
-        model = ppo2.learn(network=network, env=venv,
-                           total_timesteps=configs.total_timesteps,
-                           seed=configs.seed,
-                           nminibatches=min(4, configs.vector),
-                           log_interval=1,
-                           save_interval=1)
-        model.save(osp.join(out_dir, 'model.pkl'))
-        if not configs.no_normalize:
-            save_stats(venv, osp.join(out_dir, 'normalize.pkl'))
-
-        ### This just runs a visualization of the results and anounces wins.  Will crash if you can't render
-        multi_env, policy_type = main.get_env_and_policy_type("sumo-ants")
-        attacked_agent = main.load_agent(ant_paths[1], policy_type,
-                                         "zoo_ant_policy_test", multi_env, 0)
-        stateful_model = StatefulModel(venv, model)
-        trained_agent = main.Agent(action_selector=stateful_model.get_action,
-                                   reseter=stateful_model.reset)
-        agents = [attacked_agent, trained_agent]
-        for _ in range(configs.max_episodes):
-            main.anounce_winner(main.simulate(multi_env, agents, render=True))
-            for agent in agents:
-                agent.reset()
-
-    sess.close()
-    venv.close()
+    main(p.parse_args())
