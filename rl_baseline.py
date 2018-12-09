@@ -213,8 +213,8 @@ def me_mag(obs, last_obs):
 
 def opp_mag(obs, last_obs):
     if last_obs is not None:
-        last_opp_pos = last_obs[-30:0]
-        cur_opp_pos = obs[-30:0]
+        last_opp_pos = last_obs[-30:]
+        cur_opp_pos = obs[-30:]
         opp_delta = cur_opp_pos - last_opp_pos
 
         return opp_delta
@@ -238,8 +238,8 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
         if not no_normalize:
             save_stats(env, osp.join(out_dir, 'normalize.pkl'))
 
-    sess.close()
     env.close()
+    sess.close()
 
 
 def setup_logger(out_dir="results", exp_name="test"):
