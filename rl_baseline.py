@@ -127,7 +127,7 @@ def shape_reward(rewards=None, env=None):
 
     else:
         env = shape_reward(rewards=rewards, env=env)
-        args = reward_type.split(";")
+        args = reward_type.split("~")
         if len(args) != 4:
             raise (Exception("Unknown reward type {}".format(reward_type)))
 
