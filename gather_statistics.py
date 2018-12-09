@@ -183,7 +183,7 @@ if __name__ == "__main__":
     with sess:
 
         #TODO Load Agent should be changed to "load_zoo_agent"
-        attacked_agent = load_agent(ant_paths[0], policy_type, "zoo_ant_policy", env, 0)
+        attacked_agent = load_agent(ant_paths[1], policy_type, "zoo_ant_policy", env, 0)
 
         if not configs.all:
             ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
