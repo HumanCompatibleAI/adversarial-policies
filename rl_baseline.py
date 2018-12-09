@@ -138,7 +138,9 @@ def shape_reward(rewards=None, env=None):
 
         shapeing_functions = {
             "me_mag": me_mag,
+            "me_pos_mag": me_pos_mag,
             "opp_mag": opp_mag,
+            "opp_pos_mag": opp_pos_mag,
             "me_pos": me_pos_shape,
             "you_pos": you_pos_shape,
         }
@@ -200,6 +202,17 @@ def you_pos_shape(obs, last_obs):
 
         return [x_opp, y_opp]
 
+def me_pos_mag(obs, last_obs):
+    if last_obs is not None:
+
+        last_me_pos = last_obs[0:3]
+        cur_me_pos = obs[0:3]
+        me_delta = cur_me_pos - last_me_pos
+
+        #multiply by 2 to get units in body diameter
+        return me_delta * 2
+    return [0]
+
 def me_mag(obs, last_obs):
     if last_obs is not None:
 
@@ -208,6 +221,16 @@ def me_mag(obs, last_obs):
         me_delta = cur_me_pos - last_me_pos
 
         return me_delta
+    return [0]
+
+def opp_pos_mag(obs, last_obs):
+    if last_obs is not None:
+        last_opp_pos = last_obs[-3:]
+        cur_opp_pos = obs[-3:]
+        opp_delta = cur_opp_pos - last_opp_pos
+
+        # multiply by 2 to get units in body diameter
+        return opp_delta * 2
     return [0]
 
 
