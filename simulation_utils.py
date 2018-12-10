@@ -112,6 +112,27 @@ class MultiToSingle():
     def reset(self):
         return self._env.reset()[0]
 
+class HackyFixForGoalie():
+    def __init__(self, env):
+        """
+        Converts a multi-agent environment with one agent(actions as lists) to
+        a single agent environment(actions without lists)
+        :param env: a multi agent environment with one agent
+        :return: a single agent environment
+        """
+        self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+
+    def step(self, action):
+        observations, rewards, dones, infos = self._env.step(action)
+        if dones is not True and dones is not False:
+            dones = dones[0]
+        return observations, rewards, dones, infos
+
+    def reset(self):
+        return self._env.reset()[0]
+
 class Gymify(Env):
     def __init__(self, env):
         """

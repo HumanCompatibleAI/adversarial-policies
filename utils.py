@@ -142,6 +142,20 @@ def get_trained_sumo_ant_locations():
             policy_loc + "agent_parameters-v4.pkl"]
 
 
+def get_trained_kicker_locations():
+    policy_loc = "agent-zoo/kick-and-defend/kicker/"
+    return [policy_loc + "agent1_parameters-v1.pkl",
+            policy_loc + "agent1_parameters-v2.pkl",
+            policy_loc + "agent1_parameters-v3.pkl"]
+
+
+def get_trained_agent(env):
+    if env == "sumo-ants":
+        return get_trained_sumo_ant_locations()[1]
+    elif env == "kick-and-defend":
+        return get_trained_kicker_locations()[1]
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Environments for Multi-agent competition")
     p.add_argument("--env", default="sumo-humans", type=str,

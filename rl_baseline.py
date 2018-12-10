@@ -17,7 +17,7 @@ import gym
 import numpy as np
 import tensorflow as tf
 import numpy.linalg
-from simulation_utils import MultiToSingle, CurryEnv, Gymify
+from simulation_utils import MultiToSingle, CurryEnv, Gymify, HackyFixForGoalie
 import utils
 import policy
 
@@ -143,6 +143,8 @@ def shape_reward(rewards=None, env=None):
             "opp_pos_mag": opp_pos_mag,
             "me_pos": me_pos_shape,
             "you_pos": you_pos_shape,
+            "opp_goalie_pos_mag": opp_goalie_pos_mag,
+            "opp_goalie_mag": opp_goalie_mag
         }
 
         if name not in shapeing_functions:
@@ -213,6 +215,17 @@ def me_pos_mag(obs, last_obs):
         return me_delta * 2
     return [0]
 
+def me_pos_mag(obs, last_obs):
+    if last_obs is not None:
+
+        last_me_pos = last_obs[0:3]
+        cur_me_pos = obs[0:3]
+        me_delta = cur_me_pos - last_me_pos
+
+        #multiply by 2 to get units in body diameter
+        return me_delta * 2
+    return [0]
+
 def me_mag(obs, last_obs):
     if last_obs is not None:
 
@@ -223,6 +236,7 @@ def me_mag(obs, last_obs):
         return me_delta
     return [0]
 
+#TODO THis probably isnt right?  Shoud be -30:-27?
 def opp_pos_mag(obs, last_obs):
     if last_obs is not None:
         last_opp_pos = last_obs[-3:]
@@ -238,6 +252,24 @@ def opp_mag(obs, last_obs):
     if last_obs is not None:
         last_opp_pos = last_obs[-30:]
         cur_opp_pos = obs[-30:]
+        opp_delta = cur_opp_pos - last_opp_pos
+
+        return opp_delta
+    return [0]
+
+def opp_goalie_mag(obs, last_obs):
+    if last_obs is not None:
+        last_opp_pos = last_obs[-24:]
+        cur_opp_pos = obs[-24:]
+        opp_delta = cur_opp_pos - last_opp_pos
+
+        return opp_delta
+    return [0]
+
+def opp_goalie_pos_mag(obs, last_obs):
+    if last_obs is not None:
+        last_opp_pos = last_obs[-24:-22]
+        cur_opp_pos = obs[-24:-22]
         opp_delta = cur_opp_pos - last_opp_pos
 
         return opp_delta
@@ -273,8 +305,8 @@ def setup_logger(out_dir="results", exp_name="test"):
     return out_dir
 
 
-def get_env(no_normalize = False, out_dir="results", vector=8, reward_wrapper=lambda env: env):
-    ant_paths = utils.get_trained_sumo_ant_locations()
+def get_env(env_name, no_normalize = False, out_dir="results", vector=8, reward_wrapper=lambda env: env):
+    trained_agent = utils.get_trained_agent(env_name)
 
     ### ENV SETUP ###
     # TODO: upgrade Gym so this monkey-patch isn't needed
@@ -289,12 +321,14 @@ def get_env(no_normalize = False, out_dir="results", vector=8, reward_wrapper=la
         # having state stored inside of them.
         sess = utils.make_session()
         with sess.as_default():
-            multi_env, policy_type = utils.get_env_and_policy_type("sumo-ants")
+            multi_env, policy_type = utils.get_env_and_policy_type(env_name)
 
-            attacked_agent = utils.load_agent(ant_paths[1], policy_type,
-                                             "zoo_ant_policy_{}".format(id), multi_env, 0)
+            attacked_agent = utils.load_agent(trained_agent, policy_type,
+                                             "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
 
             single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+            if env_name == 'kick-and-defend':
+                single_env = HackyFixForGoalie(single_env)
             single_env = reward_wrapper(single_env)
 
             single_env = Gymify(single_env)
@@ -317,11 +351,15 @@ def get_env(no_normalize = False, out_dir="results", vector=8, reward_wrapper=la
 
 def main(configs):
 
+    #TODO some bug with vectorizing goalie
+    if configs.env=='kick-and-defend':
+        configs.vector=1
+
     out_dir = setup_logger(configs.out_dir, configs.exp_name)
 
     reward_wrapper = get_reward_wrapper(configs.reward)
 
-    env = get_env(out_dir=out_dir, no_normalize=configs.no_normalize, vector=configs.vector,
+    env = get_env(env_name=configs.env, out_dir=out_dir, no_normalize=configs.no_normalize, vector=configs.vector,
                   reward_wrapper=reward_wrapper)
 
     train(env, out_dir=out_dir, seed=configs.seed, total_timesteps=configs.total_timesteps, vector=configs.vector,
@@ -332,6 +370,7 @@ def main(configs):
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Runs RL against fixed opponent")
+    p.add_argument("--env", default="sumo-ants", type=str)
     p.add_argument('--vector', default=8, help="parallel vector sampling", type=int)
     p.add_argument('--total-timesteps', default=1000000, type=int)
     p.add_argument('--out-dir', default='results', type=str)
