@@ -179,22 +179,32 @@ if __name__ == "__main__":
     if configs.save_video:
         env = VideoWrapper(env, configs.save_video)
 
-    trained_agent = utils.get_trained_agent(configs.env)
+    pretrained_agent = utils.get_trained_agent(configs.env)
 
     sess = make_session()
     with sess:
 
         #TODO Load Agent should be changed to "load_zoo_agent"
-        attacked_agent = load_agent(trained_agent, policy_type, "zoo_ant_policy", env, 0)
+
 
         if not configs.all:
-            ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env, configs.samples,
-                           not configs.no_visuals, silent=configs.nearly_silent)
+            #ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env,configs.samples,
+             #              not configs.no_visuals, silent=configs.nearly_silent)
+
+            trained_agent = get_agent_any_type(configs.agent_type, configs.agent_to_eval, policy_type, env)
+            attacked_agent = load_agent(pretrained_agent, policy_type, "zoo_ant_policy", env, 0)
+
+            agents = [attacked_agent, trained_agent]
+            ties, win_loss = get_emperical_score(env, agents, configs.samples, render=not configs.no_visuals, silent=configs.nearly_silent)
+
+            # print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
+
 
             print("[MAGIC NUMBER 87623123] In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
 
 
         else:
+            attacked_agent = load_agent(pretrained_agent, policy_type, "zoo_ant_policy", env, 0)
             trained_agents = {"pretrained": {"agent_to_eval": get_trained_sumo_ant_locations()[3],
                                              "agent_type": "zoo"},
                               "random_const": {"agent_to_eval": "out_random_const.pkl",
