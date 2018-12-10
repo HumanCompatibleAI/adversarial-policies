@@ -72,8 +72,10 @@ class DiagonalGaussian(object):
 
 
 class MlpPolicyValue(Policy):
-    def __init__(self, scope, *, ob_space, ac_space, hiddens, convs=[], reuse=False, normalize=False):
-        self.sess = tf.get_default_session()
+    def __init__(self, scope, *, ob_space, ac_space, hiddens, convs=[], reuse=False, normalize=False, sess=None):
+        if sess is None:
+            sess = tf.get_default_session()
+        self.sess = sess
         self.recurrent = False
         self.normalized = normalize
         self.zero_state = np.zeros(1)
@@ -134,8 +136,10 @@ class MlpPolicyValue(Policy):
 
 
 class LSTMPolicy(Policy):
-    def __init__(self, scope, *, ob_space, ac_space, hiddens, reuse=False, normalize=False):
-        self.sess = tf.get_default_session()
+    def __init__(self, scope, *, ob_space, ac_space, hiddens, reuse=False, normalize=False, sess=None):
+        if sess is None:
+            sess = tf.get_default_session()
+        self.sess = sess
         self.recurrent = True
         self.normalized = normalize
         with tf.variable_scope(scope, reuse=reuse):

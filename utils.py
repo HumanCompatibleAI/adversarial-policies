@@ -9,6 +9,42 @@ import tensorflow as tf
 import numpy as np
 from simulation_utils import *
 
+#TODO this is a hack to get around ppo anialating all other variables in its path in the soccer env :(
+class DelayedLoadEnv():
+    def __init__(self, env, file, policy_type, scope, index, sess):
+        """
+        """
+        self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+
+        self.first = True
+
+        self._file = file
+        self._policy_type = policy_type
+        self._scope = scope
+        self._index = index
+        self._sess = sess
+
+    def step(self, action):
+        if self.first:
+            self.finish_load()
+        return self._env.step(action)
+
+    def reset(self):
+        return self._env.reset()
+
+    def finish_load(self):
+        agent = load_agent(self._file, self._policy_type, self._scope, self._env, self._index, sess=self._sess)
+        self._env = CurryEnv(self._env, agent)
+        self.first = False
+        self._env.reset()
+
+    def render(self):
+        if self.first:
+            self._env.render()
+        else:
+            self._env._env.render()
 
 def load_from_file(param_pkl_path):
     with open(param_pkl_path, 'rb') as f:
@@ -16,7 +52,7 @@ def load_from_file(param_pkl_path):
     return params
 
 
-def set_from_flat(var_list, flat_params):
+def set_from_flat(var_list, flat_params, sess = None):
     shapes = list(map(lambda x: x.get_shape().as_list(), var_list))
     total_size = np.sum([int(np.prod(shape)) for shape in shapes])
     theta = tf.placeholder(tf.float32, [total_size])
@@ -27,21 +63,23 @@ def set_from_flat(var_list, flat_params):
         assigns.append(tf.assign(v, tf.reshape(theta[start:start + size], shape)))
         start += size
     op = tf.group(*assigns)
-    tf.get_default_session().run(op, {theta: flat_params})
+    if sess is None:
+        sess= tf.get_default_session()
+    sess.run(op, {theta: flat_params})
 
 
-def load_policy(file, policy_type, scope, env, index):
+def load_policy(file, policy_type, scope, env, index, sess=None):
     if policy_type == "lstm":
         policy = LSTMPolicy(scope=scope, reuse=False,
                             ob_space=env.observation_space.spaces[index],
                             ac_space=env.action_space.spaces[index],
-                            hiddens=[128, 128], normalize=True)
+                            hiddens=[128, 128], normalize=True, sess=sess)
     else:
         policy = MlpPolicyValue(scope=scope, reuse=False,
                                 ob_space=env.observation_space.spaces[index],
                                 ac_space=env.action_space.spaces[index],
-                                hiddens=[64, 64], normalize=True)
-    set_from_flat(policy.get_variables(), load_from_file(param_pkl_path=file))
+                                hiddens=[64, 64], normalize=True, sess=sess)
+    set_from_flat(policy.get_variables(), load_from_file(param_pkl_path=file), sess=sess)
     return policy
 
 
@@ -99,8 +137,8 @@ class Agent(object):
 
 
 
-def load_agent(file, policy_type, scope, env, index):
-    policy = load_policy(file, policy_type, scope, env, index)
+def load_agent(file, policy_type, scope, env, index, sess = None):
+    policy = load_policy(file, policy_type, scope, env, index, sess=sess)
 
     def get_action(observation):
         return policy.act(stochastic=True, observation=observation)[0]

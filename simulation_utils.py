@@ -115,10 +115,6 @@ class MultiToSingle():
 class HackyFixForGoalie():
     def __init__(self, env):
         """
-        Converts a multi-agent environment with one agent(actions as lists) to
-        a single agent environment(actions without lists)
-        :param env: a multi agent environment with one agent
-        :return: a single agent environment
         """
         self._env = env
         self.action_space = env.action_space
@@ -132,6 +128,8 @@ class HackyFixForGoalie():
 
     def reset(self):
         return self._env.reset()[0]
+
+
 
 class Gymify(Env):
     def __init__(self, env):
