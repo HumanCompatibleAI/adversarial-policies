@@ -118,7 +118,7 @@ def get_reward_wrapper(rewards=None):
 
     if "their_win_loss" in rewards and "their_shape" in rewards:
         raise(Exception("specify either win/loss or shaped (which includes win/loss)"))
-    elif "their_win_loss" not in rewards and "their_shape" not in rewards:
+    elif "their_win_loss" not in rewards and "their_shaped" not in rewards:
         rewards.append("not_their_win_loss")
     elif "their_shaped" in rewards:
         rewards.remove("their_shaped")
