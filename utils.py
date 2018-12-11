@@ -47,7 +47,8 @@ class DelayedLoadEnv():
             self._env._env.render()
 
     def set_shape_weight(self, n):
-        self._env.move_reward_weight = 0
+        return self._env.set_shape_weight(n)
+
 
 def load_from_file(param_pkl_path):
     with open(param_pkl_path, 'rb') as f:

@@ -155,7 +155,6 @@ class Gymify(Env):
 
     def step(self, action):
         observations, rewards, dones, infos = self._env.step(action)
-        print(rewards)
         return observations, rewards, dones, infos
 
     def reset(self):

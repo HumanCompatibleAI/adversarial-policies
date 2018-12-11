@@ -303,6 +303,28 @@ def opp_goalie_pos_mag(obs, last_obs):
     return [0]
 
 
+#TODO this is a hack to get around the wrappers and still be able to change the shape weight of the origonal env
+class ShapeWeightHack(object):
+    def __init__(self, env):
+        """
+        """
+        self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+
+    def step(self, action):
+        return self._env.step(action)
+
+    def reset(self):
+        return self._env.reset()
+
+    def render(self):
+        self._env.render()
+
+    def set_shape_weight(self, n):
+        self._env.move_reward_weight = 0
+
+
 def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False, nsteps=2048):
     sess = utils.make_session()
     with sess:
@@ -350,7 +372,7 @@ def get_env(env_name, no_normalize = False, out_dir="results", vector=8, reward_
         sess = utils.make_session()
         with sess.as_default():
             multi_env, policy_type = utils.get_env_and_policy_type(env_name)
-
+            multi_env=ShapeWeightHack(multi_env)
             if env_name == 'kick-and-defend':
                 #attacked_agent = utils.load_agent(trained_agent, policy_type,
                 #                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
