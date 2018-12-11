@@ -192,7 +192,7 @@ if __name__ == "__main__":
              #              not configs.no_visuals, silent=configs.nearly_silent)
 
             trained_agent = get_agent_any_type(configs.agent_type, configs.agent_to_eval, policy_type, env)
-            attacked_agent = load_agent(pretrained_agent, policy_type, "zoo_ant_policy", env, 0)
+            attacked_agent = load_agent(pretrained_agent, policy_type, "zoo_ant_policy4", env, 0)
 
             agents = [attacked_agent, trained_agent]
             ties, win_loss = get_emperical_score(env, agents, configs.samples, render=not configs.no_visuals, silent=configs.nearly_silent)

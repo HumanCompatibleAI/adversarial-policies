@@ -277,7 +277,7 @@ def opp_goalie_pos_mag(obs, last_obs):
     return [0]
 
 
-def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False):
+def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False, nsteps=2048):
     sess = utils.make_session()
     with sess:
         ### TRAIN AGENT  ####
@@ -286,6 +286,7 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
         # TODO: speed up construction of mlp_lstm?
         model = ppo2.learn(network=network, env=env,
                            total_timesteps=total_timesteps,
+                           nsteps= nsteps,
                            seed=seed,
                            nminibatches=min(4, vector),
                            log_interval=1,
@@ -370,7 +371,7 @@ def main(configs):
                   reward_wrapper=reward_wrapper)
 
     train(env, out_dir=out_dir, seed=configs.seed, total_timesteps=configs.total_timesteps, vector=configs.vector,
-          network=configs.network, no_normalize=configs.no_normalize)
+          network=configs.network, no_normalize=configs.no_normalize, nsteps=configs.nsteps)
 
 
 
@@ -382,6 +383,7 @@ if __name__ == "__main__":
     p.add_argument('--total-timesteps', default=1000000, type=int)
     p.add_argument('--out-dir', default='results', type=str)
     p.add_argument('--seed', default=0, type=int)
+    p.add_argument('--nsteps', default=2048, type=int)
     p.add_argument('--network', default='our-lstm')
     p.add_argument('--no-normalize', type=bool)
     p.add_argument('exp_name', type=str)
