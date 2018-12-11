@@ -92,6 +92,9 @@ class FiniteHorizonEnv(object):
     def reset(self):
         return self._env.reset()
 
+    def set_shape_weight(self, n):
+        return self._env.set_shape_weight(n)
+
 
 class MultiToSingle():
     def __init__(self, env):
@@ -112,6 +115,9 @@ class MultiToSingle():
     def reset(self):
         return self._env.reset()[0]
 
+    def set_shape_weight(self, n):
+        return self._env.set_shape_weight(n)
+
 class HackyFixForGoalie():
     def __init__(self, env):
         """
@@ -129,6 +135,9 @@ class HackyFixForGoalie():
     def reset(self):
         return self._env.reset()[0]
 
+    def set_shape_weight(self, n):
+        return self._env.set_shape_weight(n)
+
 
 
 class Gymify(Env):
@@ -145,11 +154,15 @@ class Gymify(Env):
         super(Env).__init__()
 
     def step(self, action):
-        return self._env.step(action)
+        observations, rewards, dones, infos = self._env.step(action)
+        print(rewards)
+        return observations, rewards, dones, infos
 
     def reset(self):
         return self._env.reset()
 
+    def set_shape_weight(self, n):
+        return self._env.set_shape_weight(n)
 
 
 class CurryEnv(object):
@@ -194,3 +207,6 @@ class CurryEnv(object):
         self._last_obs = observations.pop(self._agent_to_fix)
 
         return observations
+
+    def set_shape_weight(self, n):
+        return self._env.set_shape_weight(n)

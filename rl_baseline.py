@@ -93,14 +93,39 @@ def restore_stats(path, venv):
     return env_wrapper
 
 
+class NoRewardEnvWrapper(object):
+
+    def __init__(self, env):
+        self._env = env
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+
+
+    def step(self, actions):
+        observations, _, done, infos = self._env.step(actions)
+        return observations, 0, done, infos
+
+    def reset(self):
+        return self._env.reset()
+
+    def set_shape_weight(self, n):
+        return self._env.set_shape_weight(n)
+
+
 def get_reward_wrapper(rewards=None):
     if rewards is None or not rewards:
         raise(Exception("Gave no reward function for agent.  It has no purpose :( "))
 
-    if "their_win_loss" not in rewards:
+    if "their_win_loss" in rewards and "their_shape" in rewards:
+        raise(Exception("specify either win/loss or shaped (which includes win/loss)"))
+    elif "their_win_loss" not in rewards and "their_shape" not in rewards:
         rewards.append("not_their_win_loss")
+    elif "their_shape" in rewards:
+        rewards.remove("their_shape")
     else:
+        rewards.append("not_their_shape")
         rewards.remove("their_win_loss")
+
     return functools.partial(shape_reward, rewards)
 
 
@@ -119,11 +144,12 @@ def shape_reward(rewards=None, env=None):
 
     reward_type = rewards.pop()
     if reward_type == "not_their_win_loss":
-        env = env
+        env = NoRewardEnvWrapper(env)
 
         return shape_reward(rewards=rewards, env=env)
-    elif reward_type == "their_shape":
-        env.move_reward_weight = 0
+    elif reward_type == "not_their_shape":
+        #Note that for this to work, this has to be the last reward_type in the list... (which it is by construction...)
+        env.set_shape_weight(0)
         return shape_reward(rewards=rewards, env=env)
 
     else:

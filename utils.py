@@ -46,6 +46,9 @@ class DelayedLoadEnv():
         else:
             self._env._env.render()
 
+    def set_shape_weight(self, n):
+        self._env.move_reward_weight = 0
+
 def load_from_file(param_pkl_path):
     with open(param_pkl_path, 'rb') as f:
         params = pickle.load(f)
