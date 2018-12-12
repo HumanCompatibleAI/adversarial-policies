@@ -373,17 +373,14 @@ def get_env(env_name, no_normalize = False, out_dir="results", vector=8, reward_
         with sess.as_default():
             multi_env, policy_type = utils.get_env_and_policy_type(env_name)
             multi_env=ShapeWeightHack(multi_env)
+            single_env = MultiToSingle(DelayedLoadEnv(multi_env, trained_agent, policy_type,
+                                                      "zoo_{}_policy_{}".format(env_name, id), 0, sess))
             if env_name == 'kick-and-defend':
                 #attacked_agent = utils.load_agent(trained_agent, policy_type,
                 #                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
                 #single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
-                single_env = MultiToSingle(DelayedLoadEnv(multi_env, trained_agent, policy_type,
-                                                          "zoo_{}_policy_{}".format(env_name, id), 0, sess))
+
                 single_env = HackyFixForGoalie(single_env)
-            else:
-                attacked_agent = utils.load_agent(trained_agent, policy_type,
-                                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
-                single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
 
             single_env = reward_wrapper(single_env)
 
