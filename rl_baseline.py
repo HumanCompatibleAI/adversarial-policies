@@ -171,7 +171,8 @@ def shape_reward(rewards=None, env=None):
             "me_pos": me_pos_shape,
             "you_pos": you_pos_shape,
             "opp_goalie_pos_mag": opp_goalie_pos_mag,
-            "opp_goalie_mag": opp_goalie_mag
+            "opp_goalie_mag": opp_goalie_mag,
+            "opp_mag_human_sumo": opp_mag_human_sumo
         }
 
         if name not in shapeing_functions:
@@ -279,6 +280,15 @@ def opp_mag(obs, last_obs):
     if last_obs is not None:
         last_opp_pos = last_obs[-30:]
         cur_opp_pos = obs[-30:]
+        opp_delta = cur_opp_pos - last_opp_pos
+
+        return opp_delta
+    return [0]
+
+def opp_mag_human_sumo(obs, last_obs):
+    if last_obs is not None:
+        last_opp_pos = last_obs[-35:]
+        cur_opp_pos = obs[-35:]
         opp_delta = cur_opp_pos - last_opp_pos
 
         return opp_delta

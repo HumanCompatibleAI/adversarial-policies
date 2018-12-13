@@ -190,12 +190,21 @@ def get_trained_kicker_locations():
             policy_loc + "agent1_parameters-v2.pkl",
             policy_loc + "agent1_parameters-v3.pkl"]
 
+def get_trained_sumo_human_locations():
+    policy_loc = "agent-zoo/sumo/humans/"
+    return [policy_loc + "agent_parameters-v1.pkl",
+            policy_loc + "agent_parameters-v2.pkl",
+            policy_loc + "agen0t_parameters-v3.pkl"]
+
 
 def get_trained_agent(env):
     if env == "sumo-ants":
         return get_trained_sumo_ant_locations()[1]
     elif env == "kick-and-defend":
         return get_trained_kicker_locations()[1]
+    elif env == "sumo-humans":
+        return get_trained_sumo_human_locations()[1]
+    raise Exception("Unsuported environment")
 
 
 if __name__ == "__main__":
