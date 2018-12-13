@@ -174,6 +174,7 @@ if __name__ == "__main__":
     p.add_argument("--no_visuals", type=bool)
     p.add_argument("--save-video", type=str, default="")
     p.add_argument("--nearly_silent", type=bool, default=False)
+    p.add_argument("--csvmode", type=bool, default=False)
     configs = p.parse_args()
 
     env, policy_type = get_env_and_policy_type(configs.env)
@@ -200,8 +201,10 @@ if __name__ == "__main__":
 
             # print("After {} trials the tiecount was {} and the wincounts were {}".format(samples,
 
-
-            print("[MAGIC NUMBER 87623123] In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
+            if not configs.csvmode:
+                print("[MAGIC NUMBER 87623123] In {} trials {} acheived {} Ties and winrates {}".format(configs.samples, configs.agent_to_eval, ties, win_loss))
+            else:
+                print("[MAGIC NUMBER 87623123] Name/Samples/Tie/Victim_Win/Victim_Loss, {}, {}, {}, {} , {}".format(configs.agent_to_eval, configs.samples, ties, win_loss[0], win_loss[1]))
 
 
         else:
