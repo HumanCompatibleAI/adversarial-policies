@@ -108,7 +108,8 @@ def get_agent_any_type(type_opps, name, policy_type, env):
                    seed=0,
                    nminibatches=4,
                    log_interval=1,
-                   save_interval=1)
+                   save_interval=1,
+                   load_path=name)
 
         stateful_model = StatefulModel(denv, model)
         trained_agent = utils.Agent(action_selector=stateful_model.get_action,
