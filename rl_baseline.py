@@ -325,7 +325,7 @@ class ShapeWeightHack(object):
         self._env.move_reward_weight = 0
 
 
-def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False, nsteps=2048):
+def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False, nsteps=2048, load_path=None):
     sess = utils.make_session()
     with sess:
         ### TRAIN AGENT  ####
@@ -338,7 +338,8 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
                            seed=seed,
                            nminibatches=min(4, vector),
                            log_interval=1,
-                           save_interval=1)
+                           save_interval=1,
+                           load_path=load_path)
         model.save(osp.join(out_dir, 'model.pkl'))
         if not no_normalize:
             save_stats(env, osp.join(out_dir, 'normalize.pkl'))
@@ -416,7 +417,7 @@ def main(configs):
                   reward_wrapper=reward_wrapper)
 
     train(env, out_dir=out_dir, seed=configs.seed, total_timesteps=configs.total_timesteps, vector=configs.vector,
-          network=configs.network, no_normalize=configs.no_normalize, nsteps=configs.nsteps)
+          network=configs.network, no_normalize=configs.no_normalize, nsteps=configs.nsteps, load_path=configs.load_path)
 
 
 
@@ -427,6 +428,7 @@ if __name__ == "__main__":
     p.add_argument('--vector', default=8, help="parallel vector sampling", type=int)
     p.add_argument('--total-timesteps', default=1000000, type=int)
     p.add_argument('--out-dir', default='results', type=str)
+    p.add_argument('--load_path', default=None, type=str)
     p.add_argument('--seed', default=0, type=int)
     p.add_argument('--nsteps', default=2048, type=int)
     p.add_argument('--network', default='our-lstm')
