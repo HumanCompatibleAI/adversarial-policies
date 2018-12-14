@@ -1,0 +1,7 @@
+font.serif : Times New Roman
+font.family  : serif
+# Workaround a bug with Unicode minus signs not appearing
+# (as of 2.2.2 with Times New Roman font).
+axes.unicode_minus : False
+font.size : 10
+legend.fontsize : 10
