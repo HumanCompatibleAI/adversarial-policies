@@ -163,6 +163,31 @@ class VideoWrapper(Wrapper):
             metadata={'episode_id': self.episode_id},
         )
 
+def constant_zero_agent(act_dim=8):
+    constant_action = np.zeros((act_dim,))
+
+
+    class Temp():
+
+        def __init__(self, constants):
+            self.constants = constants
+
+        def get_action(self, observation):
+
+            return self.constants
+
+        def reset(self):
+            pass
+
+        def save(self, filename):
+            with open(filename, "wb") as file:
+                pickle.dump(self.constants, file, pickle.HIGHEST_PROTOCOL)
+
+        def load(self, filename):
+            with open(filename, "rb") as file:
+                self.constants = pickle.load(file)
+
+    return Temp(constant_action)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Collecting Win/Loss/Tie Statistics against ant_pats[1]")
@@ -175,6 +200,8 @@ if __name__ == "__main__":
     p.add_argument("--save-video", type=str, default="")
     p.add_argument("--nearly_silent", type=bool, default=False)
     p.add_argument("--csvmode", type=bool, default=False)
+    p.add_argument("--random_const", type=bool, default=False)
+    p.add_argument("--zero_const", type=bool, default=False)
     configs = p.parse_args()
 
     env, policy_type = get_env_and_policy_type(configs.env)
@@ -192,8 +219,17 @@ if __name__ == "__main__":
         if not configs.all:
             #ties, win_loss = evaluate_agent(attacked_agent, configs.agent_type, configs.agent_to_eval, policy_type, env,configs.samples,
              #              not configs.no_visuals, silent=configs.nearly_silent)
-
-            trained_agent = get_agent_any_type(configs.agent_type, configs.agent_to_eval, policy_type, env)
+            if configs.zero_const:
+                if configs.env == "sumo-ants":
+                    trained_agent = constant_zero_agent(act_dim=8)
+                elif configs.env == "kick-and-defend":
+                    trained_agent = constant_zero_agent(act_dim=17)
+                else:
+                    raise(Exception("Unsupported Env"))
+            elif configs.random_const:
+                trained_agent = constant_agent_sampler(act_dim=17)
+            else:
+                trained_agent = get_agent_any_type(configs.agent_type, configs.agent_to_eval, policy_type, env)
             attacked_agent = load_agent(pretrained_agent, policy_type, "zoo_ant_policy4", env, 0)
 
             agents = [attacked_agent, trained_agent]
