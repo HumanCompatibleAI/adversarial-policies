@@ -5,7 +5,11 @@ MUJOCO_LOG.TXT
 *.pkl
 venv/
 
+figs/
 logs/
 videos/
 stats/
 results/
+data/
+final_results/
+*.ipynb_checkpoints/
