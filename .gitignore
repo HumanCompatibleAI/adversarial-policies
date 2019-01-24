@@ -1,6 +1,9 @@
 # Data files
 logs/
 data/
+videos/
+stats/
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -95,3 +98,9 @@ dmypy.json
 
 # IntelliJ/PyCharm
 .idea/
+
+# MuJoCo
+MUJOCO_LOG.txt
+
+# Mac
+*.DS_Store
