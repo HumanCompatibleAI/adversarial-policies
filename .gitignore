@@ -100,7 +100,7 @@ dmypy.json
 .idea/
 
 # MuJoCo
-MUJOCO_LOG.txt
+MUJOCO_LOG.TXT
 
 # Mac
 *.DS_Store

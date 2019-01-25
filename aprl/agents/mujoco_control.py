@@ -112,7 +112,7 @@ class MujocoRelevantState(namedtuple('MujocoStateBase', 'qpos qvel qacc qacc_war
     def set_mjdata(self, data):
         for k in self._fields:
             assert hasattr(data, k)
-            setattr(data, k, getattr(data, k))
+            getattr(data, k)[:] = getattr(self, k)[:]
 
 class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
     def __init__(self, env, x_eps=1e-6, u_eps=1e-6):
@@ -125,7 +125,7 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
         return MujocoRelevantState.from_mjdata(self.sim.data).flatten()
 
     def set_state(self, x):
-        MujocoRelevantState.from_flattened(x).set_mjdata(self.sim.data)
+        MujocoRelevantState.from_flattened(x, self.sim).set_mjdata(self.sim.data)
         self.sim.forward()
 
     def _mujoco_f(self, x, u, i):
@@ -134,6 +134,12 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
         self.env.step(u)  # evaluated for side-effects on state
         return self.get_state()
 
+# TODO:
+# + Is the Reacher cost actually working?
+#   Does it really implement the same function for both? Yes -- they just don't print out the first iteration.
+# + What attributes are actually needed to be saved? Check derivative.cpp again.
+# + What to do about step v.s. forward?
+# + Is the state actually being reset properly? (I don't fully trust MuJoCo-Py.)
 
 # TODO tomorrow: try writing a new MuJoCo finite-differencing dynamics code
 # that directly subclasses Dynamics and is based on MuJoCo's derivative.cpp.
