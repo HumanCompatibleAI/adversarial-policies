@@ -73,60 +73,96 @@ class MujocoFiniteDiffCost(MujocoFiniteDiff, FiniteDiffCost):
         to override this on a case-by-case basis."""
         return 0
 
-class MujocoRelevantState(namedtuple('MujocoStateBase', 'qpos qvel qacc qacc_warmstart')):
+# TODO: This is fairly inefficient, and ugly to boot.
+# Once you know what fields you actually care about, get rid of the dynamic logic.
+class MujocoRelevantState(namedtuple('MujocoStateBase',
+        'qpos qvel qacc qacc_warmstart qfrc_applied xfrc_applied')):
     '''Based off MjSimState'''
-    #TODO: Cythonize?
     def flatten(self):
         """ Flattens a state into a numpy array of numbers."""
-        state_tuple = (self.qpos, self.qvel, self.qacc, self.qacc_warmstart,
-                       # self.qfrc_applied, self.xfrc_applied.flatten()
-                       )
-        return np.concatenate(state_tuple)
+        res = []
+        for f in self._fields:
+            v = getattr(self, f)
+            if v is not None:
+                res.append(v.flatten())
+        return np.concatenate(res)
 
     @staticmethod
     def from_flattened(a, sim):
+        len_a = len(a)
         idx_qpos = 0
         idx_qvel = idx_qpos + sim.model.nq
         idx_qacc = idx_qvel + sim.model.nv
         idx_qacc_warmstart = idx_qacc + sim.model.nv
-        # idx_qfrc_applied = idx_qacc_warmstart + sim.model.nv
-        # idx_xfrc_applied = idx_qfrc_applied + sim.model.nv
+        idx_qfrc_applied = idx_qacc_warmstart + sim.model.nv
+        idx_xfrc_applied = idx_qfrc_applied + sim.model.nv
 
         qpos = a[idx_qpos:idx_qpos + sim.model.nq]
-        qvel = a[idx_qvel:idx_qvel + sim.model.nv]
-        qacc = a[idx_qacc:idx_qacc + sim.model.nv]
-        qacc_warmstart = a[idx_qacc_warmstart:idx_qacc_warmstart + sim.model.nv]
-        # qfrc_applied = a[idx_qfrc_applied:idx_qfrc_applied + sim.model.nv]
-        # xfrc_applied = a[idx_xfrc_applied:idx_xfrc_applied + sim.model.nbody * 6]
-        # xfrc_applied = xfrc_applied.reshape(sim.model.nbody, 6)
 
-        return MujocoRelevantState(qpos, qvel, qacc, qacc_warmstart)
-                                   # qfrc_applied, xfrc_applied)
+        qvel = None
+        if idx_qvel < len_a:
+            qvel = a[idx_qvel:idx_qvel + sim.model.nv]
 
-    @staticmethod
-    def from_mjdata(data):
-        return MujocoRelevantState(data.qpos, data.qvel, data.qacc,
-                                   data.qacc_warmstart)
-                                   # data.qfrc_applied, data.xfrc_applied)
+        qacc = None
+        if idx_qacc < len_a:
+            qacc = a[idx_qacc:idx_qacc + sim.model.nv]
+
+        qacc_warmstart = None
+        if idx_qacc_warmstart < len_a:
+            qacc_warmstart = a[idx_qacc_warmstart:idx_qacc_warmstart + sim.model.nv]
+
+        qfrc_applied = None
+        if idx_qfrc_applied < len_a:
+            qfrc_applied = a[idx_qfrc_applied:idx_qfrc_applied + sim.model.nv]
+
+        xfrc_applied = None
+        if idx_xfrc_applied < len_a:
+            xfrc_applied = a[idx_xfrc_applied:idx_xfrc_applied + sim.model.nbody * 6]
+            xfrc_applied = xfrc_applied.reshape(sim.model.nbody, 6)
+
+        return MujocoRelevantState(qpos, qvel,
+                                   qacc, qacc_warmstart,
+                                   qfrc_applied, xfrc_applied)
+
+    @classmethod
+    def from_mjdata(cls, data, fields=None):
+        if fields is None:
+            fields = cls._fields
+        kwargs = {f: np.copy(getattr(data, f)) for f in fields}
+        return MujocoRelevantState(**kwargs)
 
     def set_mjdata(self, data):
         for k in self._fields:
             assert hasattr(data, k)
-            getattr(data, k)[:] = getattr(self, k)[:]
+            v = getattr(self, k)
+            if v is not None:
+                getattr(data, k)[:] = np.copy(v)
+MujocoRelevantState.__new__.__defaults__ = (None,) * 6
+
 
 class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
-    def __init__(self, env, x_eps=1e-6, u_eps=1e-6):
+    def __init__(self, env, x_eps=1e-6, u_eps=1e-6, kind='recommended'):
+        if kind == 'all':
+            self.fields = None
+        elif kind == 'basic':
+            self.fields = ['qpos', 'qvel']
+        elif kind == 'recommended':
+            self.fields = ['qpos', 'qvel', 'qacc', 'qacc_warmstart']
+        else:
+            raise ValueError("Unrecognised kind: '{}'".format(kind))
+
         MujocoFiniteDiff.__init__(self, env)
         FiniteDiffDynamics.__init__(self, self._mujoco_f,
                                     self.state_size, self.action_size,
                                     x_eps=x_eps, u_eps=u_eps)
 
     def get_state(self):
-        return MujocoRelevantState.from_mjdata(self.sim.data).flatten()
+        return MujocoRelevantState.from_mjdata(self.sim.data, self.fields).flatten()
 
     def set_state(self, x):
-        MujocoRelevantState.from_flattened(x, self.sim).set_mjdata(self.sim.data)
-        self.sim.forward()
+        state = MujocoRelevantState.from_flattened(x, self.sim)
+        state.set_mjdata(self.sim.data)
+        self.sim.forward()  # put mjData in consistent state
 
     def _mujoco_f(self, x, u, i):
         #TODO: something more efficient, also figure out if step vs forward breaks things
@@ -135,18 +171,9 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
         return self.get_state()
 
 # TODO:
-# + Is the Reacher cost actually working?
-#   Does it really implement the same function for both? Yes -- they just don't print out the first iteration.
 # + What attributes are actually needed to be saved? Check derivative.cpp again.
 # + What to do about step v.s. forward?
 # + Is the state actually being reset properly? (I don't fully trust MuJoCo-Py.)
-
-# TODO tomorrow: try writing a new MuJoCo finite-differencing dynamics code
-# that directly subclasses Dynamics and is based on MuJoCo's derivative.cpp.
-# Skip out (for now) the high-performance part, just focus on the correctness part.
-# I think a big problem with current implementation is that MjSimState is... not actually all the state.
-# Look at what parts it copies from dmain, and what parts it varies. Should be able to match it up with some care.
-# (Could also consider directly linking to a modified version of their C code? But seems much nicer to keep things in Python if possible.)
 
 # derivative.cpp copies from dmain:
 # qpos; qvel; qacc; qacc_warmstart; qfrc_applied; xfrc_applied; ctrl
