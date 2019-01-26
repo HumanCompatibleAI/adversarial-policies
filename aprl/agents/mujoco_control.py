@@ -128,7 +128,7 @@ class MujocoRelevantState(namedtuple('MujocoStateBase',
     def from_mjdata(cls, data, fields=None):
         if fields is None:
             fields = cls._fields
-        kwargs = {f: np.copy(getattr(data, f)) for f in fields}
+        kwargs = {f: getattr(data, f) for f in fields}
         return MujocoRelevantState(**kwargs)
 
     def set_mjdata(self, data):
@@ -136,7 +136,7 @@ class MujocoRelevantState(namedtuple('MujocoStateBase',
             assert hasattr(data, k)
             v = getattr(self, k)
             if v is not None:
-                getattr(data, k)[:] = np.copy(v)
+                getattr(data, k)[:] = v
 MujocoRelevantState.__new__.__defaults__ = (None,) * 6
 
 
