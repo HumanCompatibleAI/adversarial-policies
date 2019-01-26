@@ -146,6 +146,8 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
             self.fields = None
         elif kind == 'basic':
             self.fields = ['qpos', 'qvel']
+        elif kind == 'basic_plus':
+            self.fields = ['qpos', 'qvel', 'qacc']
         elif kind == 'recommended':
             self.fields = ['qpos', 'qvel', 'qacc', 'qacc_warmstart']
         else:
