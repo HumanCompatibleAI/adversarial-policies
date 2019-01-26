@@ -172,10 +172,6 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
         self.env.step(u)  # evaluated for side-effects on state
         return self.get_state()
 
-# TODO:
-# + What attributes are actually needed to be saved? Check derivative.cpp again.
-# + What to do about step v.s. forward?
-# + Is the state actually being reset properly? (I don't fully trust MuJoCo-Py.)
 
 # derivative.cpp copies from dmain:
 # qpos; qvel; qacc; qacc_warmstart; qfrc_applied; xfrc_applied; ctrl
@@ -183,7 +179,7 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
 # For each differencing step:
 # + Copies warmstart; does forwardSkip with appropriate stage.
 # + Everything else is stage-specific.
-# + For perturrbations in qfrc_applied, only needs to restore qacc. Since forwardSkip does not integrate, it doesn't change the rest of the state.
+# + For perturbations in qfrc_applied, only needs to restore qacc. Since forwardSkip does not integrate, it doesn't change the rest of the state.
 # + For perturbations in qvel, have to restore qvel; otherwise same.
 # + For perturbations in position, have to restore qpos. They also do different perturbations depending on joint type (to get consistent eps, I think).
 # I think the parts important for correctness are:
@@ -198,12 +194,72 @@ class MujocoFiniteDiffDynamicsLowLevel(MujocoFiniteDiff, FiniteDiffDynamics):
 # It's ok to omit qfrc_applied and xfrc_applied since Gym never sets these,
 # just using the ctrl field.
 
-# Hmm, using MujocoRelevantState rather than MjSimState made no difference.
-# Literally no difference: same up to 8 d.p. at least!
-# This is actually quite surprising -- we'll be perturbing some new values!
-
 # Gym environments use frame-skip (2 for Reacher, 5 for HalfCheetah), so
 # cannot easily swap out for forward. I'm a bit confused why they do
 # frame skip rather than changing dt. I guess smaller dt makes better physics sim?
 
-# Why does MjSimState contain act but derivative.cpp does not?
+class MujocoFiniteDiffDynamicsWarmstart(MujocoFiniteDiff, FiniteDiffDynamics):
+    NWARMUP = 4
+    FIELDS = ['qpos', 'qvel']
+
+    def __init__(self, env, x_eps=1e-6, u_eps=1e-6):
+        MujocoFiniteDiff.__init__(self, env)
+        FiniteDiffDynamics.__init__(self, self._mujoco_f,
+                                    self.state_size, self.action_size,
+                                    x_eps=x_eps, u_eps=u_eps)
+        self.qacc_warmstart = np.zeros_like(self.sim.data.qacc_warmstart)
+        self.warmstart_for = None
+
+    def _warmstart(self, x):
+        if np.array_equal(self.warmstart_for, x):
+            return
+        self.set_state(x)
+        for i in range(self.NWARMUP):
+            # TODO: should be skip stage velocity
+            # I think this is just a performance improvement, but may have
+            # correctness implications. mujoco_py doesn't forwardSkip publicly,
+            # but does have mj_forwardSkip defined internally.
+            self.sim.forward()
+        self.qacc_warmstart[:] = self.sim.data.qacc_warmstart
+        self.warmstart_for = x
+
+    def f(self, x, u, i):
+        self._warmstart(x)
+        return self._mujoco_f(x, u, i)
+
+    def f_x(self, x, u, i):
+        #TODO: performance improvement -- can call step just once to get ctrl
+        #then just do F.D. on x with sim forward/step. (Only makes sense if frameskip is one.)
+        self._warmstart(x)
+        return super().f_x(x, u, i)
+
+    def f_u(self, x, u, i):
+        self._warmstart(x)
+        return super().f_u(x, u, i)
+
+    def f_xx(self, x, u, i):
+        self._warmstart(x)
+        return super().f_xx(x, u, i)
+
+    def f_ux(self, x, u, i):
+        self._warmstart(x)
+        return super().f_ux(x, u, i)
+
+    def f_uu(self, x, u, i):
+        self._warmstart(x)
+        return super().f_uu(x, u, i)
+
+    def get_state(self):
+        return MujocoRelevantState.from_mjdata(self.sim.data, self.FIELDS).flatten()
+
+    def set_state(self, x):
+        state = MujocoRelevantState.from_flattened(x, self.sim)
+        state.set_mjdata(self.sim.data)
+        self.sim.forward()  # put mjData in consistent state
+
+    def _mujoco_f(self, x, u, i):
+        #TODO: something more efficient, also figure out if step vs forward breaks things
+        self.set_state(x)
+        self.sim.data.qacc_warmstart[:] = self.qacc_warmstart
+        self.env.step(u)  # evaluated for side-effects on state
+        return self.get_state()
