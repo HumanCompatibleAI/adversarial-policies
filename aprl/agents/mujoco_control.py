@@ -3,6 +3,7 @@ https://github.com/anassinator/ilqr. Specifically, implements
 finite-difference approximations for dynamics and cost."""
 
 from collections import namedtuple
+from contextlib import contextmanager
 from enum import Enum
 from functools import reduce
 
@@ -131,6 +132,17 @@ def _finite_diff(sim, xptr, qacc_warmstart, skip, eps):
     return jacobian
 
 
+@contextmanager
+def _consistent_solver(sim, niter=30):
+    saved_iterations = sim.model.opt.iterations
+    saved_tolerance = sim.model.opt.tolerance
+    sim.model.opt.iterations = niter
+    sim.model.opt.tolerance = 0
+    yield sim
+    sim.model.opt.iterations = saved_iterations
+    sim.model.opt.tolerance = saved_tolerance
+
+
 class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
     """Finite difference dynamics for a MuJoCo environment."""
     NWARMUP = 3
@@ -190,7 +202,6 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
     def f(self, x, u, i):
         """Dynamics model. See FiniteDiffDynamics."""
         self._set_state_action(x, u)
-        self._warmstart()
         self.sim.step()
         return self.get_state()
 
@@ -200,34 +211,35 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
 
            Assumes that the control input u is mapped into raw control ctrl
            in the simulator by a function that does not depend on x."""
-        self._set_state_action(x, u)
-        self._warmstart()
+        with _consistent_solver(self.sim) as sim:
+            self._set_state_action(x, u)
+            self._warmstart()
+            # Finite difference over velocity: skip = POS
+            jacob_vel = _finite_diff(sim, sim.data.qvel, self.warmstart,
+                                     SkipStages.POS, self._x_eps)
+            jacob_pos = _finite_diff(sim, sim.data.qpos, self.warmstart,
+                                     SkipStages.NONE, self._x_eps)
 
-        # Finite difference over velocity: skip = POS
-        jacob_vel = _finite_diff(self.sim, self.sim.data.qvel, self.warmstart,
-                                 SkipStages.POS, self._x_eps)
-        jacob_pos = _finite_diff(self.sim, self.sim.data.qpos, self.warmstart,
-                                 SkipStages.NONE, self._x_eps)
-        # This Jacobian is qacc differentiated w.r.t. (qpos, qvel).
-        acc_jacobian = np.concatenate((jacob_pos, jacob_vel), axis=1)
-        # But we want (qpos, qvel) differentiated w.r.t. (qpos, qvel).
-        # x_{t+1} = x_t + dt * \dot{x}_t
-        # \dot{x}_{t+1} = \dot{x}_t + \ddot{x}_t
-        # \nabla_{(x_t, \dot{x}_t)} \ddot{x}_t = acc_jacobian
-        # So \nabla_{(x_t, \dot{x}_t)} \dot{x}_t = (
-        #      dt * \nabla_{x_t} \ddot{x}_t,
-        #      I + dt * \nabla_{\dot{x}_t} \ddot{x}_t)
-        # And \nabla_{(x_t, \dot{x}_t)} x_t = (I, dt * I)
-        # TODO: Could use an alternative linearization?
-        dt = self.sim.model.opt.timestep
-        A = np.eye(self.sim.model.nq)
-        B = dt * np.eye(self.sim.model.nv)
-        C = dt * acc_jacobian[:, :self.sim.model.nq]
-        D = np.eye(self.sim.model.nv) + dt * acc_jacobian[:, self.sim.model.nq:]
-        state_jacobian = np.vstack([
-            np.hstack([A, B]),
-            np.hstack([C, D]),
-        ])
+            # This Jacobian is qacc differentiated w.r.t. (qpos, qvel).
+            acc_jacobian = np.concatenate((jacob_pos, jacob_vel), axis=1)
+            # But we want (qpos, qvel) differentiated w.r.t. (qpos, qvel).
+            # x_{t+1} = x_t + dt * \dot{x}_t
+            # \dot{x}_{t+1} = \dot{x}_t + \ddot{x}_t
+            # \nabla_{(x_t, \dot{x}_t)} \ddot{x}_t = acc_jacobian
+            # So \nabla_{(x_t, \dot{x}_t)} \dot{x}_t = (
+            #      dt * \nabla_{x_t} \ddot{x}_t,
+            #      I + dt * \nabla_{\dot{x}_t} \ddot{x}_t)
+            # And \nabla_{(x_t, \dot{x}_t)} x_t = (I, dt * I)
+            # TODO: Could use an alternative linearization?
+            dt = sim.model.opt.timestep
+            A = np.eye(sim.model.nq)
+            B = dt * np.eye(sim.model.nv)
+            C = dt * acc_jacobian[:, :sim.model.nq]
+            D = np.eye(sim.model.nv) + dt * acc_jacobian[:, sim.model.nq:]
+            state_jacobian = np.vstack([
+                np.hstack([A, B]),
+                np.hstack([C, D]),
+            ])
 
         return state_jacobian
 
@@ -237,24 +249,24 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
 
            Assumes that the control input u is mapped into raw control ctrl
            in the simulator by a function that does not depend on x."""
-        self._set_state_action(x, u)
-        self._warmstart()
-
-        # Finite difference over control: skip = VEL
-        # This Jacobian is qacc differentiated w.r.t. ctrl.
-        jacobian_acc = _finite_diff(self.sim, self.sim.data.ctrl, self.warmstart,
-                                    SkipStages.VEL, self._u_eps)
-        # But we want (qpos, qvel) differentiated w.r.t. ctrl.
-        # \nabla_{u_t} \ddot{x}_t = acc_jacobian
-        # \nabla_{u_t} \dot{x}_t = dt * \nabla_{u_t} \ddot{x}_t
-        # \nabla_{u_t} x_t = 0
-        # TODO: Could use an alternative linearization?
-        dt = self.sim.model.opt.timestep
-        state_jacobian = np.vstack([
-            np.zeros((self.sim.model.nq, self.sim.model.nu)),
-            dt * jacobian_acc
-        ])
-        return state_jacobian
+        with _consistent_solver(self.sim) as sim:
+            self._set_state_action(x, u)
+            self._warmstart()
+            # Finite difference over control: skip = VEL
+            # This Jacobian is qacc differentiated w.r.t. ctrl.
+            jacobian_acc = _finite_diff(sim, sim.data.ctrl, self.warmstart,
+                                        SkipStages.VEL, self._u_eps)
+            # But we want (qpos, qvel) differentiated w.r.t. ctrl.
+            # \nabla_{u_t} \ddot{x}_t = acc_jacobian
+            # \nabla_{u_t} \dot{x}_t = dt * \nabla_{u_t} \ddot{x}_t
+            # \nabla_{u_t} x_t = 0
+            # TODO: Could use an alternative linearization?
+            dt = self.sim.model.opt.timestep
+            state_jacobian = np.vstack([
+                np.zeros((self.sim.model.nq, self.sim.model.nu)),
+                dt * jacobian_acc
+            ])
+            return state_jacobian
 
     def f_xx(self, x, u, i):
         """See base class Dynamics."""
