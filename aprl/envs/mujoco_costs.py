@@ -7,42 +7,32 @@ defined in terms of the raw MuJoCo state (qpos, qvel), not Gym observations.'''
 #TODO: does this belong in agents instead of envs?
 
 from theano import tensor as T
-from ilqr.cost import AutoDiffCost
+from ilqr.cost import BatchAutoDiffCost
 
-class ReacherCost(AutoDiffCost):
-    '''Differentiable cost for the Reacher-v2 Gym environment.'''
+class ReacherCost(BatchAutoDiffCost):
+    '''Differentiable cost for the Reacher-v2 Gym environment.
+       See base class for more details.'''
     def __init__(self):
-        # Define state and control inputs
+        def f(x, u, i, terminal):
+            if terminal:
+                return T.zeros_like(x[..., 0])
 
-        # qpos[0]: angle of joint 0
-        # qpos[1]: angle of joint 1
-        # qpos[2], qpos[3]: target x & y coordinate
-        qpos_inputs = [T.dscalar('theta'), T.dscalar('phi'), T.dscalar('targetx'),
-                       T.dscalar('targety')]
-        # qvel: time derivatives of the above.
-        # Target are constant (non-actuated) so always have derivative zero.
-        qvel_inputs = [T.dscalar('thetadot'), T.dscalar('phidot'),
-                       T.dscalar('_zero1'), T.dscalar('_zero2')]
-        x_inputs = qpos_inputs + qvel_inputs
+            import theano
+            # x: (8, batch_size)
+            # x[..., 0:4]: qpos
+            # x[..., 4:8]: qvel, time derivatives of qpos, not used in the cost.
+            theta = x[..., 0]  # qpos[0]: angle of joint 0
+            phi = x[..., 1]  # qpos[1]: angle of joint 1
+            target_xpos = x[..., 2:4]  # qpos[2:4], target x & y coordinate
+            body1_xpos = 0.1 * T.stack([T.cos(theta), T.sin(theta)], axis=1)
+            tip_xpos_incr = 0.11 * T.stack([T.cos(phi), T.sin(phi)], axis=1)
+            tip_xpos = body1_xpos + tip_xpos_incr
+            delta = tip_xpos - target_xpos
 
-        # control[0:2]: torque of joint 0 and joint 1
-        u_inputs = [T.dscalar('thetadotdot'), T.dscalar('phidotdot')]
+            state_cost = T.sqrt(T.sum(delta * delta, axis=-1))
+            control_cost = T.sum(u * u, axis=-1)
+            cost = state_cost + control_cost
 
-        # Define cost in terms of these inputs
-        u = T.stack(u_inputs)
-        control_cost = T.dot(u, u)
+            return cost
 
-        qpos = T.stack(qpos_inputs)
-        theta, phi = qpos[0], qpos[1]
-        target_xpos = qpos[2:4]
-
-        body1_xpos = 0.1 * T.stack([T.cos(theta), T.sin(theta)])
-        fingertip_xpos_delta = 0.11 * T.stack([T.cos(phi), T.sin(phi)])
-        fingertip_xpos = body1_xpos + fingertip_xpos_delta
-        delta = fingertip_xpos - target_xpos
-        state_cost = T.sqrt(T.dot(delta, delta))
-
-        l = state_cost + control_cost
-        l_terminal = T.zeros(())
-
-        super().__init__(l, l_terminal, x_inputs, u_inputs)
+        super().__init__(f, state_size=8, action_size=2)
