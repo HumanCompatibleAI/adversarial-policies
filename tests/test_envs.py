@@ -58,7 +58,7 @@ def test_random_rollout(spec):
     env.close()
 
 
-class SimpleMultiEnv(envs.MatrixGame):
+class SimpleMultiEnv(envs.MatrixGameEnv):
     def __init__(self, seed):
         num_actions = 0x100
         np.random.seed(seed)
