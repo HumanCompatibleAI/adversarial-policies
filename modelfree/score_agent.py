@@ -21,8 +21,8 @@ from modelfree.simulation_utils import MultiToSingle, CurryEnv, Gymify, HackyFix
 # TODO
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
-ex = Experiment('score_agent')
-ex.observers.append(FileStorageObserver.create('my_runs'))
+score_agent_ex = Experiment('score_agent')
+score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
     result = {
@@ -286,8 +286,8 @@ def get_agent_any_type(agent, agent_type, env, env_name):
     return agent_loaders[agent_type](agent, env, env_name)
 
 
-@ex.config
-def default_config():
+@score_agent_ex.config
+def default_score_config():
     agent_a = "agent-zoo/sumo/ants/agent_parameters-v1.pkl"
     agent_a_type = "zoo"
     env = "sumo-ants-v0"
@@ -295,7 +295,7 @@ def default_config():
     agent_b = "outs/20190128_231014 Dummy Exp Name/model.pkl"
     samples = 50
 
-@ex.automain
+@score_agent_ex.automain
 def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
     env_object = gym.make(env)
 

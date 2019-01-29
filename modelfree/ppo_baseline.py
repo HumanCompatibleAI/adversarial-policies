@@ -129,6 +129,8 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
     env.close()
     sess.close()
 
+    return osp.join(out_dir, 'model.pkl')
+
 
 
 
@@ -196,8 +198,11 @@ def setup_logger(out_dir="results", exp_name="test"):
     return out_dir
 
 
-@ex.config
-def default_config():
+ppo_baseline_ex = Experiment("ppo_baseline")
+ppo_baseline_ex.observers.append(FileStorageObserver.create('my_runs'))
+
+@ppo_baseline_ex.config
+def default_ppo_config():
     victim = "agent-zoo/sumo/ants/agent_parameters-v1.pkl"
     victim_type = "zoo"
     env = "sumo-ants-v0"
@@ -212,7 +217,7 @@ def default_config():
     load_path = None
 
 
-@ex.automain
+@ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize, no_normalize, seed, total_timesteps,
                 network, nsteps, load_path):
     #TODO some bug with vectorizing goalie
@@ -224,5 +229,5 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize, n
     env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir, no_normalize=no_normalize,
                   vector=vectorize)
 
-    train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps, vector=vectorize,
-          network=network, no_normalize=no_normalize, nsteps=nsteps, load_path=load_path)
+    return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps, vector=vectorize,
+                 network=network, no_normalize=no_normalize, nsteps=nsteps, load_path=load_path)
