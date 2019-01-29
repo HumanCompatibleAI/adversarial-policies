@@ -7,10 +7,18 @@ import tensorflow as tf
 import numpy as np
 import sys
 
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+from baselines.common.vec_env.vec_normalize import VecNormalize
+from baselines.ppo2 import ppo2
+from baselines.a2c import utils
+
+import functools
+
 from sacred.observers import FileStorageObserver
 
-
-#TODO Commit this to a new branch
+# TODO Get rid of these dependencies
+from modelfree.simulation_utils import MultiToSingle, CurryEnv, Gymify, HackyFixForGoalie
+# TODO
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
 ex = Experiment('score_agent')
@@ -116,7 +124,7 @@ def get_env_and_policy_type(env_name):
     if env_name in envs_policy_types:
         return envs_policy_types[env_name]
 
-    raise Exception("Unsupported Environment, choose from {}".format(envs_policy_types.key()))
+    raise Exception("Unsupported Environment: {}, choose from {}".format(env_name, envs_policy_types.keys()))
 
 
 def set_from_flat(var_list, flat_params, sess = None):
@@ -163,6 +171,104 @@ def load_zoo_agent(agent, env, env_name, index=1, sess=None):
 #######################################################################################################
 #######################################################################################################
 
+
+
+def load_our_mlp(agent_name, env, env_name):
+    # TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
+    def make_env(id):
+        # TODO: seed (not currently supported)
+        # TODO: VecNormalize? (typically good for MuJoCo)
+        # TODO: baselines logger?
+        # TODO: we're loading identical policy weights into different
+        # variables, this is to work-around design choice of Agent's
+        # having state stored inside of them.
+        sess = make_session()
+        with sess.as_default():
+            multi_env = env
+
+            attacked_agent = constant_zero_agent(act_dim=8)
+
+            single_env = Gymify(MultiToSingle(CurryEnv(multi_env, attacked_agent)))
+            single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+
+            # TODO: upgrade Gym so don't have to do thi0s
+            single_env.observation_space.dtype = np.dtype(np.float32)
+        return single_env
+        # TODO: close session?
+
+    # TODO DO NOT EVEN READ THE ABOVE CODE :'(
+
+    denv = SubprocVecEnv([functools.partial(make_env, 0)])
+
+    model = ppo2.learn(network="mlp", env=denv,
+                       total_timesteps=1,
+                       seed=0,
+                       nminibatches=4,
+                       log_interval=1,
+                       save_interval=1,
+                       load_path=agent_name)
+
+    stateful_model = StatefulModel(denv, model)
+    trained_agent = Agent(action_selector=stateful_model.get_action,
+                                reseter=stateful_model.reset)
+
+    return trained_agent
+
+def constant_zero_agent(act_dim=8):
+    constant_action = np.zeros((act_dim,))
+
+
+    class Temp():
+
+        def __init__(self, constants):
+            self.constants = constants
+
+        def get_action(self, observation):
+
+            return self.constants
+
+        def reset(self):
+            pass
+
+        def save(self, filename):
+            with open(filename, "wb") as file:
+                pickle.dump(self.constants, file, pickle.HIGHEST_PROTOCOL)
+
+        def load(self, filename):
+            with open(filename, "rb") as file:
+                self.constants = pickle.load(file)
+
+    return Temp(constant_action)
+
+
+class Policy(object):
+    def reset(self, **kwargs):
+        pass
+
+    def act(self, observation):
+        # should return act, info
+        raise NotImplementedError()
+
+class StatefulModel(Policy):
+    def __init__(self, env, model):
+        self.nenv = env.num_envs
+        self.env = env
+        self.dones = [False for _ in range(self.nenv)]
+        self.model = model
+        self.states = model.initial_state
+
+    def get_action(self, observation):
+        actions, values, self.states, neglocpacs = self.model.step([observation] * self.nenv, S=self.states, M=self.dones)
+        return actions[0]
+
+    def reset(self):
+        self._dones = [True] * self.nenv
+
+
+#######################################################################################################
+#######################################################################################################
+
+
 def make_session():
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
@@ -175,7 +281,7 @@ def make_session():
 def get_agent_any_type(agent, agent_type, env, env_name):
     agent_loaders = {
         "zoo": load_zoo_agent,
-        "our_mlp": None
+        "our_mlp": load_our_mlp
     }
     return agent_loaders[agent_type](agent, env, env_name)
 
@@ -185,9 +291,9 @@ def default_config():
     agent_a = "agent-zoo/sumo/ants/agent_parameters-v1.pkl"
     agent_a_type = "zoo"
     env = "sumo-ants-v0"
-    agent_b_type = "zoo"
-    agent_b = "agent-zoo/sumo/ants/agent_parameters-v2.pkl"
-    samples = 100
+    agent_b_type = "our_mlp"
+    agent_b = "outs/20190128_231014 Dummy Exp Name/model.pkl"
+    samples = 50
 
 @ex.automain
 def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
@@ -195,10 +301,12 @@ def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type
 
     sess = make_session()
     with sess:
-
-        agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env)
+        # TODO seperate tensorflow graphs to get either order of the next two statements to work
         agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env)
+        agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env)
+
         agents = [agent_a_object, agent_b_object]
 
+        # TODO figure out how to stop the other thread from crashing when I finish
         return get_emperical_score(_run, env_object, agents, samples)
 
