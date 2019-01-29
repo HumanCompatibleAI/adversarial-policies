@@ -7,57 +7,48 @@ import tensorflow as tf
 import numpy as np
 import sys
 
+from sacred.observers import FileStorageObserver
+
+
 #TODO Commit this to a new branch
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
-#TODO Fix import errors
 ex = Experiment('score_agent')
+ex.observers.append(FileStorageObserver.create('my_runs'))
 
+def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
+    result = {
+        "ties": 0,
+        "wincounts": [0] * len(agents)
+    }
 
-#TODO Needs to be changed to post processing
-def get_emperical_score(env, agents, trials, render=False, silent=False):
-    tiecount = 0
-    wincount = [0] * len(agents)
-    for _ in range(trials):
-        result = new_anounce_winner(simulate(env, agents, render=render), silent=silent)
+    # This tells sacred about the intermediate computation so it updates the result as the experiment is running
+    _run.result = result
+
+    for i in range(trials):
+        this_result = new_anounce_winner(simulate(env, agents, render=render), silent=silent)
         if result == -1:
-            tiecount += 1
+            result["ties"] = result["ties"] + 1
         else:
-            wincount[result] += 1
+            result["wincounts"][this_result] = result["wincounts"][this_result] +1
         for agent in agents:
             agent.reset()
-    return tiecount, wincount
+
+    return result
 
 
 def new_anounce_winner(sim_stream, silent=False):
     for _, _, dones, infos in sim_stream:
-
         if dones[0]:
             draw = True
             for i in range(len(infos)):
                 if 'winner' in infos[i]:
                     draw = False
-                    if not silent:
-                        print("Winner: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
                     return i
             if draw:
-                if not silent:
-                    print("Game Tied: Agent {}, Scores: {}, Total Episodes: {}".format(i, 1,1))
                 return -1
 
 
-
-
-
-
-
-
-
-
-
-
-#TODO Needs to be changed to agents without state
-#TODO Needs to add wrappers to log the data using sacred
 def simulate(env, agents, render=False):
     """
     Run Environment env with the agents in agents
@@ -100,10 +91,7 @@ class Agent(object):
         return self._reseter()
 
 
-
-
-
-
+#TODO Make an Agent_Wrapper class that takes a function from OxM -> AxM and makes an agent.
 
 
 #######################################################################################################
@@ -202,7 +190,7 @@ def default_config():
     samples = 100
 
 @ex.automain
-def score_agent(env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
+def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
     env_object = gym.make(env)
 
     sess = make_session()
@@ -212,7 +200,5 @@ def score_agent(env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
         agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env)
         agents = [agent_a_object, agent_b_object]
 
-        #TODO record the intermediate details with sacred
-        ties, win_loss = get_emperical_score(env_object, agents, samples)
+        return get_emperical_score(_run, env_object, agents, samples)
 
-        #TODO Record the ending scores with sacred
