@@ -16,51 +16,6 @@ import functools
 from modelfree.simulation_utils import MultiToSingle, CurryEnv, Gymify, HackyFixForGoalie
 # TODO
 
-#TODO this is a hack to get around ppo anialating all other variables in its path in the soccer env :(
-class DelayedLoadEnv():
-    def __init__(self, file, policy_type, scope, env, index, sess):
-        """
-        """
-        self._env = env
-        self.action_space = env.action_space
-        self.observation_space = env.observation_space
-
-        self.first = True
-
-        self._file = file
-        self._policy_type = policy_type
-        self._scope = scope
-        self._index = index
-        self._sess = sess
-
-    def step(self, action):
-        if self.first:
-            self.finish_load()
-        return self._env.step(action)
-
-    def reset(self):
-        return self._env.reset()
-
-    def finish_load(self):
-        policy = load_zoo_policy(self._file, self._policy_type, self._scope, self._env, self._index, sess=self._sess)
-
-        #TODO remove this trash
-        def get_action(observation):
-            return policy.act(stochastic=True, observation=observation)[self._index]
-
-        self._env = CurryEnv(self._env, Agent(get_action, policy.reset))
-        self.first = False
-        self._env.reset()
-
-    def render(self):
-        if self.first:
-            self._env.render()
-        else:
-            self._env._env.render()
-
-    def set_shape_weight(self, n):
-        return self._env.set_shape_weight(n)
-
 
 def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
     """Builds MLP for hiddens[:-1] and LSTM for hiddens[-1].
