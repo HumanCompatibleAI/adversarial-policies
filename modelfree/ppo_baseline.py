@@ -108,23 +108,25 @@ def save_stats(env_wrapper, path):
 
 def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False,
           nsteps=2048, load_path=None):
-    sess = make_session()
-    with sess:
+    g = tf.Graph()
+    sess = make_session(g)
+    with g.as_default():
+        with sess:
 
-        if network == 'our-lstm':
-            network = mlp_lstm([128, 128], layer_norm=True)
-        # TODO: speed up construction of mlp_lstm?
-        model = ppo2.learn(network=network, env=env,
-                           total_timesteps=total_timesteps,
-                           nsteps= nsteps,
-                           seed=seed,
-                           nminibatches=min(4, vector),
-                           log_interval=1,
-                           save_interval=1,
-                           load_path=load_path)
-        model.save(osp.join(out_dir, 'model.pkl'))
-        if not no_normalize:
-            save_stats(env, osp.join(out_dir, 'normalize.pkl'))
+            if network == 'our-lstm':
+                network = mlp_lstm([128, 128], layer_norm=True)
+            # TODO: speed up construction of mlp_lstm?
+            model = ppo2.learn(network=network, env=env,
+                               total_timesteps=total_timesteps,
+                               nsteps= nsteps,
+                               seed=seed,
+                               nminibatches=min(4, vector),
+                               log_interval=1,
+                               save_interval=1,
+                               load_path=load_path)
+            model.save(osp.join(out_dir, 'model.pkl'))
+            if not no_normalize:
+                save_stats(env, osp.join(out_dir, 'normalize.pkl'))
 
     env.close()
     sess.close()
@@ -143,6 +145,8 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
     # TODO: upgrade Gym so this monkey-patch isn't needed
     gym.spaces.Dict = type(None)
 
+    g = tf.Graph()
+
     def make_env(id):
         # TODO: seed (not currently supported)
         # TODO: VecNormalize? (typically good for MuJoCo)
@@ -150,30 +154,40 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
         # TODO: we're loading identical policy weights into different
         # variables, this is to work-around design choice of Agent's
         # having state stored inside of them.
-        sess = make_session()
-        with sess.as_default():
+        sess = make_session(g)
+        with g.as_default():
+            with sess.as_default():
 
-            multi_env = gym.make(env_name)
+                multi_env = gym.make(env_name)
 
-            policy_type = get_env_and_policy_type(env_name)
+                policy_type = get_env_and_policy_type(env_name)
 
-            single_env = MultiToSingle(DelayedLoadEnv(victim, victim_type,
-                                                      "zoo_{}_policy_{}".format(env_name, id), multi_env, 0, sess))
-            if env_name == 'kick-and-defend':
-                #attacked_agent = utils.load_agent(trained_agent, policy_type,
-                #                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
-                #single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+                policy = load_zoo_policy(victim, victim_type, "zoo_{}_policy_{}".format(env_name, id), multi_env, 0,
+                                         sess=sess)
 
-                single_env = HackyFixForGoalie(single_env)
+                # TODO remove this trash
+                def get_action(observation):
+                    return policy.act(stochastic=True, observation=observation)[0]
 
-            single_env = Gymify(single_env)
 
-            single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+                single_env = MultiToSingle(CurryEnv(multi_env, Agent(get_action, policy.reset)))
 
-            # TODO: upgrade Gym so don't have to do thi0s
-            single_env.observation_space.dtype = np.dtype(np.float32)
 
-            single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
+                if env_name == 'kick-and-defend':
+                    #attacked_agent = utils.load_agent(trained_agent, policy_type,
+                    #                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
+                    #single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
+
+                    single_env = HackyFixForGoalie(single_env)
+
+                single_env = Gymify(single_env)
+
+                single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+
+                # TODO: upgrade Gym so don't have to do thi0s
+                single_env.observation_space.dtype = np.dtype(np.float32)
+
+                single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
         return single_env
         # TODO: close session?
 
@@ -230,4 +244,4 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize, n
                   vector=vectorize)
 
     return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps, vector=vectorize,
-                 network=network, no_normalize=no_normalize, nsteps=nsteps, load_path=load_path)
+         network=network, no_normalize=no_normalize, nsteps=nsteps, load_path=load_path)
