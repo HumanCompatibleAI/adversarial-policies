@@ -21,8 +21,6 @@ from modelfree.simulation_utils import MultiToSingle, CurryEnv, Gymify, HackyFix
 # TODO
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
-score_agent_ex = Experiment('score_agent')
-score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
     result = {
@@ -160,10 +158,12 @@ def load_zoo_policy(file, policy_type, scope, env, index, sess=None):
 def load_zoo_agent(agent, env, env_name, index=1, sess=None):
     policy_type = get_env_and_policy_type(env_name)
 
-    policy = load_zoo_policy(agent, policy_type, "zoo_policy_{}".format(agent), env, index, sess=sess)
+    with sess.graph.as_default():
+            policy = load_zoo_policy(agent, policy_type, "zoo_policy_{}".format(agent), env, index, sess=sess)
 
     def get_action(observation):
-        return policy.act(stochastic=True, observation=observation)[0]
+        with sess.as_default():
+            return policy.act(stochastic=True, observation=observation)[0]
 
     return Agent(get_action, policy.reset)
 
@@ -173,7 +173,7 @@ def load_zoo_agent(agent, env, env_name, index=1, sess=None):
 
 
 
-def load_our_mlp(agent_name, env, env_name):
+def load_our_mlp(agent_name, env, env_name, sess):
     # TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
     def make_env(id):
         # TODO: seed (not currently supported)
@@ -182,8 +182,8 @@ def load_our_mlp(agent_name, env, env_name):
         # TODO: we're loading identical policy weights into different
         # variables, this is to work-around design choice of Agent's
         # having state stored inside of them.
-        sess = make_session()
-        with sess.as_default():
+        sess_inner = make_session()
+        with sess_inner.as_default():
             multi_env = env
 
             attacked_agent = constant_zero_agent(act_dim=8)
@@ -197,18 +197,18 @@ def load_our_mlp(agent_name, env, env_name):
         # TODO: close session?
 
     # TODO DO NOT EVEN READ THE ABOVE CODE :'(
-
     denv = SubprocVecEnv([functools.partial(make_env, 0)])
+    with sess.as_default():
+        with sess.graph.as_default():
+            model = ppo2.learn(network="mlp", env=denv,
+                               total_timesteps=1,
+                               seed=0,
+                               nminibatches=4,
+                               log_interval=1,
+                               save_interval=1,
+                               load_path=agent_name)
 
-    model = ppo2.learn(network="mlp", env=denv,
-                       total_timesteps=1,
-                       seed=0,
-                       nminibatches=4,
-                       log_interval=1,
-                       save_interval=1,
-                       load_path=agent_name)
-
-    stateful_model = StatefulModel(denv, model)
+    stateful_model = StatefulModel(denv, model, sess)
     trained_agent = Agent(action_selector=stateful_model.get_action,
                                 reseter=stateful_model.reset)
 
@@ -250,7 +250,8 @@ class Policy(object):
         raise NotImplementedError()
 
 class StatefulModel(Policy):
-    def __init__(self, env, model):
+    def __init__(self, env, model, sess):
+        self._sess = sess
         self.nenv = env.num_envs
         self.env = env
         self.dones = [False for _ in range(self.nenv)]
@@ -258,8 +259,9 @@ class StatefulModel(Policy):
         self.states = model.initial_state
 
     def get_action(self, observation):
-        actions, values, self.states, neglocpacs = self.model.step([observation] * self.nenv, S=self.states, M=self.dones)
-        return actions[0]
+        with self._sess.as_default():
+            actions, values, self.states, neglocpacs = self.model.step([observation] * self.nenv, S=self.states, M=self.dones)
+            return actions[0]
 
     def reset(self):
         self._dones = [True] * self.nenv
@@ -269,22 +271,27 @@ class StatefulModel(Policy):
 #######################################################################################################
 
 
-def make_session():
+def make_session(graph=None):
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
         intra_op_parallelism_threads=1)
     tf_config.gpu_options.allow_growth = True
-    sess = tf.Session(config=tf_config)
+    sess = tf.Session(graph=graph, config=tf_config)
     return sess
 
+
+
 #TODO Make loader for our_mlp
-def get_agent_any_type(agent, agent_type, env, env_name):
+def get_agent_any_type(agent, agent_type, env, env_name, sess=None):
     agent_loaders = {
         "zoo": load_zoo_agent,
         "our_mlp": load_our_mlp
     }
-    return agent_loaders[agent_type](agent, env, env_name)
+    return agent_loaders[agent_type](agent, env, env_name, sess=sess)
 
+
+score_agent_ex = Experiment('score_agent')
+score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 @score_agent_ex.config
 def default_score_config():
@@ -298,15 +305,19 @@ def default_score_config():
 @score_agent_ex.automain
 def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
     env_object = gym.make(env)
+    graph_a = tf.Graph()
+    sess_a = make_session(graph_a)
+    graph_b = tf.Graph()
+    sess_b = make_session(graph_b)
+    with sess_a:
+        with sess_b:
+            # TODO seperate tensorflow graphs to get either order of the next two statements to work
+            agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env, sess=sess_b)
+            agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env, sess=sess_a)
 
-    sess = make_session()
-    with sess:
-        # TODO seperate tensorflow graphs to get either order of the next two statements to work
-        agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env)
-        agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env)
 
-        agents = [agent_a_object, agent_b_object]
+            agents = [agent_a_object, agent_b_object]
 
-        # TODO figure out how to stop the other thread from crashing when I finish
-        return get_emperical_score(_run, env_object, agents, samples)
+            # TODO figure out how to stop the other thread from crashing when I finish
+            return get_emperical_score(_run, env_object, agents, samples)
 

@@ -15,6 +15,6 @@ def default_config():
 def ppo_and_score(confs):
     training_results = ppo_baseline_ex.run(config_updates=confs["ppo"])
     confs["score"]["agent_b"] = training_results.result
-    tf.reset_default_graph()
+
     return score_agent_ex.run(config_updates=confs["score"])
 

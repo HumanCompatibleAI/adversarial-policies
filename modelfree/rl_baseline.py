@@ -430,7 +430,6 @@ def main(configs):
           network=configs.network, no_normalize=configs.no_normalize, nsteps=configs.nsteps, load_path=configs.load_path)
 
 
-
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Runs RL against fixed opponent")
