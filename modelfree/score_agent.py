@@ -1,7 +1,6 @@
 from sacred import Experiment
 import gym
 import gym_compete
-from policy import LSTMPolicy, MlpPolicyValue
 import pickle
 import tensorflow as tf
 import numpy as np
@@ -13,14 +12,40 @@ from baselines.ppo2 import ppo2
 from baselines.a2c import utils
 
 import functools
+import itertools
 
 from sacred.observers import FileStorageObserver
 
-# TODO Get rid of these dependencies
-from modelfree.simulation_utils import MultiToSingle, CurryEnv, Gymify, HackyFixForGoalie
-# TODO
+from aprl.envs.multi_agent import MultiAgentEnv, FlattenSingletonEnv, CurryEnv
+
+#TODO see if you can get this from the actual repo and not from us copying the file....
+from policy import LSTMPolicy, MlpPolicyValue
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
+
+
+class TheirsToOurs(MultiAgentEnv):
+    def __init__(self, env):
+        super().__init__(2, env.action_space.spaces[0], env.observation_space.spaces[0])
+        # TODO ask adam about the action/observation spaces.  I am worried about asymetric envs like goalie
+
+        self.spec = env.spec
+        self._env = env
+
+    def step(self, action_n):
+        observations, rewards, done, infos = self._env.step(action_n)
+
+        observations = list(observations)
+        rewards = list(rewards)
+        done = list(done)
+        # TODO not at all sketch
+        infos = {i: v for i, v in enumerate(infos)}
+
+        return observations, rewards, done, infos
+
+    def reset(self):
+        return list(self._env.reset())
+
 
 def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
     result = {
@@ -188,8 +213,7 @@ def load_our_mlp(agent_name, env, env_name, sess):
 
             attacked_agent = constant_zero_agent(act_dim=8)
 
-            single_env = Gymify(MultiToSingle(CurryEnv(multi_env, attacked_agent)))
-            single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+            single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env), attacked_agent))
 
             # TODO: upgrade Gym so don't have to do thi0s
             single_env.observation_space.dtype = np.dtype(np.float32)

@@ -14,7 +14,7 @@ def _vec_space(space, num_agents):
         return gym.spaces.MultiDiscrete([space.n for _ in range(num_agents)])
     elif isinstance(space, gym.spaces.MultiDiscrete):
         return gym.spaces.MultiDiscrete([space.nvec for _ in range(num_agents)])
-    elif isinstance(space, gym.shapes.Box):
+    elif isinstance(space, gym.spaces.Box):
         low = np.asarray([space.low for _ in range(num_agents)])
         high = np.asarray([space.high for _ in range(num_agents)])
         return gym.spaces.Box(low=low, high=high)
@@ -80,6 +80,13 @@ class MultiAgentEnv(Env):
         raise NotImplementedError
 
 
+class MultiWrapper(Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.agent_action_space = env.agent_action_space
+        self.agent_observation_space = env.agent_observation_space
+
+
 class MultiToSingleObs(Wrapper):
     '''Wraps a MultiAgentEnv, changing the action and observation space
        to per-agent dimensions. Note this is inconsistent (i.e. the methods
@@ -107,6 +114,59 @@ class MultiToSingleObsVec(VecEnvWrapper):
 
     def step_wait(self):
         return self.venv.step_wait()
+
+
+# TODO Really consider if you want to enharitnace is correct.... :p
+class FlattenSingletonEnv(MultiToSingleObs):
+    ''' Wraps a Multi-Agent Environement with one agent and Makes it a Single-Agent Gym environment that can actually be
+    thought of as a Gym environment.'''
+
+    def __init__(self, env):
+        super().__init__(env)
+
+    def step(self, action):
+        observations, rewards, dones, infos = self.env.step([action])
+        return observations[0], rewards[0], dones[0], infos
+
+    def reset(self):
+        return self.env.reset()[0]
+
+
+class CurryEnv(MultiWrapper):
+    '''Wraps a Multi-Agent Environment fixing one of the players'''
+
+    def __init__(self, env, agent, agent_to_fix=0):
+        """
+        Take a multi agent environment and fix one of the agents
+        :param env: The multi-agent environment
+        :param agent: The agent to be fixed
+        :param agent_to_fix: The index of the agent that should be fixed
+        :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
+        """
+        super().__init__(env)
+        self._env = env
+        self._agent_to_fix = agent_to_fix
+        self._agent = agent
+        self._last_obs = None
+        self._last_reward = None
+
+    #TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
+    def step(self, actions):
+        action = self._agent.get_action(self._last_obs)
+        actions.insert(self._agent_to_fix, action)
+        observations, rewards, done, infos = self._env.step(actions)
+
+        self._last_obs = observations.pop(self._agent_to_fix)
+        self._last_reward = rewards.pop(self._agent_to_fix)
+        #infos.pop(self._agent_to_fix)
+
+        return observations, rewards, done, infos
+
+    def reset(self):
+        observations = self._env.reset()
+        self._last_obs = observations.pop(self._agent_to_fix)
+
+        return observations
 
 
 class DummyVecMultiEnv(DummyVecEnv):
