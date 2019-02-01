@@ -12,7 +12,6 @@ from baselines.ppo2 import ppo2
 from baselines.a2c import utils
 
 import functools
-import itertools
 
 from sacred.observers import FileStorageObserver
 
@@ -134,7 +133,8 @@ def load_from_file(param_pkl_path):
         params = pickle.load(f)
     return params
 
-def get_env_and_policy_type(env_name):
+
+def get_policy_type_for_agent_zoo(env_name):
     envs_policy_types = {
         "kick-and-defend-v0": "lstm",
         "run-to-goal-humans-v0": "mlp",
@@ -165,6 +165,7 @@ def set_from_flat(var_list, flat_params, sess = None):
         sess = tf.get_default_session()
     sess.run(op, {theta: flat_params})
 
+
 def load_zoo_policy(file, policy_type, scope, env, index, sess=None):
     if policy_type == "lstm":
         policy = LSTMPolicy(scope=scope, reuse=False,
@@ -181,7 +182,7 @@ def load_zoo_policy(file, policy_type, scope, env, index, sess=None):
 
 
 def load_zoo_agent(agent, env, env_name, index=1, sess=None):
-    policy_type = get_env_and_policy_type(env_name)
+    policy_type = get_policy_type_for_agent_zoo(env_name)
 
     with sess.graph.as_default():
             policy = load_zoo_policy(agent, policy_type, "zoo_policy_{}".format(agent), env, index, sess=sess)
@@ -234,33 +235,23 @@ def load_our_mlp(agent_name, env, env_name, sess):
 
     stateful_model = StatefulModel(denv, model, sess)
     trained_agent = Agent(action_selector=stateful_model.get_action,
-                                reseter=stateful_model.reset)
+                          reseter=stateful_model.reset)
 
     return trained_agent
 
 def constant_zero_agent(act_dim=8):
     constant_action = np.zeros((act_dim,))
 
-
-    class Temp():
+    class Temp:
 
         def __init__(self, constants):
             self.constants = constants
 
-        def get_action(self, observation):
-
+        def get_action(self, _):
             return self.constants
 
         def reset(self):
             pass
-
-        def save(self, filename):
-            with open(filename, "wb") as file:
-                pickle.dump(self.constants, file, pickle.HIGHEST_PROTOCOL)
-
-        def load(self, filename):
-            with open(filename, "rb") as file:
-                self.constants = pickle.load(file)
 
     return Temp(constant_action)
 
@@ -272,6 +263,7 @@ class Policy(object):
     def act(self, observation):
         # should return act, info
         raise NotImplementedError()
+
 
 class StatefulModel(Policy):
     def __init__(self, env, model, sess):
@@ -304,8 +296,6 @@ def make_session(graph=None):
     return sess
 
 
-
-#TODO Make loader for our_mlp
 def get_agent_any_type(agent, agent_type, env, env_name, sess=None):
     agent_loaders = {
         "zoo": load_zoo_agent,
@@ -317,14 +307,16 @@ def get_agent_any_type(agent, agent_type, env, env_name, sess=None):
 score_agent_ex = Experiment('score_agent')
 score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
 
+
 @score_agent_ex.config
 def default_score_config():
     agent_a = "agent-zoo/sumo/ants/agent_parameters-v1.pkl"
     agent_a_type = "zoo"
     env = "sumo-ants-v0"
     agent_b_type = "our_mlp"
-    agent_b = "outs/20190128_231014 Dummy Exp Name/model.pkl"
+    agent_b = "outs/20190131_172524 Dummy Exp Name/model.pkl"
     samples = 50
+
 
 @score_agent_ex.automain
 def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
@@ -338,7 +330,6 @@ def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type
             # TODO seperate tensorflow graphs to get either order of the next two statements to work
             agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env, sess=sess_b)
             agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env, sess=sess_a)
-
 
             agents = [agent_a_object, agent_b_object]
 

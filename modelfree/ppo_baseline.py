@@ -12,9 +12,6 @@ from baselines.a2c import utils
 from modelfree.score_agent import *
 import functools
 
-# TODO Get rid of these dependencies
-from modelfree.simulation_utils import HackyFixForGoalie
-# TODO
 
 
 def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
@@ -94,7 +91,7 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
 def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
 
     #TODO This is nasty, fix
-    victim_type = get_env_and_policy_type(env_name)
+    victim_type = get_policy_type_for_agent_zoo(env_name)
 
     ### ENV SETUP ###
     # TODO: upgrade Gym so this monkey-patch isn't needed
@@ -115,29 +112,21 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
 
                 multi_env = gym.make(env_name)
 
-                policy_type = get_env_and_policy_type(env_name)
-
                 policy = load_zoo_policy(victim, victim_type, "zoo_{}_policy_{}".format(env_name, id), multi_env, 0,
                                          sess=sess)
-
-                multi_env = TheirsToOurs(multi_env)
 
                 # TODO remove this trash
                 def get_action(observation):
                     return policy.act(stochastic=True, observation=observation)[0]
 
+                single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env), Agent(get_action, policy.reset)))
 
-                single_env = FlattenSingletonEnv(CurryEnv(multi_env, Agent(get_action, policy.reset)))
+                #if env_name == 'kick-and-defend':
+                   # #attacked_agent = utils.load_agent(trained_agent, policy_type,
+                   # #                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
+                   # #single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
 
-
-                if env_name == 'kick-and-defend':
-                    #attacked_agent = utils.load_agent(trained_agent, policy_type,
-                    #                                  "zoo_{}_policy_{}".format(env_name, id), multi_env, 0)
-                    #single_env = MultiToSingle(CurryEnv(multi_env, attacked_agent))
-
-                    single_env = HackyFixForGoalie(single_env)
-
-                #single_env.spec = gym.envs.registration.EnvSpec('Dummy-v0')
+                  #  single_env = HackyFixForGoalie(single_env)
 
                 # TODO: upgrade Gym so don't have to do thi0s
                 single_env.observation_space.dtype = np.dtype(np.float32)
@@ -152,8 +141,6 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
         venv = VecNormalize(venv)
 
     return venv
-
-
 
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
