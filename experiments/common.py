@@ -7,8 +7,6 @@ import pandas as pd
 
 from ilqr.controller import RecedingHorizonController
 
-from aprl.agents import MujocoFiniteDiffDynamicsPerformance
-
 
 def set_seeds(seed):
     random.seed(seed)
@@ -49,18 +47,19 @@ def fit_ilqr(ilqrs, x0s, us_init, **kwargs):
     return xs, us
 
 
-def receding(env, ilqr, x0, us_init, step_size=1, **kwargs):
+def receding(env, ilqr, x0, us_init, step_size=1, horizon=None, **kwargs):
+    if horizon is None:
+        horizon = len(us_init)
     controller = RecedingHorizonController(x0, ilqr)
-    xs = np.zeros((len(us_init), ) + x0.shape)
-    us = np.zeros_like(us_init)
+    xs = np.zeros((horizon, ) + x0.shape)
+    us = np.zeros((horizon, ) + us_init[0].shape)
     i = 0
     for x, u in controller.control(us_init, step_size=step_size, **kwargs):
-        ob, r, done, info = env.step(u)
         xs[i:i+step_size] = x[:-1]
         us[i:i+step_size] = u
-        print('iteration {} r = {}, x = {}, u = {}'.format(i, r, x, u))
+        print('iteration {} x = {}, u = {}'.format(i, x, u))
         i += step_size
-        if i == len(us_init):
+        if i == horizon:
             break
     return xs, us
 
@@ -80,7 +79,7 @@ def evaluate(env, dynamics, x0, us, render=False):
         actual_xs.append(dynamics.get_state())
         if render:
             env.render()
-            time.sleep(0.02)
+            time.sleep(0.01)
     return rew, actual_xs
 
 

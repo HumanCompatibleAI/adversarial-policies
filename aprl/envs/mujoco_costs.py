@@ -64,7 +64,7 @@ class InvertedPendulumCost(BatchAutoDiffCost):
 
             # Try and keep the pendulum as upright as possible,
             # without too rapid movement.
-            cost = ang_cost + vel_cost + ctrl_cost
+            cost = ang_cost + 1e-1 * vel_cost + 1e-1 * ctrl_cost
             return cost
 
         super().__init__(f, state_size=4, action_size=1)
