@@ -110,9 +110,10 @@ class InvertedDoublePendulumCost(BatchAutoDiffCost):
             vel_cost = 1e-3 * T.square(v1) + 5e-3 * T.square(v2)
 
             #TODO: termination penalty? (shouldn't change optimal policy?)
-            termination_cost = T.square(T.max([T.zeros_like(tip_y), 1.1 - tip_y], axis=0))
+            dist_below = T.max([T.zeros_like(tip_y), 1.1 - tip_y], axis=0)
+            termination_cost = T.square(dist_below)
 
-            cost = dist_cost + vel_cost + ctrl_coef * ctrl_cost
+            cost = dist_cost + vel_cost + ctrl_coef * ctrl_cost + 5 * termination_cost
             return cost
 
         super().__init__(f, state_size=6, action_size=1)
