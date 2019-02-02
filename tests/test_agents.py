@@ -43,7 +43,7 @@ def test_ppo_self_play():
 
 def test_lqr_mujoco():
     '''Smoke test for MujcooFiniteDiff{Dynamics,Cost}.
-    Jupyter notebook examples/mujoco_control.ipynb has quantitative results
+    Jupyter notebook experiments/mujoco_control.ipynb has quantitative results
     attained; for efficiency, we only run for a few iterations here.'''
     env = gym.make('Reacher-v2').unwrapped
     env.reset()

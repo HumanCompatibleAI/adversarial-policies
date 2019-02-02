@@ -195,3 +195,15 @@ class SwimmerCost(BatchAutoDiffCost):
             return cost
 
         super().__init__(f, state_size=10, action_size=2)
+
+
+COSTS = {
+    'Reacher-v2': ReacherCost,
+    'InvertedPendulum-v2': InvertedPendulumCost,
+    'InvertedDoublePendulum-v2': InvertedDoublePendulumCost,
+    'Hopper-v2': HopperCost,
+}
+
+
+def get_cost(env_name):
+    return COSTS[env_name]()
