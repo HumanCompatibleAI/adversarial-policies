@@ -202,6 +202,7 @@ COSTS = {
     'InvertedPendulum-v2': InvertedPendulumCost,
     'InvertedDoublePendulum-v2': InvertedDoublePendulumCost,
     'Hopper-v2': HopperCost,
+    'Swimmer-v2': SwimmerCost,
 }
 
 
