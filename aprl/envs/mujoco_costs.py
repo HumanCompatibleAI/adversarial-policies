@@ -160,9 +160,9 @@ class HopperCost(BatchAutoDiffCost):
             abs_ang = abs(x[..., 2])  # qpos[2]
             def penalty_geq(x, target):
                 '''Quadratic penalty if x > target; zero cost if x <= target.'''
-                return T.square(T.max([T.zeros_like(x), x - target * 0.9], axis=0))
-            angle_penalty = 100 * penalty_geq(abs_ang, 0.2)
-            height_penalty = 100 * penalty_geq(-height, -0.7)
+                return T.square(T.max([T.zeros_like(x), x - target], axis=0))
+            angle_penalty = 2000 * penalty_geq(abs_ang, 0.2 * 0.7)
+            height_penalty = 200 * penalty_geq(-height, -0.7*1.25)
             state_penalty = 1e-4 * T.sum(penalty_geq(abs(x[..., 2:]), 100), axis=-1)
             termination_penalty = angle_penalty + height_penalty + state_penalty
 
@@ -199,12 +199,32 @@ class SwimmerCost(BatchAutoDiffCost):
         super().__init__(f, state_size=10, action_size=2)
 
 
+class HalfCheetahCost(BatchAutoDiffCost):
+    '''Differentiable cost for the HalfCheetah-v2 Gym environment. Cost function
+    is as in Gym, except using velocity variable directly rather than taking
+    finite difference.'''
+    def __init__(self):
+        def f(x, u, i, terminal):
+            # x: (batch_size, 18), concatenation of qpos and qvel
+            if terminal:
+                control_penalty = 0
+            else:
+                control_penalty = 0.1 * T.square(u).sum(axis=-1)
+
+            forward_movement = x[..., 9]  # qvel[0]
+
+            return -forward_movement + control_penalty
+
+        super().__init__(f, state_size=18, action_size=6)
+
+
 COSTS = {
     'Reacher-v2': ReacherCost,
     'InvertedPendulum-v2': InvertedPendulumCost,
     'InvertedDoublePendulum-v2': InvertedDoublePendulumCost,
     'Hopper-v2': HopperCost,
     'Swimmer-v2': SwimmerCost,
+    'HalfCheetah-v2': HalfCheetahCost,
 }
 
 
