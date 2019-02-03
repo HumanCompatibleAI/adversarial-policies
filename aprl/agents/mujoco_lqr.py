@@ -2,7 +2,6 @@
 https://github.com/anassinator/ilqr. Specifically, implements
 finite-difference approximations for dynamics and cost."""
 
-from collections import namedtuple
 from contextlib import contextmanager
 from enum import Enum
 from functools import reduce
@@ -12,29 +11,8 @@ from ilqr.dynamics import Dynamics, FiniteDiffDynamics
 from mujoco_py import functions as mjfunc
 import numpy as np
 
+from aprl.common.mujoco import MujocoState
 from aprl.utils import getattr_unwrapped
-
-#TODO: Cythonize
-class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
-    """Represents state from the MuJoCo simulator needed for planning,
-       namely position and velocity."""
-
-    @staticmethod
-    def from_mjdata(data):
-        return MujocoState(data.qpos, data.qvel)
-
-    @staticmethod
-    def from_flattened(flattened, sim):
-        qpos = flattened[0:sim.model.nq]
-        qvel = flattened[sim.model.nq:sim.model.nq + sim.model.nv]
-        return MujocoState(qpos, qvel)
-
-    def set_mjdata(self, data):
-        data.qpos[:] = self.qpos
-        data.qvel[:] = self.qvel
-
-    def flatten(self):
-        return np.concatenate((self. qpos, self.qvel))
 
 
 class MujocoFiniteDiff(object):
