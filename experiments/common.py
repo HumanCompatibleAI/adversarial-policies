@@ -47,10 +47,11 @@ def fit_ilqr(ilqrs, x0s, us_init, **kwargs):
     return xs, us
 
 
-def receding(env, ilqr, x0, us_init, step_size=1, horizon=None, **kwargs):
+def receding(ilqr, x0, us_init, seed, step_size=1, horizon=None, **kwargs):
     if horizon is None:
         horizon = len(us_init)
     controller = RecedingHorizonController(x0, ilqr)
+    controller.seed(seed)
     xs = np.zeros((horizon, ) + x0.shape)
     us = np.zeros((horizon, ) + us_init[0].shape)
     i = 0

@@ -113,7 +113,8 @@ class InvertedDoublePendulumCost(BatchAutoDiffCost):
             dist_below = T.max([T.zeros_like(tip_y), 1.1 - tip_y], axis=0)
             termination_cost = T.square(dist_below)
 
-            cost = dist_cost + vel_cost + ctrl_coef * ctrl_cost + 5 * termination_cost
+            cost = (5 * termination_cost + dist_cost
+                    + vel_cost + ctrl_coef * ctrl_cost)
             return cost
 
         super().__init__(f, state_size=6, action_size=1)
