@@ -127,8 +127,8 @@ def _constfn(val):
 
 
 def _safemean(xs):
-    '''Avoid division error when calculate the mean
-       (in our case if epinfo is empty returns np.nan, not return an error)'''
+    """Avoid division error when calculate the mean
+       (in our case if epinfo is empty returns np.nan, not return an error)"""
     return np.nan if len(xs) == 0 else np.mean(xs)
 
 

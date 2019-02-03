@@ -98,7 +98,7 @@ class MonteCarloSingle(MonteCarlo):
     def best_action(self, state):
         """Returns the best action out of a random search of action sequences.
         See base class for details.
-        
+
         Search takes place in a single environment, which is reset to state
         before evaluating each action sequence. WARNING: the state of the
         environment upon return is arbitrary."""

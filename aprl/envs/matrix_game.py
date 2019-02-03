@@ -4,12 +4,12 @@ import numpy as np
 from aprl.envs import MultiAgentEnv
 
 class MatrixGameEnv(MultiAgentEnv):
-    '''Models two-player, normal-form games with symetrically sized action space.'''
+    """Models two-player, normal-form games with symetrically sized action space."""
     metadata = {'render.modes': ['human']}
     ACTION_TO_SYM = None
 
     def __init__(self, num_actions, payoff):
-        '''payoff_matrices must be a pair of num_actions*num_actions payoff matrices.'''
+        """payoff_matrices must be a pair of num_actions*num_actions payoff matrices."""
         agent_space = Discrete(num_actions)
         super().__init__(num_agents=2,
                          agent_action_space=agent_space,

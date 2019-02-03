@@ -136,11 +136,11 @@ def shape_reward(rewards=None, env=None):
     if rewards is None or not rewards:
         return env
 
-    '''
+    """
         Note that when we are using their rewards we modify then recurse and when we are using ours we recurse and then 
         modify.  This is because we have to implement their rewards by modifying the environment while we can implement
         ours with wrappers
-    '''
+    """
 
     reward_type = rewards.pop()
     if reward_type == "not_their_win_loss":

@@ -1,8 +1,8 @@
-'''Analytically differentiable cost functions for some MuJoCo environments.
+"""Analytically differentiable cost functions for some MuJoCo environments.
 
 All cost functions are intended to exactly reproduce that of the negative reward
 in the original Gym environment, unless otherwise noted. However, note they are
-defined in terms of the raw MuJoCo state (qpos, qvel), not Gym observations.'''
+defined in terms of the raw MuJoCo state (qpos, qvel), not Gym observations."""
 
 #TODO: does this belong in agents instead of envs?
 
@@ -11,8 +11,8 @@ from ilqr.cost import BatchAutoDiffCost
 
 
 class ReacherCost(BatchAutoDiffCost):
-    '''Differentiable cost for the Reacher-v2 Gym environment.
-       See base class for more details.'''
+    """Differentiable cost for the Reacher-v2 Gym environment.
+       See base class for more details."""
     def __init__(self):
         def f(x, u, i, terminal):
             if terminal:
@@ -40,7 +40,7 @@ class ReacherCost(BatchAutoDiffCost):
 
 
 class InvertedPendulumCost(BatchAutoDiffCost):
-    '''Differentiable cost for the InvertedPendulum-v2 Gym environment.
+    """Differentiable cost for the InvertedPendulum-v2 Gym environment.
        InvertedPendulum-v2 has a +1 reward while pendulum is upright, and 0
        otherwise (with the episode terminating). This is problematic to use with
        iLQG: the cost is not differentiable (indeed, it is discontinuous on the
@@ -48,7 +48,7 @@ class InvertedPendulumCost(BatchAutoDiffCost):
        dynamics include transition into a zero-reward absorbing state). Instead,
        I use a cost function penalizing the square of the: angle from y-axis,
        velocity and control. (The control penalty seems to be unnecessary to get
-       good performance, but the velocity term is needed.)'''
+       good performance, but the velocity term is needed.)"""
     def __init__(self):
         def f(x, u, i, terminal):
             if terminal:
@@ -71,14 +71,14 @@ class InvertedPendulumCost(BatchAutoDiffCost):
 
 
 class InvertedDoublePendulumCost(BatchAutoDiffCost):
-    '''Differentiable cost for the InvertedDoublePendulum-v2 Gym environment.
+    """Differentiable cost for the InvertedDoublePendulum-v2 Gym environment.
     The cost construction is a little surprisingly quite different from
     InvertedPendulum-v2. Gym gives an alive bonus of 10, minus a quadratic
     penalty for the distance of the tip of the pole from the target position
     (x at the origin, pole fully upright at y=2) and velocity. Termination
     condition is just if height drops below y=1. In our implementation, we omit
     the alive bonus and represent termination condition as a quadratic penalty
-    below a height of 1.1. We also introduce a control penalty.'''
+    below a height of 1.1. We also introduce a control penalty."""
     def __init__(self, ctrl_coef=1e-1):
         def f(x, u, i, terminal):
             # Original Gym does not impose a control cost, but does clip it
@@ -121,12 +121,12 @@ class InvertedDoublePendulumCost(BatchAutoDiffCost):
 
 
 class HopperCost(BatchAutoDiffCost):
-    '''Differentiable cost for the Hopper-v2 Gym environment.
+    """Differentiable cost for the Hopper-v2 Gym environment.
     I follow Gym in rewarding forward motion, and placing a quadratic penalty
     on control cost. Gym has a complicated termination condition: since there
     is a living reward of +1, this loosely corresponds to a discontinuous
     penalty for violating these conditions. I approximate this by penalizing
-    a low height, extreme angle, or extremely large state vectors.'''
+    a low height, extreme angle, or extremely large state vectors."""
     def __init__(self):
         def f(x, u, i, terminal):
 
@@ -159,7 +159,7 @@ class HopperCost(BatchAutoDiffCost):
             height = x[..., 1]  # qpos[1]
             abs_ang = abs(x[..., 2])  # qpos[2]
             def penalty_geq(x, target):
-                '''Quadratic penalty if x > target; zero cost if x <= target.'''
+                """Quadratic penalty if x > target; zero cost if x <= target."""
                 return T.square(T.max([T.zeros_like(x), x - target], axis=0))
             angle_penalty = 2000 * penalty_geq(abs_ang, 0.2 * 0.7)
             height_penalty = 200 * penalty_geq(-height, -0.7*1.25)
@@ -173,9 +173,9 @@ class HopperCost(BatchAutoDiffCost):
 
 
 class SwimmerCost(BatchAutoDiffCost):
-    '''Differentiable cost for the Swimmer-v2 Gym environment. Cost function is
+    """Differentiable cost for the Swimmer-v2 Gym environment. Cost function is
     as in Gym, except using velocity variable directly rather than taking
-    finite difference.'''
+    finite difference."""
     def __init__(self):
         def f(x, u, i, terminal):
             # x: (batch_size, 10), concatenation of qpos & qvel
@@ -200,9 +200,9 @@ class SwimmerCost(BatchAutoDiffCost):
 
 
 class HalfCheetahCost(BatchAutoDiffCost):
-    '''Differentiable cost for the HalfCheetah-v2 Gym environment. Cost function
+    """Differentiable cost for the HalfCheetah-v2 Gym environment. Cost function
     is as in Gym, except using velocity variable directly rather than taking
-    finite difference.'''
+    finite difference."""
     def __init__(self):
         def f(x, u, i, terminal):
             # x: (batch_size, 18), concatenation of qpos and qvel

@@ -10,7 +10,7 @@ from aprl.envs import DummyVecMultiEnv
 
 
 def test_multi_monitor():
-    '''Smoke test for MultiMonitor.'''
+    """Smoke test for MultiMonitor."""
     env = gym.make('aprl/IMP-v0')
     with tempfile.TemporaryDirectory(prefix='test_multi_mon') as d:
         env = MultiMonitor(env, filename=os.path.join(d, 'test'))
@@ -25,7 +25,7 @@ def test_multi_monitor():
 
 
 def test_ppo_self_play():
-    '''Smoke test for PPOSelfPlay.'''
+    """Smoke test for PPOSelfPlay."""
     with tempfile.TemporaryDirectory(prefix='test_ppo_self_play') as d:
         def make_env(i):
             env = gym.make('aprl/IMP-v0')
@@ -42,9 +42,9 @@ def test_ppo_self_play():
 
 
 def test_lqr_mujoco():
-    '''Smoke test for MujcooFiniteDiff{Dynamics,Cost}.
+    """Smoke test for MujcooFiniteDiff{Dynamics,Cost}.
     Jupyter notebook experiments/mujoco_control.ipynb has quantitative results
-    attained; for efficiency, we only run for a few iterations here.'''
+    attained; for efficiency, we only run for a few iterations here."""
     env = gym.make('Reacher-v2').unwrapped
     env.reset()
     dynamics = MujocoFiniteDiffDynamics(env)

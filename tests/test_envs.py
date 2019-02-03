@@ -14,7 +14,7 @@ spec_list = [spec
 
 @pytest.mark.parametrize("spec", spec_list)
 def test_env(spec):
-    '''Based on Gym smoke test in gym.envs.tests.test_envs.'''
+    """Based on Gym smoke test in gym.envs.tests.test_envs."""
     env = spec.make()
     ob_space = env.observation_space
     act_space = env.action_space
@@ -46,7 +46,7 @@ def test_env(spec):
 
 @pytest.mark.parametrize("spec", spec_list)
 def test_random_rollout(spec):
-    '''Based on Gym smoke test in gym.envs.tests.test_envs.'''
+    """Based on Gym smoke test in gym.envs.tests.test_envs."""
     env = spec.make()
     ob = env.reset()
     for _ in range(10):
@@ -67,8 +67,8 @@ class SimpleMultiEnv(envs.MatrixGameEnv):
 
 
 def test_vec_env():
-    '''Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
-       each other.'''
+    """Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
+       each other."""
     env_fns = [functools.partial(SimpleMultiEnv, i) for i in range(4)]
     venv1 = envs.DummyVecMultiEnv(env_fns)
     venv2 = envs.SubprocVecMultiEnv(env_fns)
