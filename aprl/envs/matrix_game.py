@@ -3,6 +3,7 @@ import numpy as np
 
 from aprl.envs import MultiAgentEnv
 
+
 class MatrixGameEnv(MultiAgentEnv):
     """Models two-player, normal-form games with symetrically sized action space."""
     metadata = {'render.modes': ['human']}

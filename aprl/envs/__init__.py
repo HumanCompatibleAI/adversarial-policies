@@ -1,6 +1,9 @@
+# flake8: noqa: F401
+
 from gym.envs.registration import register
 
-from aprl.envs.multi_agent import MultiAgentEnv, MultiToSingleObs, MultiToSingleObsVec, DummyVecMultiEnv, SubprocVecMultiEnv
+from aprl.envs.multi_agent import MultiAgentEnv, MultiToSingleObs, MultiToSingleObsVec, \
+                                  DummyVecMultiEnv, SubprocVecMultiEnv
 from aprl.envs.matrix_game import MatrixGameEnv, IteratedMatchingPenniesEnv, RockPaperScissorsEnv
 
 register(

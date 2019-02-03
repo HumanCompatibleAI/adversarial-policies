@@ -26,7 +26,7 @@ def make_env(env_name, seed, horizon=None):
     env = env.unwrapped
     env.frame_skip = 1
     env.seed(seed)
-    _obs = env.reset()
+    env.reset()
     us_init = np.array([env.action_space.sample() for _ in range(horizon)])
 
     return env, us_init

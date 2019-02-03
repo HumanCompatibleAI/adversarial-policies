@@ -1,7 +1,6 @@
 import numpy as np
 import gym
 from gym import Env, Wrapper
-from gym.spaces import Tuple
 from baselines.common.vec_env import VecEnvWrapper
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
@@ -14,7 +13,7 @@ def _vec_space(space, num_agents):
         return gym.spaces.MultiDiscrete([space.n for _ in range(num_agents)])
     elif isinstance(space, gym.spaces.MultiDiscrete):
         return gym.spaces.MultiDiscrete([space.nvec for _ in range(num_agents)])
-    elif isinstance(space, gym.shapes.Box):
+    elif isinstance(space, gym.spaces.Box):
         low = np.asarray([space.low for _ in range(num_agents)])
         high = np.asarray([space.high for _ in range(num_agents)])
         return gym.spaces.Box(low=low, high=high)
@@ -98,9 +97,7 @@ class MultiToSingleObsVec(VecEnvWrapper):
     def __init__(self, venv):
         observation_space = venv.observation_space.agent_space
         action_space = venv.action_space.agent_space
-        super().__init__(venv,
-                         observation_space=observation_space,
-                         action_space=action_space)
+        super().__init__(venv, observation_space=observation_space, action_space=action_space)
 
     def reset(self):
         return self.venv.reset()
@@ -116,8 +113,8 @@ class DummyVecMultiEnv(DummyVecEnv):
     def __init__(self, env_fns):
         super().__init__(env_fns)
         self.num_agents = getattr_unwrapped(self.envs[0], 'num_agents')
-        self.buf_rews = np.zeros((self.num_envs, self.num_agents),
-                                 dtype=np.float32)
+        self.buf_rews = np.zeros((self.num_envs, self.num_agents), dtype=np.float32)
+
 
 class SubprocVecMultiEnv(SubprocVecEnv):
     """Stand-in for SubprocVecEnv when applied to MultiEnv's.

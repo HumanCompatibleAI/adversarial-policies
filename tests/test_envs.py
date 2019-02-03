@@ -21,8 +21,8 @@ def test_env(spec):
     ob = env.reset()
     assert ob_space.contains(ob), 'Reset observation: {!r} not in space'.format(ob)
     a = act_space.sample()
-    observation, reward, done, _info = env.step(a)
-    assert ob_space.contains(observation), 'Step observation: {!r} not in space'.format(observation)
+    ob, reward, done, _info = env.step(a)
+    assert ob_space.contains(ob), 'Step observation: {!r} not in space'.format(ob)
     assert isinstance(done, bool), "Expected {} to be a boolean".format(done)
 
     if isinstance(env, envs.MultiAgentEnv):
@@ -54,7 +54,8 @@ def test_random_rollout(spec):
         a = env.action_space.sample()
         assert env.action_space.contains(a)
         ob, reward, done, info = env.step(a)
-        if done: break
+        if done:
+            break
     env.close()
 
 

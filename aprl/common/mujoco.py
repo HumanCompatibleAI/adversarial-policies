@@ -1,6 +1,9 @@
 from collections import namedtuple
 
-#TODO: Cythonize
+import numpy as np
+
+
+# TODO: Cythonize
 class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
     """Represents state from the MuJoCo simulator needed for planning,
        namely position and velocity."""

@@ -26,7 +26,7 @@ class MujocoFiniteDiff(object):
         self.sim = getattr_unwrapped(env, 'sim')
         state = MujocoState.from_mjdata(self.sim.data).flatten()
         self._state_size = len(state)
-        self._action_size = reduce(lambda x, y : x * y, env.action_space.shape)
+        self._action_size = reduce(lambda x, y: x * y, env.action_space.shape)
 
     def get_state(self):
         return MujocoState.from_mjdata(self.sim.data).flatten()
@@ -92,6 +92,7 @@ class JointTypes(Enum):
     BALL = 1
     SLIDE = 2
     HINGE = 3
+
 
 class SkipStages(Enum):
     NONE = 0
@@ -231,8 +232,9 @@ def _consistent_solver(sim, niter=30):
 
 class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
     """Finite difference dynamics for a MuJoCo environment."""
+    # TODO: assumes frame skip is 1. Can we generalize? Do we want to?
     NWARMUP = 3
-    #TODO: assumes frame skip is 1. Can we generalize? Do we want to?
+
     def __init__(self, env, x_eps=1e-6, u_eps=1e-6):
         """Inits MujocoFiniteDiffDynamicsPerformance with a MujocoEnv.
 

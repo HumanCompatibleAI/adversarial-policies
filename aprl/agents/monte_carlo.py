@@ -58,7 +58,7 @@ class MonteCarlo(ABC):
         :param trajectories: the number of trajectories to evaluate."""
         self.horizon = horizon
         self.trajectories = trajectories
-    
+
     @abstractmethod
     def seed(self, seed):
         """Sets a seed for the PRNG for the action sequences.
@@ -117,7 +117,7 @@ class MonteCarloSingle(MonteCarlo):
         return best
 
 
-#TODO: profile -- where is it spending most the time? any single threaded bottlenecks?
+# TODO: profile -- where is it spending most the time? any single threaded bottlenecks?
 def _worker(remote, parent_remote, dynamic_fn_wrapper, horizon, trajectories):
     parent_remote.close()
     dynamics = dynamic_fn_wrapper.x()
@@ -171,9 +171,7 @@ class MonteCarloParallel(MonteCarlo):
             remote.send('seed', seed + i)
 
     def best_action(self, state):
-        """Returns the best action out of a random search of action sequences.
-        
-        """
+        """Returns the best action out of a random search of action sequences."""
         for remote in self.remotes:
             remote.send('search', state)
         results = [remote.recv() for remote in self.remotes]

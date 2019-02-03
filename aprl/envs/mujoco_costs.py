@@ -4,7 +4,7 @@ All cost functions are intended to exactly reproduce that of the negative reward
 in the original Gym environment, unless otherwise noted. However, note they are
 defined in terms of the raw MuJoCo state (qpos, qvel), not Gym observations."""
 
-#TODO: does this belong in agents instead of envs?
+# TODO: does this belong in agents instead of envs?
 
 from theano import tensor as T
 from ilqr.cost import BatchAutoDiffCost
@@ -109,7 +109,7 @@ class InvertedDoublePendulumCost(BatchAutoDiffCost):
             v2 = x[..., 5]  # qvel[2]
             vel_cost = 1e-3 * T.square(v1) + 5e-3 * T.square(v2)
 
-            #TODO: termination penalty? (shouldn't change optimal policy?)
+            # TODO: termination penalty? (shouldn't change optimal policy?)
             dist_below = T.max([T.zeros_like(tip_y), 1.1 - tip_y], axis=0)
             termination_cost = T.square(dist_below)
 
@@ -158,9 +158,11 @@ class HopperCost(BatchAutoDiffCost):
             # issues with numerical stability.
             height = x[..., 1]  # qpos[1]
             abs_ang = abs(x[..., 2])  # qpos[2]
+
             def penalty_geq(x, target):
                 """Quadratic penalty if x > target; zero cost if x <= target."""
                 return T.square(T.max([T.zeros_like(x), x - target], axis=0))
+
             angle_penalty = 2000 * penalty_geq(abs_ang, 0.2 * 0.7)
             height_penalty = 200 * penalty_geq(-height, -0.7*1.25)
             state_penalty = 1e-4 * T.sum(penalty_geq(abs(x[..., 2:]), 100), axis=-1)

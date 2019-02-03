@@ -29,7 +29,8 @@ def test_ppo_self_play():
     with tempfile.TemporaryDirectory(prefix='test_ppo_self_play') as d:
         def make_env(i):
             env = gym.make('aprl/IMP-v0')
-            env = MultiMonitor(env, 'test{:d}'.format(i),
+            fname = os.path.join(d, 'test{:d}'.format(i))
+            env = MultiMonitor(env, filename=fname,
                                allow_early_resets=True)
             return env
         env_fns = [functools.partial(make_env, i) for i in range(4)]
