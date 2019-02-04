@@ -1,11 +1,11 @@
 import functools
+
+from baselines.common.vec_env.test_vec_env import assert_envs_equal
 import gym
 import numpy as np
 import pytest
-from baselines.common.vec_env.test_vec_env import assert_envs_equal
 
 from aprl import envs
-
 
 spec_list = [spec
              for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)

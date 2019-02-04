@@ -2,10 +2,9 @@ import random
 import time
 
 import gym
+from ilqr.controller import RecedingHorizonController
 import numpy as np
 import pandas as pd
-
-from ilqr.controller import RecedingHorizonController
 
 
 def set_seeds(seed):

@@ -6,8 +6,8 @@ defined in terms of the raw MuJoCo state (qpos, qvel), not Gym observations."""
 
 # TODO: does this belong in agents instead of envs?
 
-from theano import tensor as T
 from ilqr.cost import BatchAutoDiffCost
+from theano import tensor as T
 
 
 class ReacherCost(BatchAutoDiffCost):

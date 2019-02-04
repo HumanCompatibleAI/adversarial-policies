@@ -1,11 +1,12 @@
 import functools
+import os
+import tempfile
+
 import gym
 from ilqr import iLQR
-import tempfile
-import os
 import numpy as np
 
-from aprl.agents import MultiMonitor, PPOSelfPlay, MujocoFiniteDiffDynamics, MujocoFiniteDiffCost
+from aprl.agents import MujocoFiniteDiffCost, MujocoFiniteDiffDynamics, MultiMonitor, PPOSelfPlay
 from aprl.envs import DummyVecMultiEnv
 
 

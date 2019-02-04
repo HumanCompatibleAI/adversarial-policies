@@ -1,17 +1,17 @@
 # flake8: noqa
 # TODO: fix PEP8 violations inherited from Baselines
 
+from collections.__init__ import deque
 import functools
 import os
-import time
-from collections.__init__ import deque
 from os import path as osp
+import time
 
+from baselines import logger
+from baselines.common import explained_variance, set_global_seeds, tf_util
+from baselines.common.policies import build_policy
 import numpy as np
 import tensorflow as tf
-from baselines import logger
-from baselines.common import tf_util, set_global_seeds, explained_variance
-from baselines.common.policies import build_policy
 
 from aprl.agents.self_play import AbstractMultiEnvRunner, SelfPlay
 from aprl.envs import MultiToSingleObsVec

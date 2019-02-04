@@ -1,7 +1,7 @@
 """Monte Carlo receding horizon control."""
 
 from abc import ABC, abstractmethod
-from multiprocessing import Process, Pipe
+from multiprocessing import Pipe, Process
 
 from baselines.common.vec_env import CloudpickleWrapper
 import gym

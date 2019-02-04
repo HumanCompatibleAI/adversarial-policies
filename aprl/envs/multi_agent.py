@@ -1,9 +1,9 @@
-import numpy as np
-import gym
-from gym import Env, Wrapper
 from baselines.common.vec_env import VecEnvWrapper
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+import gym
+from gym import Env, Wrapper
+import numpy as np
 
 from aprl.utils import getattr_unwrapped
 
