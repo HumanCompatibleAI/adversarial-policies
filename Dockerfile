@@ -1,6 +1,7 @@
 # Based on OpenAI's mujoco-py Dockerfile
 
 FROM nvidia/cuda@sha256:4df157f2afde1cb6077a191104ab134ed4b2fd62927f27b69d788e8e79a45fa1
+ARG MUJOCO_KEY
 
 RUN apt-get update -q \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -53,12 +54,13 @@ WORKDIR /adversarial_policies
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial_policies/
 COPY ./requirements.txt /adversarial_policies/
-RUN pip install -r requirements-build.txt
-RUN pip install -r requirements.txt
+RUN pip install -r requirements-build.txt \
+    curl ${MUJOCO_KEY} > /root/.mujoco/mjkey.txt  # needed for mujoco-py build \
+    pip install -r requirements.txt \
+    rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
 
 # Delay moving in the entire code until the very end.
 ENTRYPOINT ["/adversarial_policies/vendor/Xdummy-entrypoint"]
 CMD ["ci/run_tests.sh"]
 COPY . /adversarial_policies
-ARG MUJOCO_KEY
 RUN python setup.py install
