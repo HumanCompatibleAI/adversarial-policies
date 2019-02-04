@@ -44,6 +44,7 @@ def test_ppo_self_play():
                                 network='mlp')
         self_play.learn(total_timesteps=10000)
 
+
 dynamics_list = [MujocoFiniteDiffDynamicsBasic, MujocoFiniteDiffDynamicsPerformance]
 @pytest.mark.parametrize("dynamics_cls", dynamics_list)
 def test_lqr_mujoco(dynamics_cls):
