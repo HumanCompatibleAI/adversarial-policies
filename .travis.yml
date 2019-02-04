@@ -1,0 +1,21 @@
+sudo: required
+dist: xenial
+
+matrix:
+  include:
+  - name: "Linting"
+    language: python
+    python: 3.6
+    install:
+      - pip install flake8
+    script:
+      - flake8 aprl experiments tests  # modelfree
+
+  - name: "3.6 Unit Tests"
+    language: generic
+    services:
+      - docker
+    before_install:
+      - docker build --cache-from humancompatibleai/adversarial_policies -t image-under-test .
+    script:
+      - docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} image-under-test
