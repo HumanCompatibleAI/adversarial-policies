@@ -22,7 +22,9 @@ matrix:
                      --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
                      -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
     script:
-      - docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} image-under-test
+      - >
+        docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+                              humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
     after_success:
       - |
           if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
