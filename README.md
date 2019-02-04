@@ -13,3 +13,8 @@ Anaconda users can install directly with `conda env create -f environment.yml`.
 
 Please run the `ci/code_checks.sh` before committing. This runs several linting steps.
 These are also run as a continuous integration check.
+
+I like to use Git commit hooks to prevent bad commits from happening in the first place:
+```bash
+ln -s ../../ci/code_checks.sh .git/hooks/pre-commit
+```

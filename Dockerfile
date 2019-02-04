@@ -1,7 +1,6 @@
 # Based on OpenAI's mujoco-py Dockerfile
 
 FROM nvidia/cuda@sha256:4df157f2afde1cb6077a191104ab134ed4b2fd62927f27b69d788e8e79a45fa1
-ARG MUJOCO_KEY
 
 RUN apt-get update -q \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -50,14 +49,15 @@ RUN chmod +x /usr/local/bin/Xdummy
 COPY ./vendor/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
 
 WORKDIR /adversarial_policies
+ARG MUJOCO_KEY
 # Copy over just requirements.txt at first. That way, the Docker cache doesn't
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial_policies/
 COPY ./requirements.txt /adversarial_policies/
 RUN pip install -r requirements-build.txt \
-    curl ${MUJOCO_KEY} > /root/.mujoco/mjkey.txt  # needed for mujoco-py build \
-    pip install -r requirements.txt \
-    rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
+    && curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
+    && pip install -r requirements.txt \
+    && rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
 
 # Delay moving in the entire code until the very end.
 ENTRYPOINT ["/adversarial_policies/vendor/Xdummy-entrypoint"]
