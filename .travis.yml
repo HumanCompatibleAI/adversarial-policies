@@ -16,8 +16,18 @@ matrix:
     services:
       - docker
     before_install:
+      - docker pull humancompatibleai/adversarial_policies:latest
       - >
         docker build --cache-from humancompatibleai/adversarial_policies
-                     --arg MUJOCO_KEY=${MUJOCO_KEY} -t image-under-test .
+                     --arg MUJOCO_KEY=${MUJOCO_KEY}
+                     -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
     script:
       - docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} image-under-test
+    after_success:
+      - |
+          if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            sudo docker tag humancompatibleai/adversarial_policies:latest \
+                            humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
+            docker push humancompatibleai/adversarial_policies
+          fi
