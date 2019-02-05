@@ -167,7 +167,7 @@ def default_ppo_config():
     exp_name = "Dummy Exp Name"
     no_normalize = True
     seed = 1
-    total_timesteps = 100000
+    total_timesteps = 1000000
     network = "mlp"
     nsteps = 2048
     load_path = None

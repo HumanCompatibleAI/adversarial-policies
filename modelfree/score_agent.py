@@ -1,10 +1,15 @@
 from sacred import Experiment
 import gym
+from gym.core import Wrapper
+from gym.monitoring.video_recorder import VideoRecorder
 import gym_compete
 import pickle
 import tensorflow as tf
 import numpy as np
 import sys
+import os
+import os.path as osp
+
 
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.vec_normalize import VecNormalize
@@ -46,7 +51,7 @@ class TheirsToOurs(MultiAgentEnv):
         return list(self._env.reset())
 
 
-def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
+def get_emperical_score(_run, env, agents, trials, render=False):
     result = {
         "ties": 0,
         "wincounts": [0] * len(agents)
@@ -56,7 +61,7 @@ def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
     _run.result = result
 
     for i in range(trials):
-        this_result = new_anounce_winner(simulate(env, agents, render=render), silent=silent)
+        this_result = new_anounce_winner(simulate(env, agents, render=render))
         if result == -1:
             result["ties"] = result["ties"] + 1
         else:
@@ -67,7 +72,7 @@ def get_emperical_score(_run, env, agents, trials, render=False, silent=False):
     return result
 
 
-def new_anounce_winner(sim_stream, silent=False):
+def new_anounce_winner(sim_stream):
     for _, _, dones, infos in sim_stream:
         if dones[0]:
             draw = True
@@ -287,6 +292,44 @@ class StatefulModel(Policy):
 #######################################################################################################
 
 
+class VideoWrapper(Wrapper):
+    def __init__(self, env, directory):
+        super(VideoWrapper, self).__init__(env)
+        self.directory = osp.abspath(directory)
+        os.makedirs(self.directory, exist_ok=True)
+        self.episode_id = 0
+        self.video_recorder = None
+
+    def _step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        if all(done):
+            winners = [i for i, d in enumerate(info) if 'winner' in d]
+            metadata = {'winners': winners}
+            self._reset_video_recorder(metadata)
+        self.video_recorder.capture_frame()
+        return obs, rew, done, info
+
+    def _reset(self):
+        self._reset_video_recorder()
+        self.episode_id += 1
+        return self.env.reset()
+
+    def _reset_video_recorder(self, metadata=None):
+        if self.video_recorder:
+            if metadata is not None:
+                self.video_recorder.metadata.update(metadata)
+            self.video_recorder.close()
+        self.video_recorder = VideoRecorder(
+            env=self.env,
+            base_path=osp.join(self.directory, 'video.{:06}'.format(self.episode_id)),
+            metadata={'episode_id': self.episode_id},
+        )
+
+
+#######################################################################################################
+#######################################################################################################
+
+
 def make_session(graph=None):
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
@@ -315,12 +358,19 @@ def default_score_config():
     env = "sumo-ants-v0"
     agent_b_type = "our_mlp"
     agent_b = "outs/20190131_172524 Dummy Exp Name/model.pkl"
-    samples = 50
+    samples = 100
+    watch =True
+    videos = False
+    video_dir = "videos/"
 
 
 @score_agent_ex.automain
-def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type):
+def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type, watch, videos, video_dir):
     env_object = gym.make(env)
+
+    if videos:
+        env_object = VideoWrapper(env_object, video_dir)
+
     graph_a = tf.Graph()
     sess_a = make_session(graph_a)
     graph_b = tf.Graph()
@@ -334,5 +384,5 @@ def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type
             agents = [agent_a_object, agent_b_object]
 
             # TODO figure out how to stop the other thread from crashing when I finish
-            return get_emperical_score(_run, env_object, agents, samples)
+            return get_emperical_score(_run, env_object, agents, samples, render=watch)
 
