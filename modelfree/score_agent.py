@@ -2,114 +2,15 @@ from sacred import Experiment
 import gym
 from gym.core import Wrapper
 from gym.monitoring.video_recorder import VideoRecorder
-import tensorflow as tf
-import numpy as np
-import sys
 import os
 import os.path as osp
+from modelfree.ppo_baseline import load_our_mlp
 
-
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-from baselines.common.vec_env.vec_normalize import VecNormalize
-from baselines.ppo2 import ppo2
-from baselines.a2c import utils
-
-import functools
-
+from modelfree.utils import make_session
 from sacred.observers import FileStorageObserver
-
-from aprl.envs.multi_agent import FlattenSingletonEnv, CurryEnv
 
 from modelfree.gym_complete_conversion import *
 from modelfree.simulation_utils import Agent, simulate
-
-
-def load_our_mlp(agent_name, env, env_name, sess):
-    # TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
-    def make_env(id):
-        # TODO: seed (not currently supported)
-        # TODO: VecNormalize? (typically good for MuJoCo)
-        # TODO: baselines logger?
-        # TODO: we're loading identical policy weights into different
-        # variables, this is to work-around design choice of Agent's
-        # having state stored inside of them.
-        sess_inner = make_session()
-        with sess_inner.as_default():
-            multi_env = env
-
-            attacked_agent = constant_zero_agent(act_dim=8)
-
-            single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env), attacked_agent))
-
-            # TODO: upgrade Gym so don't have to do thi0s
-            single_env.observation_space.dtype = np.dtype(np.float32)
-        return single_env
-        # TODO: close session?
-
-    # TODO DO NOT EVEN READ THE ABOVE CODE :'(
-    denv = SubprocVecEnv([functools.partial(make_env, 0)])
-    with sess.as_default():
-        with sess.graph.as_default():
-            model = ppo2.learn(network="mlp", env=denv,
-                               total_timesteps=1,
-                               seed=0,
-                               nminibatches=4,
-                               log_interval=1,
-                               save_interval=1,
-                               load_path=agent_name)
-
-    stateful_model = StatefulModel(denv, model, sess)
-    trained_agent = Agent(action_selector=stateful_model.get_action,
-                          reseter=stateful_model.reset)
-
-    return trained_agent
-
-def constant_zero_agent(act_dim=8):
-    constant_action = np.zeros((act_dim,))
-
-    class Temp:
-
-        def __init__(self, constants):
-            self.constants = constants
-
-        def get_action(self, _):
-            return self.constants
-
-        def reset(self):
-            pass
-
-    return Temp(constant_action)
-
-
-class Policy(object):
-    def reset(self, **kwargs):
-        pass
-
-    def act(self, observation):
-        # should return act, info
-        raise NotImplementedError()
-
-
-class StatefulModel(Policy):
-    def __init__(self, env, model, sess):
-        self._sess = sess
-        self.nenv = env.num_envs
-        self.env = env
-        self.dones = [False for _ in range(self.nenv)]
-        self.model = model
-        self.states = model.initial_state
-
-    def get_action(self, observation):
-        with self._sess.as_default():
-            actions, values, self.states, neglocpacs = self.model.step([observation] * self.nenv, S=self.states, M=self.dones)
-            return actions[0]
-
-    def reset(self):
-        self._dones = [True] * self.nenv
-
-
-#######################################################################################################
-#######################################################################################################
 
 
 class VideoWrapper(Wrapper):
@@ -146,13 +47,25 @@ class VideoWrapper(Wrapper):
         )
 
 
-def make_session(graph=None):
-    tf_config = tf.ConfigProto(
-        inter_op_parallelism_threads=1,
-        intra_op_parallelism_threads=1)
-    tf_config.gpu_options.allow_growth = True
-    sess = tf.Session(graph=graph, config=tf_config)
-    return sess
+def get_emperical_score(_run, env, agents, trials, render=False):
+    result = {
+        "ties": 0,
+        "wincounts": [0] * len(agents)
+    }
+
+    # This tells sacred about the intermediate computation so it updates the result as the experiment is running
+    _run.result = result
+
+    for i in range(trials):
+        this_result = new_anounce_winner(simulate(env, agents, render=render))
+        if result == -1:
+            result["ties"] = result["ties"] + 1
+        else:
+            result["wincounts"][this_result] = result["wincounts"][this_result] +1
+        for agent in agents:
+            agent.reset()
+
+    return result
 
 
 def get_agent_any_type(agent, agent_type, env, env_name, sess=None):

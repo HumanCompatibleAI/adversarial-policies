@@ -9,8 +9,103 @@ from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.ppo2 import ppo2
 from baselines.a2c import utils
 
-from modelfree.score_agent import *
+from aprl.envs.multi_agent import FlattenSingletonEnv, CurryEnv
+from modelfree.gym_complete_conversion import TheirsToOurs
+from modelfree.utils import make_session
+
+from modelfree.simulation_utils import Agent
+import numpy as np
+import tensorflow as tf
+import pickle
+from sacred import Experiment
+from sacred.observers import FileStorageObserver
 import functools
+
+from modelfree.gym_complete_conversion import load_zoo_policy, get_policy_type_for_agent_zoo
+
+def load_our_mlp(agent_name, env, env_name, sess):
+    # TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
+    def make_env(id):
+        # TODO: seed (not currently supported)
+        # TODO: VecNormalize? (typically good for MuJoCo)
+        # TODO: baselines logger?
+        # TODO: we're loading identical policy weights into different
+        # variables, this is to work-around design choice of Agent's
+        # having state stored inside of them.
+        sess_inner = make_session()
+        with sess_inner.as_default():
+            multi_env = env
+
+            attacked_agent = constant_zero_agent(act_dim=8)
+
+            single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env), attacked_agent))
+
+            # TODO: upgrade Gym so don't have to do thi0s
+            single_env.observation_space.dtype = np.dtype(np.float32)
+        return single_env
+        # TODO: close session?
+
+    # TODO DO NOT EVEN READ THE ABOVE CODE :'(
+    denv = SubprocVecEnv([functools.partial(make_env, 0)])
+    with sess.as_default():
+        with sess.graph.as_default():
+            model = ppo2.learn(network="mlp", env=denv,
+                               total_timesteps=1,
+                               seed=0,
+                               nminibatches=4,
+                               log_interval=1,
+                               save_interval=1,
+                               load_path=agent_name)
+
+    stateful_model = StatefulModel(denv, model, sess)
+    trained_agent = Agent(action_selector=stateful_model.get_action,
+                          reseter=stateful_model.reset)
+
+    return trained_agent
+
+
+def constant_zero_agent(act_dim=8):
+    constant_action = np.zeros((act_dim,))
+
+    class Temp:
+
+        def __init__(self, constants):
+            self.constants = constants
+
+        def get_action(self, _):
+            return self.constants
+
+        def reset(self):
+            pass
+
+    return Temp(constant_action)
+
+
+class Policy(object):
+    def reset(self, **kwargs):
+        pass
+
+    def act(self, observation):
+        # should return act, info
+        raise NotImplementedError()
+
+
+class StatefulModel(Policy):
+    def __init__(self, env, model, sess):
+        self._sess = sess
+        self.nenv = env.num_envs
+        self.env = env
+        self.dones = [False for _ in range(self.nenv)]
+        self.model = model
+        self.states = model.initial_state
+
+    def get_action(self, observation):
+        with self._sess.as_default():
+            actions, values, self.states, neglocpacs = self.model.step([observation] * self.nenv, S=self.states, M=self.dones)
+            return actions[0]
+
+    def reset(self):
+        self._dones = [True] * self.nenv
 
 
 def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
@@ -83,8 +178,6 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
     sess.close()
 
     return osp.join(out_dir, 'model.pkl')
-
-
 
 
 def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):

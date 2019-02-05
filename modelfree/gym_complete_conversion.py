@@ -1,5 +1,5 @@
 from aprl.envs.multi_agent import MultiAgentEnv
-from modelfree.simulation_utils import simulate, Agent
+from modelfree.simulation_utils import Agent
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -9,6 +9,7 @@ import gym_compete
 from modelfree.policy import LSTMPolicy, MlpPolicyValue
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
+
 
 class TheirsToOurs(MultiAgentEnv):
     def __init__(self, env):
@@ -33,27 +34,6 @@ class TheirsToOurs(MultiAgentEnv):
         return list(self._env.reset())
 
 
-def get_emperical_score(_run, env, agents, trials, render=False):
-    result = {
-        "ties": 0,
-        "wincounts": [0] * len(agents)
-    }
-
-    # This tells sacred about the intermediate computation so it updates the result as the experiment is running
-    _run.result = result
-
-    for i in range(trials):
-        this_result = new_anounce_winner(simulate(env, agents, render=render))
-        if result == -1:
-            result["ties"] = result["ties"] + 1
-        else:
-            result["wincounts"][this_result] = result["wincounts"][this_result] +1
-        for agent in agents:
-            agent.reset()
-
-    return result
-
-
 def new_anounce_winner(sim_stream):
     for _, _, dones, infos in sim_stream:
         if dones[0]:
@@ -64,7 +44,6 @@ def new_anounce_winner(sim_stream):
                     return i
             if draw:
                 return -1
-
 
 
 def load_from_file(param_pkl_path):
