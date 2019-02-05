@@ -22,9 +22,10 @@ from sacred.observers import FileStorageObserver
 import functools
 
 from modelfree.gym_compete_conversion import load_zoo_policy, get_policy_type_for_agent_zoo
+from modelfree.policy import Policy
 
 
-def load_our_mlp(agent_name, env, env_name, sess):
+def load_our_mlp(agent_name, env, env_name, _,  sess):
     # TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
     def make_env(id):
         # TODO: seed (not currently supported)
@@ -131,15 +132,6 @@ def constant_zero_agent(act_dim=8):
             pass
 
     return Temp(constant_action)
-
-
-class Policy(object):
-    def reset(self, **kwargs):
-        pass
-
-    def act(self, observation):
-        # should return act, info
-        raise NotImplementedError()
 
 
 class StatefulModel(Policy):

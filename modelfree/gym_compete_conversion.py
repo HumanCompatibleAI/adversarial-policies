@@ -46,7 +46,6 @@ def anounce_winner(sim_stream):
             draw = True
             for i in range(len(infos)):
                 if 'winner' in infos[i]:
-                    draw = False
                     return i
             if draw:
                 return None
@@ -82,7 +81,7 @@ def get_policy_type_for_agent_zoo(env_name):
     raise Exception("Unsupported Environment: {}, choose from {}".format(env_name, envs_policy_types.keys()))
 
 
-def set_from_flat(var_list, flat_params, sess = None):
+def set_from_flat(var_list, flat_params, sess=None):
     shapes = list(map(lambda x: x.get_shape().as_list(), var_list))
     total_size = np.sum([int(np.prod(shape)) for shape in shapes])
     theta = tf.placeholder(tf.float32, [total_size])

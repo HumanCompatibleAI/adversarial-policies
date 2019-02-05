@@ -68,12 +68,12 @@ def get_emperical_score(_run, env, agents, trials, render=False):
     return result
 
 
-def get_agent_any_type(agent, agent_type, env, env_name, sess=None):
+def get_agent_any_type(agent, agent_type, env, env_name, index, sess=None):
     agent_loaders = {
         "zoo": load_zoo_agent,
         "our_mlp": load_our_mlp
     }
-    return agent_loaders[agent_type](agent, env, env_name, sess=sess)
+    return agent_loaders[agent_type](agent, env, env_name, index, sess=sess)
 
 
 score_agent_ex = Experiment('score_agent')
@@ -106,8 +106,8 @@ def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type
     sess_b = make_session(graph_b)
     with sess_a:
         with sess_b:
-            agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env, sess=sess_b)
-            agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env, sess=sess_a)
+            agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env, 0, sess=sess_a)
+            agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env, 1, sess=sess_b)
 
             agents = [agent_a_object, agent_b_object]
 
