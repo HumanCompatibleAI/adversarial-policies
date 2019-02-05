@@ -1,0 +1,35 @@
+sudo: required
+dist: xenial
+
+matrix:
+  include:
+  - name: "Linting"
+    language: python
+    python: 3.6
+    install:
+      - pip install flake8 isort
+    script:
+      - ci/code_checks.sh
+
+  - name: "3.6 Unit Tests"
+    language: generic
+    services:
+      - docker
+    before_install:
+      - docker pull humancompatibleai/adversarial_policies:latest
+      - >
+        docker build --cache-from humancompatibleai/adversarial_policies \
+                     --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
+                     -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
+    script:
+      - >
+        docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+                              humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
+    after_success:
+      - |
+          if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            sudo docker tag humancompatibleai/adversarial_policies:latest \
+                            humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
+            docker push humancompatibleai/adversarial_policies
+          fi

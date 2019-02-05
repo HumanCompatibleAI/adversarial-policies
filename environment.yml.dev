@@ -1,5 +1,0 @@
-name: aprl
-dependencies:
-    - ipython
-    - jupyter
-    - qtconsole

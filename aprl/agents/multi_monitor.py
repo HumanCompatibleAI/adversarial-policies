@@ -1,7 +1,7 @@
 import time
 
-import numpy as np
 from baselines.bench import Monitor
+import numpy as np
 
 from aprl.utils import getattr_unwrapped
 

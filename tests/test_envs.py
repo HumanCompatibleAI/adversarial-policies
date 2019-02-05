@@ -1,11 +1,11 @@
 import functools
+
+from baselines.common.vec_env.test_vec_env import assert_envs_equal
 import gym
 import numpy as np
 import pytest
-from baselines.common.vec_env.test_vec_env import assert_envs_equal
 
 from aprl import envs
-
 
 spec_list = [spec
              for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)
@@ -14,15 +14,15 @@ spec_list = [spec
 
 @pytest.mark.parametrize("spec", spec_list)
 def test_env(spec):
-    '''Based on Gym smoke test in gym.envs.tests.test_envs.'''
+    """Based on Gym smoke test in gym.envs.tests.test_envs."""
     env = spec.make()
     ob_space = env.observation_space
     act_space = env.action_space
     ob = env.reset()
     assert ob_space.contains(ob), 'Reset observation: {!r} not in space'.format(ob)
     a = act_space.sample()
-    observation, reward, done, _info = env.step(a)
-    assert ob_space.contains(observation), 'Step observation: {!r} not in space'.format(observation)
+    ob, reward, done, _info = env.step(a)
+    assert ob_space.contains(ob), 'Step observation: {!r} not in space'.format(ob)
     assert isinstance(done, bool), "Expected {} to be a boolean".format(done)
 
     if isinstance(env, envs.MultiAgentEnv):
@@ -46,7 +46,7 @@ def test_env(spec):
 
 @pytest.mark.parametrize("spec", spec_list)
 def test_random_rollout(spec):
-    '''Based on Gym smoke test in gym.envs.tests.test_envs.'''
+    """Based on Gym smoke test in gym.envs.tests.test_envs."""
     env = spec.make()
     ob = env.reset()
     for _ in range(10):
@@ -54,11 +54,12 @@ def test_random_rollout(spec):
         a = env.action_space.sample()
         assert env.action_space.contains(a)
         ob, reward, done, info = env.step(a)
-        if done: break
+        if done:
+            break
     env.close()
 
 
-class SimpleMultiEnv(envs.MatrixGame):
+class SimpleMultiEnv(envs.MatrixGameEnv):
     def __init__(self, seed):
         num_actions = 0x100
         np.random.seed(seed)
@@ -67,8 +68,8 @@ class SimpleMultiEnv(envs.MatrixGame):
 
 
 def test_vec_env():
-    '''Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
-       each other.'''
+    """Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
+       each other."""
     env_fns = [functools.partial(SimpleMultiEnv, i) for i in range(4)]
     venv1 = envs.DummyVecMultiEnv(env_fns)
     venv2 = envs.SubprocVecMultiEnv(env_fns)

@@ -3,13 +3,14 @@ import numpy as np
 
 from aprl.envs import MultiAgentEnv
 
-class MatrixGame(MultiAgentEnv):
-    '''Models two-player, normal-form games with symetrically sized action space.'''
+
+class MatrixGameEnv(MultiAgentEnv):
+    """Models two-player, normal-form games with symetrically sized action space."""
     metadata = {'render.modes': ['human']}
     ACTION_TO_SYM = None
 
     def __init__(self, num_actions, payoff):
-        '''payoff_matrices must be a pair of num_actions*num_actions payoff matrices.'''
+        """payoff_matrices must be a pair of num_actions*num_actions payoff matrices."""
         agent_space = Discrete(num_actions)
         super().__init__(num_agents=2,
                          agent_action_space=agent_space,
@@ -46,7 +47,7 @@ class MatrixGame(MultiAgentEnv):
         return f'P1: {p1}, P2: {p2}'
 
 
-class IteratedMatchingPennies(MatrixGame):
+class IteratedMatchingPenniesEnv(MatrixGameEnv):
     ACTION_TO_SYM = {0: 'H', 1: 'T'}
 
     def __init__(self):
@@ -55,7 +56,7 @@ class IteratedMatchingPennies(MatrixGame):
         return super().__init__(num_actions=2, payoff=payoff)
 
 
-class RockPaperScissors(MatrixGame):
+class RockPaperScissorsEnv(MatrixGameEnv):
     ACTION_TO_SYM = {0: 'R', 1: 'P', 2: 'S'}
 
     def __init__(self):

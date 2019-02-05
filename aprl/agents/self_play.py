@@ -1,5 +1,5 @@
-import numpy as np
 from baselines.common.runners import AbstractEnvRunner
+import numpy as np
 
 from aprl.utils import getattr_unwrapped
 
