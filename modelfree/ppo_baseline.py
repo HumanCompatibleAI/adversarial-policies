@@ -1,28 +1,27 @@
+import datetime
+import functools
 import os
 import os.path as osp
+import pickle
+
 from baselines import logger
-import datetime
-import gym
+from baselines.a2c import utils
 from baselines.bench.monitor import Monitor
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.ppo2 import ppo2
-from baselines.a2c import utils
-
-from aprl.envs.multi_agent import FlattenSingletonEnv, CurryEnv
-from modelfree.gym_compete_conversion import TheirsToOurs
-from modelfree.utils import make_session
-
-from modelfree.simulation_utils import ResettableAgent
+import gym
+from gym_compete.policy import Policy
 import numpy as np
-import tensorflow as tf
-import pickle
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-import functools
+import tensorflow as tf
 
-from modelfree.gym_compete_conversion import load_zoo_policy, get_policy_type_for_agent_zoo
-from modelfree.policy import Policy
+from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
+from modelfree.gym_compete_conversion import (TheirsToOurs, get_policy_type_for_agent_zoo,
+                                              load_zoo_policy)
+from modelfree.simulation_utils import ResettableAgent
+from modelfree.utils import make_session
 
 
 def load_our_mlp(agent_name, env, env_name, _,  sess):
@@ -38,7 +37,8 @@ def load_our_mlp(agent_name, env, env_name, _,  sess):
         with sess_inner.as_default():
             multi_env = env
 
-            attacked_agent = constant_zero_agent(act_dim=8)  # needs to change dim for different environments
+            # needs to change dim for different environments
+            attacked_agent = constant_zero_agent(act_dim=8)
 
             single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env), attacked_agent))
 
@@ -90,15 +90,17 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
 
                 multi_env = gym.make(env_name)
 
-                policy = load_zoo_policy(victim, victim_type, "zoo_{}_policy_{}".format(env_name, id), multi_env, 0,
-                                         sess=sess)
+                policy = load_zoo_policy(victim, victim_type,
+                                         "zoo_{}_policy_{}".format(env_name, id),
+                                         multi_env, 0, sess=sess)
 
                 # TODO remove this trash
                 def get_action(observation):
                     return policy.act(stochastic=True, observation=observation)[0]
 
-                single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env),
-                                                          ResettableAgent(get_action, policy.reset)))
+                agent = ResettableAgent(get_action, policy.reset)
+                curried_env = CurryEnv(TheirsToOurs(multi_env), agent)
+                single_env = FlattenSingletonEnv(curried_env)
 
                 # TODO: upgrade Gym so don't have to do this
                 single_env.observation_space.dtype = np.dtype(np.float32)
@@ -113,8 +115,6 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
         venv = VecNormalize(venv)
 
     return venv
-
-
 
 
 def constant_zero_agent(act_dim=8):
@@ -145,8 +145,8 @@ class StatefulModel(Policy):
 
     def get_action(self, observation):
         with self._sess.as_default():
-            actions, values, self._states, neglocpacs = self.model.step([observation] * self.nenv, S=self._states,
-                                                                       M=self._dones)
+            step_res = self.model.step([observation] * self.nenv, S=self._states, M=self._dones)
+            actions, values, self._states, neglocpacs = step_res
             return actions[0]
 
     def reset(self):
@@ -197,8 +197,8 @@ def save_stats(env_wrapper, path):
     return serialized
 
 
-def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm", no_normalize=False,
-          nsteps=2048, load_path=None):
+def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm",
+          no_normalize=False, nsteps=2048, load_path=None):
     g = tf.Graph()
     sess = make_session(g)
     with g.as_default():
@@ -254,20 +254,21 @@ def default_ppo_config():
     network = "mlp"
     nsteps = 2048
     load_path = None
+    return locals()  # not needed by sacred, but supresses unused variable warning
 
 
 @ppo_baseline_ex.automain
-def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize, no_normalize, seed, total_timesteps,
-                 network, nsteps, load_path):
-
-    # TODO some bug with vectorizing goalie
+def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
+                 no_normalize, seed, total_timesteps, network, nsteps, load_path):
+    # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
 
-    env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir, no_normalize=no_normalize,
-                  vector=vectorize)
+    env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir,
+                  no_normalize=no_normalize, vector=vectorize)
 
-    return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps, vector=vectorize,
-                 network=network, no_normalize=no_normalize, nsteps=nsteps, load_path=load_path)
+    return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
+                 vector=vectorize, network=network, no_normalize=no_normalize,
+                 nsteps=nsteps, load_path=load_path)

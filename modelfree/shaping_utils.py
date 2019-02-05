@@ -1,8 +1,9 @@
 import functools
+
 import numpy as np
 
-
-# TODO Everything in this file is currently unused.  Was originally built to shape reward in soccer and ant, re-add this
+# TODO Everything in this file is currently unused.
+# Was originally built to shape reward in soccer and ant, re-add this
 
 
 class NoRewardEnvWrapper(object):
@@ -47,11 +48,9 @@ def shape_reward(rewards=None, env=None):
     if rewards is None or not rewards:
         return env
 
-    '''
-        Note that when we are using their rewards we modify then recurse and when we are using ours we recurse and then 
-        modify.  This is because we have to implement their rewards by modifying the environment while we can implement
-        ours with wrappers
-    '''
+    # Note that when we are using their rewards we modify then recurse and when we are using ours
+    # we recurse and then modify.  This is because we have to implement their rewards by modifying
+    # the environment while we can implement ours with wrappers
 
     reward_type = rewards.pop()
     if reward_type == "not_their_win_loss":
@@ -59,7 +58,8 @@ def shape_reward(rewards=None, env=None):
 
         return shape_reward(rewards=rewards, env=env)
     elif reward_type == "not_their_shape":
-        # Note that for this to work, this has to be the last reward_type in the list...(which it is by construction...)
+        # Note that for this to work, this has to be the last reward_type in the list...
+        # (which it is by construction...)
         env.set_shape_weight(0)
         return shape_reward(rewards=rewards, env=env)
 
@@ -130,18 +130,17 @@ class ShapingWrapper(object):
 def me_pos_shape(obs, last_obs):
     x_me = obs[0]
     y_me = obs[1]
-    z_me = obs[2]
+    # z_me = obs[2]
 
     return [x_me, y_me]
 
 
 def you_pos_shape(obs, last_obs):
+    x_opp = obs[-29]
+    y_opp = obs[-28]
+    # z_opp = obs[-27]
 
-        x_opp = obs[-29]
-        y_opp = obs[-28]
-        z_opp = obs[-27]
-
-        return [x_opp, y_opp]
+    return [x_opp, y_opp]
 
 
 def me_pos_mag(obs, last_obs):
@@ -219,7 +218,8 @@ def opp_goalie_pos_mag(obs, last_obs):
     return [0]
 
 
-# TODO this is a hack to get around the wrappers and still be able to change the shape weight of the original env
+# TODO: this is a hack to get around the wrappers and still be able to change the shape weight
+# of the original env
 class ShapeWeightHack(object):
     def __init__(self, env):
         self._env = env

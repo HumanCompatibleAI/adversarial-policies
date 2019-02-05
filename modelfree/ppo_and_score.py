@@ -1,13 +1,14 @@
-from modelfree.score_agent import *
-from modelfree.ppo_baseline import *
 from sacred import Experiment
+
+from modelfree.ppo_baseline import ppo_baseline_ex
+from modelfree.score_agent import score_agent_ex
 
 ppo_and_score_ex = Experiment("ppo_and_score")
 
 
 @ppo_and_score_ex.config
 def default_config():
-    config = {
+    config = {  # noqa: F841
         "ppo": {},
         "score": {}
     }
@@ -19,4 +20,3 @@ def ppo_and_score(config):
     config["score"]["agent_b"] = training_results.result
 
     return score_agent_ex.run(config_updates=config["score"])
-

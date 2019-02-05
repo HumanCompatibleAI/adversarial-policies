@@ -1,16 +1,17 @@
-from sacred import Experiment
+import os
+import os.path as osp
+
 import gym
 from gym.core import Wrapper
 from gym.monitoring.video_recorder import VideoRecorder
-import os
-import os.path as osp
-from modelfree.ppo_baseline import load_our_mlp
-
-from modelfree.utils import make_session
+from sacred import Experiment
 from sacred.observers import FileStorageObserver
+import tensorflow as tf
 
-from modelfree.gym_compete_conversion import *
+from modelfree.gym_compete_conversion import announce_winner, load_zoo_agent
+from modelfree.ppo_baseline import load_our_mlp
 from modelfree.simulation_utils import simulate
+from modelfree.utils import make_session
 
 
 class VideoWrapper(Wrapper):
@@ -53,15 +54,16 @@ def get_emperical_score(_run, env, agents, trials, render=False):
         "wincounts": [0] * len(agents)
     }
 
-    # This tells sacred about the intermediate computation so it updates the result as the experiment is running
+    # This tells sacred about the intermediate computation so it
+    # updates the result as the experiment is running
     _run.result = result
 
     for i in range(trials):
-        winner = anounce_winner(simulate(env, agents, render=render))
+        winner = announce_winner(simulate(env, agents, render=render))
         if winner is None:
             result["ties"] = result["ties"] + 1
         else:
-            result["wincounts"][winner] = result["wincounts"][winner] +1
+            result["wincounts"][winner] = result["wincounts"][winner] + 1
         for agent in agents:
             agent.reset()
 
@@ -88,29 +90,28 @@ def default_score_config():
     agent_b_type = "our_mlp"
     agent_b = "outs/20190131_172524 Dummy Exp Name/model.pkl"
     samples = 50
-    watch =True
+    watch = True
     videos = False
     video_dir = "videos/"
+    return locals()  # not needed by sacred, but supresses unused variable warning
 
 
 @score_agent_ex.automain
-def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type, watch, videos, video_dir):
+def score_agent(_run, env, agent_a, agent_b, agent_a_type, agent_b_type,
+                samples, watch, videos, video_dir):
     env_object = gym.make(env)
 
     if videos:
         env_object = VideoWrapper(env_object, video_dir)
 
-    graph_a = tf.Graph()
-    sess_a = make_session(graph_a)
-    graph_b = tf.Graph()
-    sess_b = make_session(graph_b)
-    with sess_a:
-        with sess_b:
-            agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env, 0, sess=sess_a)
-            agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env, 1, sess=sess_b)
+    agents = [agent_a, agent_b]
+    agent_types = [agent_a_type, agent_b_type]
+    graphs = [tf.Graph() for _ in agents]
+    sessions = [make_session(graph) for graph in graphs]
+    with sessions[0], sessions[1]:
+        zipped = zip(agents, agent_types, sessions)
+        agent_objects = [get_agent_any_type(agent, agent_type, env_object, env, i, sess=sess)
+                         for i, (agent, agent_type, sess) in enumerate(zipped)]
 
-            agents = [agent_a_object, agent_b_object]
-
-            # TODO figure out how to stop the other thread from crashing when I finish
-            return get_emperical_score(_run, env_object, agents, samples, render=watch)
-
+        # TODO figure out how to stop the other thread from crashing when I finish
+        return get_emperical_score(_run, env_object, agent_objects, samples, render=watch)

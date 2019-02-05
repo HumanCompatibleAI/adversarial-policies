@@ -113,10 +113,10 @@ class MultiToSingleObsVec(VecEnvWrapper):
         return self.venv.step_wait()
 
 
-# TODO Really consider if you want to enharitnace is correct.... :p
+# TODO: Consider if inheritance is correct
 class FlattenSingletonEnv(MultiToSingleObs):
-    ''' Wraps a Multi-Agent Environement with one agent and Makes it a Single-Agent Gym environment that can actually be
-    thought of as a Gym environment.'''
+    """Wraps a Multi-Agent Environement with one agent and Makes it a Single-Agent Gym environment
+    that can actually be thought of as a Gym environment."""
 
     def __init__(self, env):
         super().__init__(env)
@@ -130,7 +130,7 @@ class FlattenSingletonEnv(MultiToSingleObs):
 
 
 class CurryEnv(MultiWrapper):
-    '''Wraps a Multi-Agent Environment fixing one of the players'''
+    """Wraps a Multi-Agent Environment fixing one of the players"""
 
     def __init__(self, env, agent, agent_to_fix=0):
         """
@@ -138,7 +138,8 @@ class CurryEnv(MultiWrapper):
         :param env: The multi-agent environment
         :param agent: The agent to be fixed
         :param agent_to_fix: The index of the agent that should be fixed
-        :return: a new environment which behaves like "env" with the agent at position "agent_to_fix" fixed as "agent"
+        :return: a new environment which behaves like "env" with the agent at position
+                 "agent_to_fix" fixed as "agent"
         """
         super().__init__(env)
         self._env = env
@@ -147,7 +148,7 @@ class CurryEnv(MultiWrapper):
         self._last_obs = None
         self._last_reward = None
 
-    #TODO Check if dones are handeled correctly (if you ever have an env in which it matters)
+    # TODO: Check if dones are handeled correctly (if you ever have an env in which it matters)
     def step(self, actions):
         action = self._agent.get_action(self._last_obs)
         actions.insert(self._agent_to_fix, action)
@@ -155,7 +156,6 @@ class CurryEnv(MultiWrapper):
 
         self._last_obs = observations.pop(self._agent_to_fix)
         self._last_reward = rewards.pop(self._agent_to_fix)
-        #infos.pop(self._agent_to_fix)
 
         return observations, rewards, done, infos
 
