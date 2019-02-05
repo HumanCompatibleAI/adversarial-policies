@@ -3,8 +3,9 @@ import numpy as np
 import gym
 import logging
 import copy
-
 from tensorflow.contrib import layers
+
+#TODO see if you can get this from the actual repo and not from us copying the file....
 
 
 class Policy(object):
@@ -14,6 +15,7 @@ class Policy(object):
     def act(self, observation):
         # should return act, info
         raise NotImplementedError()
+
 
 class RunningMeanStd(object):
     def __init__(self, scope="running", reuse=False, epsilon=1e-2, shape=()):
@@ -48,6 +50,7 @@ def dense(x, size, name, weight_init=None, bias=True):
         return ret + b
     else:
         return ret
+
 
 def switch(condition, if_exp, else_exp):
     x_shape = copy.copy(if_exp.get_shape())

@@ -2,8 +2,8 @@ import functools
 import numpy as np
 
 
+# TODO Everything in this file is currently unused.  Was originally built to shape reward in soccer and ant, re-add this
 
-#TODO Everything in this file is currently unused.  Was origonally built to shape reward in soccer and ant, re-add this
 
 class NoRewardEnvWrapper(object):
 
@@ -11,7 +11,6 @@ class NoRewardEnvWrapper(object):
         self._env = env
         self.action_space = env.action_space
         self.observation_space = env.observation_space
-
 
     def step(self, actions):
         observations, _, done, infos = self._env.step(actions)
@@ -60,7 +59,7 @@ def shape_reward(rewards=None, env=None):
 
         return shape_reward(rewards=rewards, env=env)
     elif reward_type == "not_their_shape":
-        #Note that for this to work, this has to be the last reward_type in the list... (which it is by construction...)
+        # Note that for this to work, this has to be the last reward_type in the list...(which it is by construction...)
         env.set_shape_weight(0)
         return shape_reward(rewards=rewards, env=env)
 
@@ -90,10 +89,10 @@ def shape_reward(rewards=None, env=None):
         if name not in shapeing_functions:
             raise (Exception("Unknown reward type {}".format(reward_type)))
 
-        return ShapeingWrapper(env, shapeing_functions[name], shape_style, const, cutoff)
+        return ShapingWrapper(env, shapeing_functions[name], shape_style, const, cutoff)
 
 
-class ShapeingWrapper(object):
+class ShapingWrapper(object):
 
     def __init__(self, env, shapeing_fun, shape_style, const, cutoff):
         self._env = env
@@ -144,16 +143,6 @@ def you_pos_shape(obs, last_obs):
 
         return [x_opp, y_opp]
 
-def me_pos_mag(obs, last_obs):
-    if last_obs is not None:
-
-        last_me_pos = last_obs[0:3]
-        cur_me_pos = obs[0:3]
-        me_delta = cur_me_pos - last_me_pos
-
-        #multiply by 2 to get units in body diameter
-        return me_delta * 2
-    return [0]
 
 def me_pos_mag(obs, last_obs):
     if last_obs is not None:
@@ -162,9 +151,10 @@ def me_pos_mag(obs, last_obs):
         cur_me_pos = obs[0:3]
         me_delta = cur_me_pos - last_me_pos
 
-        #multiply by 2 to get units in body diameter
+        # multiply by 2 to get units in body diameter
         return me_delta * 2
     return [0]
+
 
 def me_mag(obs, last_obs):
     if last_obs is not None:
@@ -176,7 +166,8 @@ def me_mag(obs, last_obs):
         return me_delta
     return [0]
 
-#TODO THis probably isnt right?  Shoud be -30:-27?
+
+# TODO THis probably isn't right?  Should be -30:-27?
 def opp_pos_mag(obs, last_obs):
     if last_obs is not None:
         last_opp_pos = last_obs[-3:]
@@ -197,6 +188,7 @@ def opp_mag(obs, last_obs):
         return opp_delta
     return [0]
 
+
 def opp_mag_human_sumo(obs, last_obs):
     if last_obs is not None:
         last_opp_pos = last_obs[-35:]
@@ -206,6 +198,7 @@ def opp_mag_human_sumo(obs, last_obs):
         return opp_delta
     return [0]
 
+
 def opp_goalie_mag(obs, last_obs):
     if last_obs is not None:
         last_opp_pos = last_obs[-24:]
@@ -214,6 +207,7 @@ def opp_goalie_mag(obs, last_obs):
 
         return opp_delta
     return [0]
+
 
 def opp_goalie_pos_mag(obs, last_obs):
     if last_obs is not None:
@@ -225,11 +219,9 @@ def opp_goalie_pos_mag(obs, last_obs):
     return [0]
 
 
-#TODO this is a hack to get around the wrappers and still be able to change the shape weight of the origonal env
+# TODO this is a hack to get around the wrappers and still be able to change the shape weight of the original env
 class ShapeWeightHack(object):
     def __init__(self, env):
-        """
-        """
         self._env = env
         self.action_space = env.action_space
         self.observation_space = env.observation_space

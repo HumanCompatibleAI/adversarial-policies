@@ -10,7 +10,7 @@ from modelfree.utils import make_session
 from sacred.observers import FileStorageObserver
 
 from modelfree.gym_complete_conversion import *
-from modelfree.simulation_utils import Agent, simulate
+from modelfree.simulation_utils import simulate
 
 
 class VideoWrapper(Wrapper):
@@ -57,11 +57,11 @@ def get_emperical_score(_run, env, agents, trials, render=False):
     _run.result = result
 
     for i in range(trials):
-        this_result = new_anounce_winner(simulate(env, agents, render=render))
-        if result == -1:
+        winner = anounce_winner(simulate(env, agents, render=render))
+        if winner is None:
             result["ties"] = result["ties"] + 1
         else:
-            result["wincounts"][this_result] = result["wincounts"][this_result] +1
+            result["wincounts"][winner] = result["wincounts"][winner] +1
         for agent in agents:
             agent.reset()
 
@@ -106,7 +106,6 @@ def score_agent(_run, env, agent_a, agent_b, samples, agent_a_type, agent_b_type
     sess_b = make_session(graph_b)
     with sess_a:
         with sess_b:
-            # TODO seperate tensorflow graphs to get either order of the next two statements to work
             agent_b_object = get_agent_any_type(agent_b, agent_b_type, env_object, env, sess=sess_b)
             agent_a_object = get_agent_any_type(agent_a, agent_a_type, env_object, env, sess=sess_a)
 

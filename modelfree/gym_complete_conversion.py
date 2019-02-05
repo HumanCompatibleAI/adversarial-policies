@@ -1,40 +1,46 @@
 from aprl.envs.multi_agent import MultiAgentEnv
-from modelfree.simulation_utils import Agent
+from modelfree.simulation_utils import ResettableAgent
 import pickle
 import numpy as np
 import tensorflow as tf
 import gym_compete
-
-#TODO see if you can get this from the actual repo and not from us copying the file....
 from modelfree.policy import LSTMPolicy, MlpPolicyValue
 
 #TODO Some of the functions in here are copied from "main" in the multi-agent repo, and we have our own copy of policy
 
 
 class TheirsToOurs(MultiAgentEnv):
+    '''
+    This class is a wrapper around the multi-agent environments from gym_compete which converts it to match our
+    MultiAgentEnv class.
+    '''
     def __init__(self, env):
         super().__init__(2, env.action_space.spaces[0], env.observation_space.spaces[0])
-        # TODO ask adam about the action/observation spaces.  I am worried about asymetric envs like goalie
+        # TODO ask adam about the action/observation spaces.  I am worried about asymmetric envs like goalie
 
         self.spec = env.spec
         self._env = env
 
     def step(self, action_n):
-        observations, rewards, done, infos = self._env.step(action_n)
+        observations, rewards, dones, infos = self._env.step(action_n)
 
         observations = list(observations)
         rewards = list(rewards)
-        done = list(done)
-        # TODO not at all sketch
+        dones = list(dones)
         infos = {i: v for i, v in enumerate(infos)}
 
-        return observations, rewards, done, infos
+        return observations, rewards, dones, infos
 
     def reset(self):
         return list(self._env.reset())
 
 
-def new_anounce_winner(sim_stream):
+def anounce_winner(sim_stream):
+    '''
+    This function determines the winner of a match in one of the gym_compete environments.
+    :param sim_stream: a stream of obs, rewards, dones, infos from one of the gym_compete envs.
+    :return: the index of the winning player, or None if it was a tie
+    '''
     for _, _, dones, infos in sim_stream:
         if dones[0]:
             draw = True
@@ -43,7 +49,9 @@ def new_anounce_winner(sim_stream):
                     draw = False
                     return i
             if draw:
-                return -1
+                return None
+
+    raise Exception("No Winner or Tie was ever announced")
 
 
 def load_from_file(param_pkl_path):
@@ -53,6 +61,12 @@ def load_from_file(param_pkl_path):
 
 
 def get_policy_type_for_agent_zoo(env_name):
+    '''
+    Determines the type of policy gym_complete used in each environment.  This is needed because we must tell their code
+    how to load their own policies.
+    :param env_name: the environment of the policy we want to load
+    :return: the type of the gym policy
+    '''
     envs_policy_types = {
         "kick-and-defend-v0": "lstm",
         "run-to-goal-humans-v0": "mlp",
@@ -84,7 +98,7 @@ def set_from_flat(var_list, flat_params, sess = None):
     sess.run(op, {theta: flat_params})
 
 
-def load_zoo_policy(file, policy_type, scope, env, index, sess=None):
+def load_zoo_policy(file, policy_type, scope, env, index, sess):
     if policy_type == "lstm":
         policy = LSTMPolicy(scope=scope, reuse=False,
                             ob_space=env.observation_space.spaces[index],
@@ -99,7 +113,7 @@ def load_zoo_policy(file, policy_type, scope, env, index, sess=None):
     return policy
 
 
-def load_zoo_agent(agent, env, env_name, index=1, sess=None):
+def load_zoo_agent(agent, env, env_name, index, sess):
     policy_type = get_policy_type_for_agent_zoo(env_name)
 
     with sess.graph.as_default():
@@ -109,4 +123,4 @@ def load_zoo_agent(agent, env, env_name, index=1, sess=None):
         with sess.as_default():
             return policy.act(stochastic=True, observation=observation)[0]
 
-    return Agent(get_action, policy.reset)
+    return ResettableAgent(get_action, policy.reset)

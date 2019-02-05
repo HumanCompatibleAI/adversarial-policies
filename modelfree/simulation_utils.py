@@ -1,12 +1,11 @@
 
 
-#TODO Make an Agent_Wrapper class that takes a function from OxM -> AxM and makes an agent.
-
 def simulate(env, agents, render=False):
     """
     Run Environment env with the agents in agents
     :param env: any enviroment following the openai-gym spec
     :param agents: agents that have get-action functions
+    :param render: true if the run should be rendered to the screen
     :return: streams information about the simulation
     """
     observations = env.reset()
@@ -24,21 +23,21 @@ def simulate(env, agents, render=False):
         yield observations, rewards, dones, infos
 
 
-class Agent(object):
+class ResettableAgent(object):
 
-    def __init__(self, action_selector, reseter, values=None, sess = None):
+    def __init__(self, get_action_in, reset_in, values=None, sess=None):
         """
-        Takes policies from their format to mine
-        :param actable: a policy in the format used by mult-agent-compeitition
+        Takes a get_action and reset function and makes a resettable agent
+        :param get_action_in: a function to get an action
+        :param reset_in: a function to reset the agent
         """
-        self._action_selector = action_selector
-        self._reseter = reseter
+        self._get_action = get_action_in
+        self._reset = reset_in
         self._values = values
         self._sess = sess
 
     def get_action(self, observation):
-        action = self._action_selector(observation)
-        return action
+        return self._get_action(observation)
 
     def reset(self):
-        return self._reseter()
+        return self._reset()
