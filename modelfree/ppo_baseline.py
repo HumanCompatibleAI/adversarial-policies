@@ -10,7 +10,7 @@ from baselines.ppo2 import ppo2
 from baselines.a2c import utils
 
 from aprl.envs.multi_agent import FlattenSingletonEnv, CurryEnv
-from modelfree.gym_complete_conversion import TheirsToOurs
+from modelfree.gym_compete_conversion import TheirsToOurs
 from modelfree.utils import make_session
 
 from modelfree.simulation_utils import ResettableAgent
@@ -21,7 +21,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import functools
 
-from modelfree.gym_complete_conversion import load_zoo_policy, get_policy_type_for_agent_zoo
+from modelfree.gym_compete_conversion import load_zoo_policy, get_policy_type_for_agent_zoo
 
 
 def load_our_mlp(agent_name, env, env_name, sess):

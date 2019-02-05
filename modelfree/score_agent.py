@@ -9,7 +9,7 @@ from modelfree.ppo_baseline import load_our_mlp
 from modelfree.utils import make_session
 from sacred.observers import FileStorageObserver
 
-from modelfree.gym_complete_conversion import *
+from modelfree.gym_compete_conversion import *
 from modelfree.simulation_utils import simulate
 
 
