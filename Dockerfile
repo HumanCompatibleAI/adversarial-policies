@@ -54,9 +54,11 @@ ARG MUJOCO_KEY
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial_policies/
 COPY ./requirements.txt /adversarial_policies/
+COPY ./aprl/requirements.txt /adversarial_policies/aprl/
 RUN pip install -r requirements-build.txt \
-    && curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
     && pip install -r requirements.txt \
+    && curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
+    && pip install -r aprl/requirements.txt \
     && rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
 
 # Delay moving in the entire code until the very end.

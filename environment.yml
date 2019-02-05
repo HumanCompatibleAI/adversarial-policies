@@ -1,6 +1,6 @@
 # Installs MKL-linked versions of NumPy and some useful dev tools.
-# You don't need to use this if you're not a Conda user:
-# requirements-build.txt and requirements.txt are enough.
+# You don't need to use this if you're not a Conda user. Note you will
+# need to install ONE OF {modelfree,aprl}/requirements.txt after this.
 name: aprl
 dependencies:
     - python=3.6
