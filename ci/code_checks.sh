@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SOURCE_DIRS="aprl modelfree experiments tests"
+SOURCE_DIRS="aprl modelfree experiments"
 
 RET=0
 

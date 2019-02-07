@@ -7,15 +7,11 @@ import pytest
 
 from aprl import envs
 
-spec_list = [spec
-             for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)
-             if spec.id.startswith('aprl/')]
+# Helper functions
 
 
-@pytest.mark.parametrize("spec", spec_list)
-def test_env(spec):
+def check_env(env):
     """Based on Gym smoke test in gym.envs.tests.test_envs."""
-    env = spec.make()
     ob_space = env.observation_space
     act_space = env.action_space
     ob = env.reset()
@@ -44,10 +40,8 @@ def test_env(spec):
     env.close()
 
 
-@pytest.mark.parametrize("spec", spec_list)
-def test_random_rollout(spec):
+def check_random_rollout(env):
     """Based on Gym smoke test in gym.envs.tests.test_envs."""
-    env = spec.make()
     ob = env.reset()
     for _ in range(10):
         assert env.observation_space.contains(ob)
@@ -57,6 +51,26 @@ def test_random_rollout(spec):
         if done:
             break
     env.close()
+
+
+# Test aprl environments
+
+spec_list = [spec
+             for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)
+             if spec.id.startswith('aprl/')]
+
+
+def spec_to_env(fn):
+    def helper(spec):
+        env = spec.make()
+        return fn(env)
+    return helper
+
+
+test_env = pytest.mark.parametrize("spec", spec_list)(spec_to_env(check_env))
+test_random_rollout = pytest.mark.parametrize("spec", spec_list)(spec_to_env(check_random_rollout))
+
+# Test VecMultiEnv classes
 
 
 class SimpleMultiEnv(envs.MatrixGameEnv):
