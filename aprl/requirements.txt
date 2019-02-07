@@ -1,2 +1,2 @@
-git+git://github.com/openai/gym.git@a488c2fe2
+git+git://github.com/openai/gym.git@4ceff7#egg=gym
 mujoco-py>=1.50,<=1.51

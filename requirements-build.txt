@@ -1,3 +1,3 @@
 # Baselines unhelpfully does not list TensorFlow as a requirement,
 # but setup will break if it isn't installed. So force installing it first.
-https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.12.0-cp36-cp36m-linux_x86_64.whl
+https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.12.0-cp36-cp36m-linux_x86_64.whl#egg=tensorflow
