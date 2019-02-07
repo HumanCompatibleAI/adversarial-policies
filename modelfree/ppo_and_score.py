@@ -1,5 +1,4 @@
 from sacred import Experiment
-
 from modelfree.ppo_baseline import ppo_baseline_ex
 from modelfree.score_agent import score_agent_ex
 
@@ -11,6 +10,15 @@ def default_config():
     config = {  # noqa: F841
         "ppo": {},
         "score": {}
+    }
+
+@ppo_and_score_ex.config
+def default_config():
+    config = {  # noqa: F841
+        "ppo": {"victim" : "/home/neel/multiagent-competition/agent-zoo/sumo/ants/agent_parameters-v1.pkl",
+		"total_timesteps" : 1e7},
+        "score": {"agent_a" : "/home/neel/multiagent-competition/agent-zoo/sumo/ants/agent_parameters-v1.pkl",
+		  "watch" : False}
     }
 
 

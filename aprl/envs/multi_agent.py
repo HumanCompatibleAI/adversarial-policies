@@ -95,7 +95,7 @@ class MultiToSingleObs(Wrapper):
     def __init__(self, env):
         super().__init__(env)
         self.observation_space = env.agent_observation_space
-        self.action_space = env.agent_observation_space
+        self.action_space = env.agent_action_space
 
 
 class MultiToSingleObsVec(VecEnvWrapper):

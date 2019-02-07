@@ -7,7 +7,6 @@ from gym.monitoring.video_recorder import VideoRecorder
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
-
 from modelfree.gym_compete_conversion import announce_winner, load_zoo_agent
 from modelfree.ppo_baseline import load_our_mlp
 from modelfree.simulation_utils import simulate
@@ -93,7 +92,7 @@ def default_score_config():
     watch = True
     videos = False
     video_dir = "videos/"
-    return locals()  # not needed by sacred, but supresses unused variable warning
+    #return locals()  # not needed by sacred, but supresses unused variable warning
 
 
 @score_agent_ex.automain

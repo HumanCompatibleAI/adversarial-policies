@@ -1,1 +1,1 @@
-from aprl import agents, envs  # noqa: F401
+from aprl import envs  # noqa: F401

@@ -3,7 +3,6 @@ import functools
 import os
 import os.path as osp
 import pickle
-
 from baselines import logger
 from baselines.a2c import utils
 from baselines.bench.monitor import Monitor
@@ -35,12 +34,11 @@ def load_our_mlp(agent_name, env, env_name, _,  sess):
         # having state stored inside of them.
         sess_inner = make_session()
         with sess_inner.as_default():
-            multi_env = env
-
+            our_env = TheirsToOurs(env)
+            attacked_agent = constant_zero_agent(act_dim=our_env.action_space.shape[0])
             # needs to change dim for different environments
-            attacked_agent = constant_zero_agent(act_dim=8)
-
-            single_env = FlattenSingletonEnv(CurryEnv(TheirsToOurs(multi_env), attacked_agent))
+            curried_env = CurryEnv(our_env, attacked_agent)
+            single_env = FlattenSingletonEnv(curried_env)
 
             # TODO: upgrade Gym so don't have to do thi0s
             single_env.observation_space.dtype = np.dtype(np.float32)
@@ -240,22 +238,39 @@ ppo_baseline_ex = Experiment("ppo_baseline")
 ppo_baseline_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 
-@ppo_baseline_ex.config
-def default_ppo_config():
-    victim = "agent-zoo/sumo/ants/agent_parameters-v1.pkl"
+@ppo_baseline_ex.named_config
+def human_default():
+    victim = "/home/neel/multiagent-competition/agent-zoo/sumo/humans/agent_parameters-v1.pkl"
     victim_type = "zoo"
-    env = "sumo-ants-v0"
+    env = "sumo-humans-v0"
     vectorize = 8
     out_dir = "outs"
-    exp_name = "Dummy Exp Name"
+    exp_name = "test-experiments"
     no_normalize = True
     seed = 1
     total_timesteps = 100000
     network = "mlp"
     nsteps = 2048
     load_path = None
-    return locals()  # not needed by sacred, but supresses unused variable warning
+    #return locals()  # not needed by sacred, but supresses unused variable warning
 
+@ppo_baseline_ex.config
+def default():
+    victim = "/home/neel/multiagent-competition/agent-zoo/sumo/ants/agent_parameters-v1.pkl"
+    victim_type = "zoo"
+    env = "sumo-ants-v0"
+    vectorize = 8
+    out_dir = "outs"
+    exp_name = "test-experiments"
+    no_normalize = True
+    seed = 1
+    total_timesteps = 100000
+    network = "mlp"
+    nsteps = 2048
+    load_path = None
+    #return locals()  # not needed by sacred, but supresses unused variable warning
+
+    # TODO: auto-create out directory
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
@@ -268,6 +283,7 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
 
     env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir,
                   no_normalize=no_normalize, vector=vectorize)
+    # wrap env for reward shaping
 
     return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                  vector=vectorize, network=network, no_normalize=no_normalize,
