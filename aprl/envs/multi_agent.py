@@ -59,17 +59,15 @@ class MultiAgentEnv(Env):
 
     def step(self, action_n):
         """Run one timestep of the environment's dynamics.
-           Accepts an action_n of self.num_agents long, each containing
-           an action from self.action_space.
+           Accepts an action_n of shape (self.num_agents, ) + self.action_space.
 
-           Args:
-                action_n (list<object>): actions per agent.
-            Returns:
-                obs_n (list<object>): observations per agent.
-                reward_n (list<float>): reward per agent.
-                done (list<boolean>): done per agent.
-                info (dict): auxiliary diagnostic info.
-        """
+           :param action_n (ndarray): actions per agent.
+           :return a tuple containing:
+                obs_n (ndarray): observations per agent,
+                                 shape (self.num_agents, ) + self.observation_space.
+                reward_n (arraylike<float>): reward per agent.
+                done (bool): episode over.
+                info (dict): auxiliary diagnostic info."""
         raise NotImplementedError
 
     def reset(self):

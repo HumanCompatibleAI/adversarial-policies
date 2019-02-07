@@ -25,15 +25,15 @@ class TheirsToOurs(MultiAgentEnv):
     def step(self, action_n):
         observations, rewards, dones, infos = self._env.step(action_n)
 
-        observations = list(observations)
+        observations = np.array(observations)
         rewards = list(rewards)
-        dones = list(dones)
+        done = any(dones)
         infos = {i: v for i, v in enumerate(infos)}
 
-        return observations, rewards, dones, infos
+        return observations, rewards, done, infos
 
     def reset(self):
-        return list(self._env.reset())
+        return np.array(self._env.reset())
 
 
 def announce_winner(sim_stream):
