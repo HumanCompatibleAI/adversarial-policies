@@ -60,6 +60,10 @@ spec_list = [spec
              if spec.id.startswith('aprl/')]
 
 
+def test_envs_exist():
+    assert len(spec_list) > 0
+
+
 def spec_to_env(fn):
     def helper(spec):
         env = spec.make()
