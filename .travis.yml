@@ -30,8 +30,9 @@ before_install:
                  --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
                  -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
 script:
+  - ci_env=`bash <(curl -s https://codecov.io/env)`
   - >
-    docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+    docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} ${ci_env} \
                           humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER \
                           ci/run_tests.sh ${TEST_SUITE}
 after_success:
