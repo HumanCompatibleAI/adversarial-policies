@@ -7,8 +7,10 @@ from ilqr import iLQR
 import numpy as np
 import pytest
 
-from aprl.agents import (MujocoFiniteDiffCost, MujocoFiniteDiffDynamicsBasic,
-                         MujocoFiniteDiffDynamicsPerformance, MultiMonitor, PPOSelfPlay)
+from aprl.agents.mujoco_lqr import (MujocoFiniteDiffCost, MujocoFiniteDiffDynamicsBasic,
+                                    MujocoFiniteDiffDynamicsPerformance)
+from aprl.agents.multi_monitor import MultiMonitor
+from aprl.agents.ppo_self_play import PPOSelfPlay
 from aprl.envs import DummyVecMultiEnv
 
 

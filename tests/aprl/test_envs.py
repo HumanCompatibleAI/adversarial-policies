@@ -5,7 +5,7 @@ import gym
 import numpy as np
 import pytest
 
-from aprl import envs
+import aprl.envs as envs
 
 # Helper functions
 
@@ -61,7 +61,7 @@ spec_list = [spec
 
 
 def test_envs_exist():
-    assert len(spec_list) > 0
+    assert len(spec_list) > 0, "No aprl environments detected"
 
 
 def spec_to_env(fn):

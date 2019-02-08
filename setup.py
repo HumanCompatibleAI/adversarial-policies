@@ -11,7 +11,8 @@ setup(
     author_email='adam@gleave.me',
     python_requires='>=3.6.0',
     url='https://github.com/HumanCompatibleAI/adversarial-policies',
-    packages=find_packages(exclude=('tests',)),
+    packages=find_packages('src'),
+    package_dir={'': 'src'},
     # We have some non-pip packages as requirements,
     # see requirements-build.txt and requirements.txt.
     install_requires=[],

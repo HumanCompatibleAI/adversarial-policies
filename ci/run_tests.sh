@@ -18,4 +18,4 @@ venv=${env}venv
 source ${venv}/bin/activate
 curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
 python setup.py install
-pytest ${env}/tests/
+pytest tests/${env} 

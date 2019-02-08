@@ -57,8 +57,8 @@ ARG MUJOCO_KEY
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial_policies/
 COPY ./requirements.txt /adversarial_policies/
-COPY ./aprl/requirements.txt /adversarial_policies/aprl/
-COPY ./modelfree/requirements.txt /adversarial_policies/modelfree/
+COPY ./requirements-aprl.txt /adversarial_policies/
+COPY ./requirements-modelfree.txt /adversarial_policies/
 COPY ./ci/build_venv.sh /adversarial_policies/ci/build_venv.sh
 RUN    curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
     && parallel ci/build_venv.sh {} ::: aprl modelfree \
@@ -68,4 +68,3 @@ RUN    curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
 ENTRYPOINT ["/adversarial_policies/vendor/Xdummy-entrypoint"]
 CMD ["ci/run_tests.sh"]
 COPY . /adversarial_policies
-RUN python setup.py install

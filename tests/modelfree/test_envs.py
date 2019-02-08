@@ -1,8 +1,7 @@
 import gym
-import gym_compete  # noqa: F401
 import pytest
 
-from aprl.tests.test_envs import check_env, check_random_rollout
+from tests.aprl.test_envs import check_env, check_random_rollout
 from modelfree.gym_compete_conversion import TheirsToOurs
 
 spec_list = [spec
@@ -11,7 +10,7 @@ spec_list = [spec
 
 
 def test_envs_exist():
-    assert len(spec_list) > 0
+    assert len(spec_list) > 0, "No multi-agent competition environments detected"
 
 
 def spec_to_env(fn):

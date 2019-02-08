@@ -14,9 +14,8 @@ modelfree)
 esac
 
 venv=${env}venv
-virtualenv -p python3.6 ${venv}
-source ${venv}/bin/activate
-
-pip install -r requirements-build.txt
-pip install -r requirements.txt
-pip install -r ${env}/requirements.txt
+virtualenv -p python3.6 ${venv}  && \
+source ${venv}/bin/activate && \
+pip install -r requirements-build.txt && \
+pip install -r requirements.txt && \
+pip install -r requirements-${env}.txt
