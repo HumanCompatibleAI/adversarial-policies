@@ -16,7 +16,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
-from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
+from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv, RewardShapingEnv
 from modelfree.gym_compete_conversion import (TheirsToOurs, get_policy_type_for_agent_zoo,
                                               load_zoo_policy)
 from modelfree.simulation_utils import ResettableAgent
@@ -66,7 +66,7 @@ def load_our_mlp(agent_name, env, env_name, _,  sess):
     return trained_agent
 
 
-def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
+def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector, wrapper):
 
     # TODO This is nasty, fix
     victim_type = get_policy_type_for_agent_zoo(env_name)
@@ -100,6 +100,7 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector):
                 curried_env = CurryEnv(TheirsToOurs(multi_env), agent)
                 single_env = FlattenSingletonEnv(curried_env)
 
+                single_env = wrapper(single_env)
                 # TODO: upgrade Gym so don't have to do this
                 single_env.observation_space.dtype = np.dtype(np.float32)
 
@@ -252,6 +253,7 @@ def human_default():
     network = "mlp"
     nsteps = 2048
     load_path = None
+    shape_reward = True
     #return locals()  # not needed by sacred, but supresses unused variable warning
 
 @ppo_baseline_ex.config
@@ -274,16 +276,22 @@ def default():
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
-                 no_normalize, seed, total_timesteps, network, nsteps, load_path):
+                 no_normalize, seed, total_timesteps, network, nsteps, load_path,
+                 shape_reward):
     # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
 
-    env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir,
-                  no_normalize=no_normalize, vector=vectorize)
     # wrap env for reward shaping
+    wrapper = lambda x: x
+    if shape_reward:
+        wrapper = lambda x: RewardShapingEnv(x)
+
+    env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir,
+                  no_normalize=no_normalize, vector=vectorize, wrapper=wrapper)
+
 
     return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                  vector=vectorize, network=network, no_normalize=no_normalize,

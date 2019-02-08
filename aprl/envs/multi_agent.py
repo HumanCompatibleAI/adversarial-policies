@@ -184,3 +184,36 @@ class SubprocVecMultiEnv(SubprocVecEnv):
         env = env_fns[0]()
         self.num_agents = getattr_unwrapped(env, 'num_agents')
         env.close()
+
+class RewardShapingEnv(Wrapper):
+    """A more direct interface for shaping the reward of the attacking agent."""
+
+    default_shaping_params = {
+        #'center_reward' : 1,
+        #'ctrl_cost'     : -1,
+        #'contact_cost'  : -1,
+        #'survive'       : 1,
+
+        # sparse reward field as per gym_compete/new_envs/multi_agent_env:151
+        'reward_remaining' : 1,
+        # dense reward field as per gym_compete/new_envs/agents/humanoid_fighter:45
+        'reward_move' : 1
+    }
+
+    def __init__(self, env, shaping_params=default_shaping_params):
+        super().__init__(env)
+        self.env = env
+        self.shaping_params = shaping_params
+
+    def step(self, actions):
+        obses, rews, done, infos = self.env.step(actions)
+        # replace rews with differently shaped rews
+        # victim is agent 0, attacker is agent 1
+        shaped_reward = 0
+        for rew_type, rew_value in infos[1].items():
+            if rew_type not in self.shaping_params:
+                continue
+            shaped_reward += self.shaping_params[rew_type] * rew_value
+
+        rews = shaped_reward
+        return obses, rews, done, infos
