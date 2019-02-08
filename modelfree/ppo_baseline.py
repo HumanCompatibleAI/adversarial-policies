@@ -16,7 +16,8 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
-from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv, RewardShapingEnv
+from modelfree.reward_shaping import RewardShapingEnv
+from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
 from modelfree.gym_compete_conversion import (TheirsToOurs, get_policy_type_for_agent_zoo,
                                               load_zoo_policy)
 from modelfree.simulation_utils import ResettableAgent
