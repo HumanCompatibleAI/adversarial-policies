@@ -103,8 +103,7 @@ class MonteCarloSingle(MonteCarlo):
         See base class for details.
 
         Search takes place in a single environment, which is reset to state
-        before evaluating each action sequence. WARNING: the state of the
-        environment upon return is arbitrary."""
+        before evaluating each action sequence."""
         res = []
         for _ in range(self.trajectories):
             self.env.set_state(state)
@@ -116,6 +115,7 @@ class MonteCarloSingle(MonteCarlo):
                 if done:
                     break
             res.append((us[0], total_rew))
+        self.env.set_state(state)
         best = max(res, key=lambda x: x[1])
         return best
 
@@ -125,7 +125,7 @@ def _worker(remote, parent_remote, dynamic_fn_wrapper, horizon, trajectories):
     parent_remote.close()
     dynamics = dynamic_fn_wrapper.x()
     dynamics.reset()
-    mc = MonteCarlo(dynamics, horizon, trajectories)
+    mc = MonteCarloSingle(dynamics, horizon, trajectories)
     try:
         while True:
             cmd, x = remote.recv()
@@ -134,6 +134,11 @@ def _worker(remote, parent_remote, dynamic_fn_wrapper, horizon, trajectories):
             elif cmd == 'search':
                 best_u, best_r = mc.best_action(x)
                 remote.send((best_u, best_r))
+            elif cmd == 'close':
+                remote.close()
+                break
+            else:
+                raise NotImplementedError
     except KeyboardInterrupt:
         print('MonteCarloParallel worker: got KeyboardInterrupt')
     finally:
@@ -157,10 +162,10 @@ class MonteCarloParallel(MonteCarlo):
         pipes = [Pipe() for _ in range(nremotes)]
         self.remotes, self.work_remotes = zip(*pipes)
         worker_cfgs = zip(self.work_remotes, self.remotes, env_fns)
+        self.ps = []
         for i, (work_remote, remote, dynamic_fn) in enumerate(worker_cfgs):
-            seed = seed + i
             args = (work_remote, remote, CloudpickleWrapper(dynamic_fn),
-                    horizon, traj_per_worker, seed)
+                    horizon, traj_per_worker)
             process = Process(target=_worker, args=args)
             process.daemon = True
             # If the main process crashes, we should not cause things to hang
@@ -171,12 +176,32 @@ class MonteCarloParallel(MonteCarlo):
 
     def seed(self, seed):
         for i, remote in enumerate(self.remotes):
-            remote.send('seed', seed + i)
+            remote.send(('seed', seed + i))
 
     def best_action(self, state):
         """Returns the best action out of a random search of action sequences."""
         for remote in self.remotes:
-            remote.send('search', state)
+            remote.send(('search', state))
         results = [remote.recv() for remote in self.remotes]
         best = max(results, key=lambda x: x[1])
         return best
+
+    def close(self):
+        """Shuts down parallel workers."""
+        for remote in self.remotes:
+            remote.send(('close', None))
+        for p in self.ps:
+            p.join()
+
+
+def receding_horizon(monte_carlo, env):
+    """Receding horizon control
+    :param monte_carlo(MonteCarlo): a Monte Carlo controller for env or a clone of env.
+    :param env(ResettableEnv): a resettable environment."""
+    while True:
+        state = env.get_state()
+        a, _seq_rew = monte_carlo.best_action(state)
+        ob, rew, done, info = env.step(a)
+        yield a, ob, rew, done, info
+        if done:
+            break
