@@ -46,6 +46,12 @@ class MujocoResettableWrapper(ResettableEnv, gym.Wrapper):
         state.set_mjdata(self.sim.data)
         self.sim.forward()  # put mjData in consistent state
 
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, a):
+        return self.env.step(a)
+
 
 class MonteCarlo(ABC):
     """Selects an action for a ResettableEnv by random search. Randomly samples
@@ -89,11 +95,8 @@ class MonteCarloSingle(MonteCarlo):
 
     def seed(self, seed):
         """Sets a seed for the PRNG for the action sequences.
-        WARNING: this actually sets a global seed in Gym.
         :param seed (int): a seed."""
-        # SOMEDAY: make this not set a global seed?
-        # (No easy way to fix this other than patching Gym.)
-        gym.spaces.prng.seed(seed)
+        self.env.action_space.np_random.seed(seed)
 
     def best_action(self, state):
         """Returns the best action out of a random search of action sequences.

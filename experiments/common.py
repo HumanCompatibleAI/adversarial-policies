@@ -10,7 +10,6 @@ import pandas as pd
 def set_seeds(seed):
     random.seed(seed)
     np.random.seed(seed)
-    gym.spaces.prng.seed(seed)
 
 
 def on_iteration(iteration_count, xs, us, J_opt, accepted, converged):
