@@ -93,7 +93,7 @@ class MultiToSingleObs(Wrapper):
     def __init__(self, env):
         super().__init__(env)
         self.observation_space = env.agent_observation_space
-        self.action_space = env.agent_observation_space
+        self.action_space = env.agent_action_space
 
 
 class MultiToSingleObsVec(VecEnvWrapper):
@@ -120,8 +120,8 @@ class FlattenSingletonEnv(MultiToSingleObs):
         super().__init__(env)
 
     def step(self, action):
-        observations, rewards, dones, infos = self.env.step([action])
-        return observations[0], rewards[0], dones[0], infos
+        observations, rewards, done, infos = self.env.step([action])
+        return observations[0], rewards[0], done, infos
 
     def reset(self):
         return self.env.reset()[0]

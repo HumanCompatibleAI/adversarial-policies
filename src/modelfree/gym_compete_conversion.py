@@ -24,7 +24,7 @@ class TheirsToOurs(MultiAgentEnv):
     def step(self, action_n):
         observations, rewards, dones, infos = self._env.step(action_n)
 
-        observations = np.array(observations)
+        observations = list(observations)
         rewards = list(rewards)
         done = any(dones)
         infos = {i: v for i, v in enumerate(infos)}
@@ -32,7 +32,7 @@ class TheirsToOurs(MultiAgentEnv):
         return observations, rewards, done, infos
 
     def reset(self):
-        return np.array(self._env.reset())
+        return list(self._env.reset())
 
 
 def announce_winner(sim_stream):
@@ -49,11 +49,6 @@ def announce_winner(sim_stream):
                 return None
 
     raise Exception("No Winner or Tie was ever announced")
-
-
-def load_from_file(param_pkl_path):
-    with open(param_pkl_path, 'rb') as f:
-        return pickle.load(f)
 
 
 def get_policy_type_for_agent_zoo(env_name):
