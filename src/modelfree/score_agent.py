@@ -84,34 +84,32 @@ score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 @score_agent_ex.config
 def default_score_config():
-    agent_a = "agent-zoo/sumo/ants/agent_parameters-v1.pkl"
     agent_a_type = "zoo"
-    env = "sumo-ants-v0"
-    agent_b_type = "our_mlp"
-    agent_b = "outs/20190131_172524 Dummy Exp Name/model.pkl"
-    samples = 50
-    watch = True
+    agent_a_path = "1"
+    env = "multicomp/SumoAnts-v0"
+    agent_b_type = "zoo"
+    agent_b_path = "2"
+    samples = 5
+    render = True
     videos = False
     video_dir = "videos/"
-    return locals()  # not needed by sacred, but supresses unused variable warning
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 
 @score_agent_ex.automain
-def score_agent(_run, env, agent_a, agent_b, agent_a_type, agent_b_type,
-                samples, watch, videos, video_dir):
+def score_agent(_run, env, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
+                samples, render, videos, video_dir):
     env_object = gym.make(env)
-
     if videos:
         env_object = VideoWrapper(env_object, video_dir)
 
-    agents = [agent_a, agent_b]
+    agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]
-    graphs = [tf.Graph() for _ in agents]
+    graphs = [tf.Graph() for _ in agent_paths]
     sessions = [make_session(graph) for graph in graphs]
     with sessions[0], sessions[1]:
-        zipped = zip(agents, agent_types, sessions)
-        agent_objects = [get_agent_any_type(agent, agent_type, env_object, env, i, sess=sess)
-                         for i, (agent, agent_type, sess) in enumerate(zipped)]
-
-        # TODO figure out how to stop the other thread from crashing when I finish
-        return get_emperical_score(_run, env_object, agent_objects, samples, render=watch)
+        zipped = zip(agent_paths, agent_types, sessions)
+        agents = [get_agent_any_type(agent, agent_type, env_object, env, i, sess=sess)
+                  for i, (agent, agent_type, sess) in enumerate(zipped)]
+        return get_empirical_score(_run, env_object, agents, samples, render=render)
