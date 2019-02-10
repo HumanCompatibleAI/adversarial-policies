@@ -1,5 +1,3 @@
-
-
 def simulate(env, agents, render=False):
     """
     Run Environment env with the agents in agents
@@ -24,7 +22,6 @@ def simulate(env, agents, render=False):
 
 
 class ResettableAgent(object):
-
     def __init__(self, get_action_in, reset_in, values=None, sess=None):
         """
         Takes a get_action and reset function and makes a resettable agent
