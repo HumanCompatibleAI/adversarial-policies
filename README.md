@@ -9,9 +9,11 @@ This codebase assumes Python 3.6. Install the requirements in
 `requirements-build.txt` before those in `requirements.txt`.
 Anaconda users can install directly with `conda env create -f environment.yml`.
 
-Then install *one of* `modelfree/requirements.txt` or `aprl/requirements.txt`
+Then install *one of* `requirements-aprl.txt` or `requirements-modelfree.txt`
 depending on which experiments you need to run (unfortunately these codebases
 depend on different MuJoCo and Gym versions.)
+
+Finally, `pip install -e .` to install an editable version of the package.
 
 # Contributions
 

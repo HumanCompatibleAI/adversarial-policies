@@ -6,30 +6,41 @@ matrix:
   - name: "Linting"
     language: python
     python: 3.6
+    before_install: []
     install:
       - pip install flake8 isort
     script:
       - ci/code_checks.sh
+    after_success: []
 
-  - name: "3.6 Unit Tests"
+  - name: "APRL Unit Tests"
     language: generic
-    services:
-      - docker
-    before_install:
-      - docker pull humancompatibleai/adversarial_policies:latest
-      - >
-        docker build --cache-from humancompatibleai/adversarial_policies \
-                     --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
-                     -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
-    script:
-      - >
-        docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
-                              humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
-    after_success:
+    env: TEST_SUITE=aprl DOCKER_PUSH=true
+
+  - name: "Model-free Unit Tests"
+    language: generic
+    env: TEST_SUITE=modelfree
+
+services:
+  - docker
+before_install:
+  - docker pull humancompatibleai/adversarial_policies:latest
+  - >
+    docker build --cache-from humancompatibleai/adversarial_policies \
+                 --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
+                 -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
+script:
+  - ci_env=`bash <(curl -s https://codecov.io/env)`
+  - >
+    docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} ${ci_env} \
+                          humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER \
+                          ci/run_tests.sh ${TEST_SUITE}
+after_success:
       - |
-          if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            sudo docker tag humancompatibleai/adversarial_policies:latest \
-                            humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
-            docker push humancompatibleai/adversarial_policies
-          fi
+        if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] \
+           && [ "$DOCKER_PUSH" == "true" ]; then
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          sudo docker tag humancompatibleai/adversarial_policies:latest \
+                          humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
+          docker push humancompatibleai/adversarial_policies
+        fi

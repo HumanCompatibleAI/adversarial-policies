@@ -3,13 +3,12 @@ import datetime
 import functools
 import os
 
-import gym
 from baselines import logger
+import gym
 
-from aprl.envs import DummyVecMultiEnv
-from aprl.agents.ppo_self_play import PPOSelfPlay
 from aprl.agents.multi_monitor import MultiMonitor
-
+from aprl.agents.ppo_self_play import PPOSelfPlay
+from aprl.envs import DummyVecMultiEnv
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 

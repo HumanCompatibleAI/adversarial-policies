@@ -2,7 +2,7 @@
 
 FROM nvidia/cuda@sha256:4df157f2afde1cb6077a191104ab134ed4b2fd62927f27b69d788e8e79a45fa1
 
-RUN apt-get update -q \
+RUN    apt-get update -q \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl \
     git \
@@ -12,6 +12,7 @@ RUN apt-get update -q \
     libosmesa6-dev \
     software-properties-common \
     net-tools \
+    parallel \
     unzip \
     vim \
     virtualenv \
@@ -34,13 +35,15 @@ RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sc
     && chmod +x /usr/local/bin/patchelf
 
 ENV LANG C.UTF-8
-
-RUN mkdir -p /root/.mujoco \
-    && wget https://www.roboti.us/download/mjpro150_linux.zip -O mujoco.zip \
-    && unzip mujoco.zip -d /root/.mujoco \
-    && rm mujoco.zip
-ENV LD_LIBRARY_PATH /root/.mujoco/mjpro150/bin:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
+
+RUN    mkdir -p /root/.mujoco \
+    && wget https://www.roboti.us/download/mjpro150_linux.zip -O mujoco150.zip \
+    && unzip mujoco150.zip -d /root/.mujoco \
+    && rm mujoco150.zip \
+    && wget https://www.roboti.us/download/mjpro131_linux.zip -O mujoco131.zip \
+    && unzip mujoco131.zip -d /root/.mujoco \
+    && rm mujoco131.zip
 
 COPY vendor/Xdummy /usr/local/bin/Xdummy
 RUN chmod +x /usr/local/bin/Xdummy
@@ -54,15 +57,14 @@ ARG MUJOCO_KEY
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial_policies/
 COPY ./requirements.txt /adversarial_policies/
-COPY ./aprl/requirements.txt /adversarial_policies/aprl/
-RUN pip install -r requirements-build.txt \
-    && pip install -r requirements.txt \
-    && curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
-    && pip install -r aprl/requirements.txt \
+COPY ./requirements-aprl.txt /adversarial_policies/
+COPY ./requirements-modelfree.txt /adversarial_policies/
+COPY ./ci/build_venv.sh /adversarial_policies/ci/build_venv.sh
+RUN    curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
+    && parallel ci/build_venv.sh {} ::: aprl modelfree \
     && rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
 
 # Delay moving in the entire code until the very end.
 ENTRYPOINT ["/adversarial_policies/vendor/Xdummy-entrypoint"]
 CMD ["ci/run_tests.sh"]
 COPY . /adversarial_policies
-RUN python setup.py install

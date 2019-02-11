@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SOURCE_DIRS="aprl modelfree experiments tests"
+SOURCE_DIRS="src experiments"
 
 RET=0
 
@@ -19,4 +19,7 @@ isort --recursive --diff ${SOURCE_DIRS}
 isort --recursive --check-only ${SOURCE_DIRS}
 RET=$(($RET + $?))
 
+if [ $RET -ne 0 ]; then
+    echo "Linting failed."
+fi
 exit $RET
