@@ -7,6 +7,7 @@ from baselines import logger
 from baselines.a2c import utils
 from baselines.bench.monitor import Monitor
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.ppo2 import ppo2
 import gym
@@ -16,7 +17,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
-from modelfree.reward_shaping import RewardShapingEnv
+from modelfree.reward_shaping import RewardShapingEnv, Scheduler, annealer_collection
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
 from modelfree.gym_compete_conversion import (TheirsToOurs, get_policy_type_for_agent_zoo,
                                               load_zoo_policy)
@@ -101,7 +102,6 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector, wrappe
                 curried_env = CurryEnv(TheirsToOurs(multi_env), agent)
                 single_env = FlattenSingletonEnv(curried_env)
 
-                single_env = wrapper(single_env)
                 # TODO: upgrade Gym so don't have to do this
                 single_env.observation_space.dtype = np.dtype(np.float32)
 
@@ -110,6 +110,7 @@ def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector, wrappe
         # TODO: close session?
 
     venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
+    venv = wrapper(venv)
 
     if not no_normalize:
         venv = VecNormalize(venv)
@@ -198,7 +199,7 @@ def save_stats(env_wrapper, path):
 
 
 def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm",
-          no_normalize=False, nsteps=2048, load_path=None):
+          no_normalize=False, nsteps=2048, load_path=None, lr_func=None):
     g = tf.Graph()
     sess = make_session(g)
     with g.as_default():
@@ -211,6 +212,7 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
                                total_timesteps=total_timesteps,
                                nsteps=nsteps,
                                seed=seed,
+                               lr=lr_func,
                                nminibatches=min(4, vector),
                                log_interval=1,
                                save_interval=1,
@@ -232,7 +234,8 @@ def setup_logger(out_dir="results", exp_name="test"):
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
     out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
     os.mkdir(out_dir)
-    logger.configure(dir=osp.join(out_dir, 'mon'))
+    logger.configure(dir=osp.join(out_dir, 'mon'),
+                     format_strs=['tensorboard'])
     return out_dir
 
 
@@ -250,7 +253,7 @@ def human_default():
     exp_name = "test-experiments"
     no_normalize = True
     seed = 1
-    total_timesteps = 100000
+    total_timesteps = 1e8
     network = "mlp"
     nsteps = 2048
     load_path = None
@@ -285,15 +288,19 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
 
     out_dir = setup_logger(out_dir, exp_name)
 
-    # wrap env for reward shaping
-    wrapper = lambda x: x
     if shape_reward:
-        wrapper = lambda x: RewardShapingEnv(x)
+        rew_shape_func = annealer_collection['default_reward'].get_value
+        scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
+                              rew_shape_func=rew_shape_func)
+        wrapper = lambda x: RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
+    else:
+        scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
+                              rew_shape_func=None)
+        wrapper = lambda x: x
 
     env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir,
                   no_normalize=no_normalize, vector=vectorize, wrapper=wrapper)
 
-
     return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                  vector=vectorize, network=network, no_normalize=no_normalize,
-                 nsteps=nsteps, load_path=load_path)
+                 nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr)
