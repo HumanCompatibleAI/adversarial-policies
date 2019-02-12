@@ -7,6 +7,7 @@ from gym.monitoring.video_recorder import VideoRecorder
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
+
 from modelfree.gym_compete_conversion import announce_winner, load_zoo_agent
 from modelfree.ppo_baseline import load_our_mlp
 from modelfree.simulation_utils import simulate

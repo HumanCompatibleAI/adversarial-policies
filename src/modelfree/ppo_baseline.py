@@ -3,11 +3,12 @@ import functools
 import os
 import os.path as osp
 import pickle
+
 from baselines import logger
 from baselines.a2c import utils
 from baselines.bench.monitor import Monitor
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.ppo2 import ppo2
 import gym
@@ -17,10 +18,10 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
-from modelfree.reward_shaping import RewardShapingEnv, Scheduler, annealer_collection
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
 from modelfree.gym_compete_conversion import (TheirsToOurs, get_policy_type_for_agent_zoo,
                                               load_zoo_policy)
+from modelfree.reward_shaping import RewardShapingEnv, Scheduler, annealer_collection
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 

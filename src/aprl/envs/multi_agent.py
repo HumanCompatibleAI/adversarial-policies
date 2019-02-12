@@ -182,4 +182,3 @@ class SubprocVecMultiEnv(SubprocVecEnv):
         env = env_fns[0]()
         self.num_agents = getattr_unwrapped(env, 'num_agents')
         env.close()
-
