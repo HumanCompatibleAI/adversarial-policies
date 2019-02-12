@@ -1,3 +1,5 @@
+"""Train an agent against a fixed victim via PPO, then score the resulting agent."""
+
 from sacred import Experiment
 
 from modelfree.ppo_baseline import ppo_baseline_ex

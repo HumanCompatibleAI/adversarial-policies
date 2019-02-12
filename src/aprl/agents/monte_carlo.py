@@ -47,9 +47,11 @@ class MujocoResettableWrapper(ResettableEnv, gym.Wrapper):
         self.sim.forward()  # put mjData in consistent state
 
     def reset(self):
+        """See base class."""
         return self.env.reset()
 
     def step(self, a):
+        """See base class."""
         return self.env.step(a)
 
 
@@ -175,6 +177,7 @@ class MonteCarloParallel(MonteCarlo):
             remote.close()
 
     def seed(self, seed):
+        """See base class."""
         for i, remote in enumerate(self.remotes):
             remote.send(('seed', seed + i))
 

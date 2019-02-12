@@ -1,3 +1,5 @@
+"""Uses PPO to train an attack policy against a fixed victim policy."""
+
 import datetime
 import functools
 import os
@@ -19,121 +21,26 @@ from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
-from modelfree.gym_compete_conversion import (TheirsToOurs, get_policy_type_for_agent_zoo,
-                                              load_zoo_policy)
 from modelfree.reward_shaping import RewardShapingEnv, Scheduler, annealer_collection
+from modelfree.gym_compete_conversion import TheirsToOurs, load_zoo_agent
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 
 
-def load_our_mlp(agent_name, env, env_name, _,  sess):
-    # TODO DO ANYTHING BUT THIS.  THIS IS VERY DIRTY AND SAD :(
-    def make_env(id):
-        # TODO: seed (not currently supported)
-        # TODO: VecNormalize? (typically good for MuJoCo)
-        # TODO: baselines logger?
-        # TODO: we're loading identical policy weights into different
-        # variables, this is to work-around design choice of Agent's
-        # having state stored inside of them.
-        sess_inner = make_session()
-        with sess_inner.as_default():
-            our_env = TheirsToOurs(env)
-            attacked_agent = constant_zero_agent(act_dim=our_env.action_space.shape[0])
-            # needs to change dim for different environments
-            curried_env = CurryEnv(our_env, attacked_agent)
-            single_env = FlattenSingletonEnv(curried_env)
+class ConstantAgent(object):
+    def __init__(self, constant):
+        self.constant_action = constant
 
-            # TODO: upgrade Gym so don't have to do thi0s
-            single_env.observation_space.dtype = np.dtype(np.float32)
-        return single_env
-        # TODO: close session?
+    def get_action(self, _):
+        return self.constant_action
 
-    denv = SubprocVecEnv([functools.partial(make_env, 0)])
-
-    # TODO DO NOT EVEN READ THE ABOVE CODE :'(
-
-    with sess.as_default():
-        with sess.graph.as_default():
-            model = ppo2.learn(network="mlp", env=denv,
-                               total_timesteps=1,
-                               seed=0,
-                               nminibatches=4,
-                               log_interval=1,
-                               save_interval=1,
-                               load_path=agent_name)
-
-    stateful_model = StatefulModel(denv, model, sess)
-    trained_agent = ResettableAgent(get_action_in=stateful_model.get_action,
-                                    reset_in=stateful_model.reset)
-
-    return trained_agent
+    def reset(self):
+        pass
 
 
-def get_env(env_name, victim, victim_type, no_normalize, out_dir, vector, wrapper):
-
-    # TODO This is nasty, fix
-    victim_type = get_policy_type_for_agent_zoo(env_name)
-
-    # TODO: upgrade Gym so this monkey-patch isn't needed
-    gym.spaces.Dict = type(None)
-
-    g = tf.Graph()
-
-    def make_env(id):
-        # TODO: seed (not currently supported)
-        # TODO: baselines logger?
-        # TODO: we're loading identical policy weights into different
-        # variables, this is to work-around design choice of Agent's
-        # having state stored inside of them.
-        sess = make_session(g)
-        with g.as_default():
-            with sess.as_default():
-
-                multi_env = gym.make(env_name)
-
-                policy = load_zoo_policy(victim, victim_type,
-                                         "zoo_{}_policy_{}".format(env_name, id),
-                                         multi_env, 0, sess=sess)
-
-                # TODO remove this trash
-                def get_action(observation):
-                    return policy.act(stochastic=True, observation=observation)[0]
-
-                agent = ResettableAgent(get_action, policy.reset)
-                curried_env = CurryEnv(TheirsToOurs(multi_env), agent)
-                single_env = FlattenSingletonEnv(curried_env)
-
-                # TODO: upgrade Gym so don't have to do this
-                single_env.observation_space.dtype = np.dtype(np.float32)
-
-                single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
-        return single_env
-        # TODO: close session?
-
-    venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
-    venv = wrapper(venv)
-
-    if not no_normalize:
-        venv = VecNormalize(venv)
-
-    return venv
-
-
-def constant_zero_agent(act_dim=8):
-    constant_action = np.zeros((act_dim,))
-
-    class Temp:
-
-        def __init__(self, constants):
-            self.constants = constants
-
-        def get_action(self, _):
-            return self.constants
-
-        def reset(self):
-            pass
-
-    return Temp(constant_action)
+class ZeroAgent(ConstantAgent):
+    def __init__(self, shape):
+        super().__init__(np.zeros(shape))
 
 
 class StatefulModel(Policy):
@@ -153,6 +60,76 @@ class StatefulModel(Policy):
 
     def reset(self):
         self._dones = [True] * self.nenv
+
+
+def make_single_env(env_name, seed, agent_fn, out_dir):
+    # TODO: perform the currying at a VecEnv level.
+    # This will probably improve performance, but will require making their Agent's stateless.
+    g = tf.Graph()
+    sess = make_session(g)
+    with sess.as_default():
+        multi_env = gym.make(env_name)
+        multi_env.seed(seed)
+
+        agent = agent_fn(env=multi_env, sess=sess)
+        curried_env = CurryEnv(TheirsToOurs(multi_env), agent)
+        single_env = FlattenSingletonEnv(curried_env)
+
+        # Gym added dtype's to shapes in commit 1c5a463
+        # Baselines depends on this, but we have to use an older version of Gym
+        # to keep support for MuJoCo 1.31. Monkeypatch shapes to fix this.
+        # Note: the environments actually return float64, but this precision is not needed.
+        single_env.observation_space.dtype = np.dtype(np.float32)
+        single_env.action_space.dtype = np.dtype(np.float32)
+
+        if out_dir is not None:
+            single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
+    # TODO: close TF session once env is closed?
+    return single_env
+
+
+def load_our_mlp(agent_name, env, env_name, _, sess):
+    # TODO: Find a way of loading a policy without training for one timestep.
+    def agent_fn(env, sess):
+        return ZeroAgent(env.action_space.shape[0])
+
+    def make_env():
+        return make_single_env(env_name=env_name, seed=0, agent_fn=agent_fn, out_dir=None)
+
+    denv = DummyVecEnv([make_env])
+
+    with sess.as_default():
+        with sess.graph.as_default():
+            model = ppo2.learn(network="mlp", env=denv,
+                               total_timesteps=1,
+                               seed=0,
+                               nminibatches=4,
+                               log_interval=1,
+                               save_interval=1,
+                               load_path=agent_name)
+
+    stateful_model = StatefulModel(denv, model, sess)
+    trained_agent = ResettableAgent(get_action_in=stateful_model.get_action,
+                                    reset_in=stateful_model.reset)
+
+    return trained_agent
+
+
+def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir, vector):
+    def agent_fn(env, sess):
+        return load_zoo_agent(path=victim, env=env, env_name=env_name,
+                              index=victim_index, sess=sess)
+
+    def make_env(i):
+        return make_single_env(env_name, seed + i, agent_fn, out_dir)
+
+    venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
+    venv = wrapper(venv)
+
+    if not no_normalize:
+        venv = VecNormalize(venv)
+
+    return venv
 
 
 def mlp_lstm(hiddens, ob_norm=False, layer_norm=False, activation=tf.tanh):
@@ -203,29 +180,23 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
           no_normalize=False, nsteps=2048, load_path=None, lr_func=None):
     g = tf.Graph()
     sess = make_session(g)
-    with g.as_default():
-        with sess:
-
-            if network == 'our-lstm':
-                network = mlp_lstm([128, 128], layer_norm=True)
-            # TODO: speed up construction of mlp_lstm?
-            model = ppo2.learn(network=network, env=env,
-                               total_timesteps=total_timesteps,
-                               nsteps=nsteps,
-                               seed=seed,
-                               lr=lr_func,
-                               nminibatches=min(4, vector),
-                               log_interval=1,
-                               save_interval=1,
-                               load_path=load_path)
-            model.save(osp.join(out_dir, 'model.pkl'))
-            if not no_normalize:
-                save_stats(env, osp.join(out_dir, 'normalize.pkl'))
-
-    env.close()
-    sess.close()
-
-    return osp.join(out_dir, 'model.pkl')
+    model_path = osp.join(out_dir, 'model.pkl')
+    with sess:
+        if network == 'our-lstm':
+            network = mlp_lstm([128, 128], layer_norm=True)
+        # TODO: speed up construction of mlp_lstm?
+        model = ppo2.learn(network=network, env=env,
+                           total_timesteps=total_timesteps,
+                           nsteps=nsteps,
+                           seed=seed,
+                           nminibatches=min(4, vector),
+                           log_interval=1,
+                           save_interval=1,
+                           load_path=load_path)
+        model.save(model_path)
+        if not no_normalize:
+            save_stats(env, osp.join(out_dir, 'normalize.pkl'))
+    return osp.join(model_path)
 
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
@@ -246,9 +217,9 @@ ppo_baseline_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 @ppo_baseline_ex.named_config
 def human_default():
-    victim = "/home/neel/multiagent-competition/agent-zoo/sumo/humans/agent_parameters-v1.pkl"
+    victim = "1" 
     victim_type = "zoo"
-    env = "sumo-humans-v0"
+    env = "multicomp/SumoHumans-v0"
     vectorize = 8
     out_dir = "outs"
     exp_name = "test-experiments"
@@ -262,10 +233,10 @@ def human_default():
     #return locals()  # not needed by sacred, but supresses unused variable warning
 
 @ppo_baseline_ex.config
-def default():
-    victim = "/home/neel/multiagent-competition/agent-zoo/sumo/ants/agent_parameters-v1.pkl"
+def default_ppo_config():
+    victim = "1"
     victim_type = "zoo"
-    env = "sumo-ants-v0"
+    env = "multicomp/SumoAnts-v0"
     vectorize = 8
     out_dir = "outs"
     exp_name = "test-experiments"
@@ -275,7 +246,8 @@ def default():
     network = "mlp"
     nsteps = 2048
     load_path = None
-    #return locals()  # not needed by sacred, but supresses unused variable warning
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
     # TODO: auto-create out directory
 
@@ -288,6 +260,8 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
+    env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
+                           seed=seed, out_dir=out_dir, vector=vectorize)
 
     if shape_reward:
         rew_shape_func = annealer_collection['default_reward'].get_value
@@ -299,9 +273,8 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
                               rew_shape_func=None)
         wrapper = lambda x: x
 
-    env = get_env(env_name=env, victim=victim, victim_type=victim_type, out_dir=out_dir,
-                  no_normalize=no_normalize, vector=vectorize, wrapper=wrapper)
-
-    return train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
+    res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                  vector=vectorize, network=network, no_normalize=no_normalize,
                  nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr)
+    env.close()
+    return res

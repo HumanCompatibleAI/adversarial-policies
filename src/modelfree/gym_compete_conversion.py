@@ -1,4 +1,6 @@
+import os
 import pickle
+import pkgutil
 
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
@@ -6,9 +8,6 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv
 from modelfree.simulation_utils import ResettableAgent
-
-# TODO: Some of the functions in here are copied from "main" in the multi-agent repo,
-# and we have our own copy of policy
 
 
 class TheirsToOurs(MultiAgentEnv):
@@ -25,7 +24,7 @@ class TheirsToOurs(MultiAgentEnv):
     def step(self, action_n):
         observations, rewards, dones, infos = self._env.step(action_n)
 
-        observations = np.array(observations)
+        observations = list(observations)
         rewards = list(rewards)
         done = any(dones)
         infos = {i: v for i, v in enumerate(infos)}
@@ -33,7 +32,7 @@ class TheirsToOurs(MultiAgentEnv):
         return observations, rewards, done, infos
 
     def reset(self):
-        return np.array(self._env.reset())
+        return list(self._env.reset())
 
 
 def announce_winner(sim_stream):
@@ -52,31 +51,24 @@ def announce_winner(sim_stream):
     raise Exception("No Winner or Tie was ever announced")
 
 
-def load_from_file(param_pkl_path):
-    with open(param_pkl_path, 'rb') as f:
-        params = pickle.load(f)
-    return params
-
-
 def get_policy_type_for_agent_zoo(env_name):
     """Determines the type of policy gym_complete used in each environment. This is needed because
     we must tell their code how to load their own policies.
     :param env_name: the environment of the policy we want to load
     :return: the type of the gym policy."""
-    envs_policy_types = {
-        "kick-and-defend-v0": "lstm",
-        "run-to-goal-humans-v0": "mlp",
-        "run-to-goal-ants-v0": "mlp",
-        "you-shall-not-pass-humans-v0": "mlp",
-        "sumo-humans-v0": "lstm",
-        "sumo-ants-v0": "lstm"
+    policy_types = {
+        "KickAndDefend-v0": "lstm",
+        "RunToGoalHumans-v0": "mlp",
+        "RunToGoalAnts-v0": "mlp",
+        "YouShallNotPassHumans-v0": "mlp",
+        "SumoHumans-v0": "lstm",
+        "SumoAnts-v0": "lstm"
     }
-
-    if env_name in envs_policy_types:
-        return envs_policy_types[env_name]
-
-    msg = "Unsupported Environment: {}, choose from {}".format(env_name, envs_policy_types.keys())
-    raise Exception(msg)
+    if env_name in policy_types:
+        return policy_types[env_name]
+    else:
+        msg = "Unsupported Environment: {}, choose from {}".format(env_name, policy_types.keys())
+        raise ValueError(msg)
 
 
 def set_from_flat(var_list, flat_params, sess=None):
@@ -95,27 +87,45 @@ def set_from_flat(var_list, flat_params, sess=None):
     sess.run(op, {theta: flat_params})
 
 
-def load_zoo_policy(file, policy_type, scope, env, index, sess):
-    if policy_type == "lstm":
+def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
+    # Construct graph
+    if policy_type == 'lstm':
         policy = LSTMPolicy(scope=scope, reuse=False,
                             ob_space=env.observation_space.spaces[index],
                             ac_space=env.action_space.spaces[index],
                             hiddens=[128, 128], normalize=True, sess=sess)
-    else:
+    elif policy_type == 'mlp':
         policy = MlpPolicyValue(scope=scope, reuse=False,
                                 ob_space=env.observation_space.spaces[index],
                                 ac_space=env.action_space.spaces[index],
                                 hiddens=[64, 64], normalize=True, sess=sess)
-    set_from_flat(policy.get_variables(), load_from_file(param_pkl_path=file), sess=sess)
+    else:
+        raise NotImplementedError()
+
+    # Load parameters
+    dir = os.path.join('agent_zoo', env_name)
+    asymmetric_fname = f'agent{index}_parameters-v{id}.pkl'
+    symmetric_fname = f'agent_parameters-v{id}.pkl'
+    try:  # asymmetric version, parameters tagged with agent id
+        params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
+    except OSError:  # symmetric version, parameters not associated with a specific agent
+        params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
+
+    # Restore parameters
+    params = pickle.loads(params_pkl)
+    set_from_flat(policy.get_variables(), params, sess=sess)
+
     return policy
 
 
-def load_zoo_agent(agent, env, env_name, index, sess):
-    policy_type = get_policy_type_for_agent_zoo(env_name)
+def load_zoo_agent(path, env, env_name, index, sess):
+    env_prefix, env_suffix = env_name.split('/')
+    assert env_prefix == 'multicomp'
+    policy_type = get_policy_type_for_agent_zoo(env_suffix)
 
     with sess.graph.as_default():
-        policy = load_zoo_policy(agent, policy_type, "zoo_policy_{}".format(agent),
-                                 env, index, sess=sess)
+        policy = load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
+                                 env, env_suffix, index, sess=sess)
 
     def get_action(observation):
         with sess.as_default():
