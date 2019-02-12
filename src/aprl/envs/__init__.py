@@ -2,8 +2,8 @@
 
 from gym.envs.registration import register
 
-from aprl.envs.multi_agent import MultiAgentEnv, MultiToSingleObs, MultiToSingleObsVec, \
-                                  DummyVecMultiEnv, SubprocVecMultiEnv
+from aprl.envs.multi_agent import (FakeSingleSpaces, FakeSingleSpacesVec, MultiAgentEnv,
+                                   make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from aprl.envs.matrix_game import MatrixGameEnv, IteratedMatchingPenniesEnv, RockPaperScissorsEnv
 
 register(

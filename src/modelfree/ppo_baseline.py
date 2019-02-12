@@ -21,7 +21,7 @@ from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
-from modelfree.gym_compete_conversion import TheirsToOurs, load_zoo_agent
+from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 
@@ -61,7 +61,7 @@ class StatefulModel(Policy):
         self._dones = [True] * self.nenv
 
 
-def make_single_env(env_name, seed, agent_fn, out_dir):
+def make_single_env(env_name, seed, agent_fn, out_dir, env_id=0):
     # TODO: perform the currying at a VecEnv level.
     # This will probably improve performance, but will require making their Agent's stateless.
     g = tf.Graph()
@@ -71,7 +71,7 @@ def make_single_env(env_name, seed, agent_fn, out_dir):
         multi_env.seed(seed)
 
         agent = agent_fn(env=multi_env, sess=sess)
-        curried_env = CurryEnv(TheirsToOurs(multi_env), agent)
+        curried_env = CurryEnv(GymCompeteToOurs(multi_env), agent)
         single_env = FlattenSingletonEnv(curried_env)
 
         # Gym added dtype's to shapes in commit 1c5a463
@@ -82,7 +82,9 @@ def make_single_env(env_name, seed, agent_fn, out_dir):
         single_env.action_space.dtype = np.dtype(np.float32)
 
         if out_dir is not None:
-            single_env = Monitor(single_env, osp.join(out_dir, 'mon', 'log{}'.format(id)))
+            mon_dir = osp.join(out_dir, 'mon')
+            os.makedirs(mon_dir, exist_ok=True)
+            single_env = Monitor(single_env, osp.join(mon_dir, 'log{}'.format(env_id)))
     # TODO: close TF session once env is closed?
     return single_env
 
@@ -120,7 +122,7 @@ def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir
                               index=victim_index, sess=sess)
 
     def make_env(i):
-        return make_single_env(env_name, seed + i, agent_fn, out_dir)
+        return make_single_env(env_name, seed + i, agent_fn, out_dir, env_id=i)
 
     venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
 
@@ -230,6 +232,7 @@ def default_ppo_config():
     del _
 
 
+# TODO: use victim_type
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
                  no_normalize, seed, total_timesteps, network, nsteps, load_path):

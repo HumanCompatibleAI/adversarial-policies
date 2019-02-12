@@ -2,10 +2,12 @@ import functools
 
 from baselines.common.vec_env.test_vec_env import assert_envs_equal
 import gym
+from gym.spaces.tuple_space import Tuple
 import numpy as np
 import pytest
 
 import aprl.envs as envs
+from aprl.envs.multi_agent import tuple_transpose
 
 # Helper functions
 
@@ -23,10 +25,10 @@ def check_env(env):
 
     if isinstance(env, envs.MultiAgentEnv):
         assert len(reward) == env.num_agents
-        assert env.observation_space.shape[0] == env.num_agents
-        assert env.action_space.shape[0] == env.num_agents
-        assert env.observation_space.shape[1:] == env.agent_observation_space.shape
-        assert env.action_space.shape[1:] == env.agent_action_space.shape
+        assert isinstance(env.observation_space, Tuple), 'Observations should be Tuples'
+        assert isinstance(env.action_space, Tuple), 'Actions should be Tuples'
+        assert len(env.observation_space.spaces) == env.num_agents
+        assert len(env.action_space.spaces) == env.num_agents
     else:
         assert np.isscalar(reward), "{} is not a scalar for {}".format(reward, env)
 
@@ -85,10 +87,55 @@ class SimpleMultiEnv(envs.MatrixGameEnv):
         return super().__init__(num_actions=num_actions, payoff=payoff)
 
 
+def assert_envs_equal(env1, env2, num_steps):
+    """
+    Compare two environments over num_steps steps and make sure
+    that the observations produced by each are the same when given
+    the same actions.
+    """
+    assert env1.num_envs == env2.num_envs
+    assert env1.observation_space == env2.observation_space
+    assert env1.action_space == env2.action_space
+
+    try:
+        obs1, obs2 = env1.reset(), env2.reset()
+        assert type(obs1) == type(obs2)
+        # TODO: sample actions sensitive to num_envs.
+        # (Maybe add a helper function to make this easy in VecEnv? Feels like a design flaw.)
+
+        if isinstance(obs1, tuple):
+            for x, y in zip(obs1, obs2):
+                assert x.shape == y.shape
+                assert np.allclose(x, y)
+        else:
+            assert np.array(obs1).shape == np.array(obs2).shape
+            assert np.allclose(obs1, obs2)
+
+        if isinstance(env1.action_space, Tuple):
+            for space in env1.action_space.spaces:
+                space.np_random.seed(1337)
+        else:
+            env1.action_space.np_random.seed(1337)
+
+        for _ in range(num_steps):
+            actions = tuple((env1.action_space.sample() for _ in range(env1.num_envs)))
+            for env in [env1, env2]:
+                env.step_async(tuple_transpose(actions))
+            outs1 = env1.step_wait()
+            outs2 = env2.step_wait()
+            # Check ob, rew, done; ignore infos
+            for out1, out2 in zip(outs1[:3], outs2[:3]):
+                assert np.allclose(out1, out2)
+            assert list(outs1[3]) == list(outs2[3])
+    finally:
+        env1.close()
+        env2.close()
+
+
 def test_vec_env():
     """Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
        each other."""
     env_fns = [functools.partial(SimpleMultiEnv, i) for i in range(4)]
-    venv1 = envs.DummyVecMultiEnv(env_fns)
-    venv2 = envs.SubprocVecMultiEnv(env_fns)
+    venv1 = envs.make_dummy_vec_multi_env(env_fns)
+    venv2 = envs.make_subproc_vec_multi_env(env_fns)
     assert_envs_equal(venv1, venv2, 100)

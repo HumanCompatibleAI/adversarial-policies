@@ -2,6 +2,7 @@ import os
 import pickle
 import pkgutil
 
+from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
 import tensorflow as tf
@@ -10,29 +11,25 @@ from aprl.envs.multi_agent import MultiAgentEnv
 from modelfree.simulation_utils import ResettableAgent
 
 
-class TheirsToOurs(MultiAgentEnv):
-    """This class is a wrapper around the multi-agent environments from gym_compete which converts
-       it to match our MultiAgentEnv class."""
-    def __init__(self, env):
-        super().__init__(2, env.action_space.spaces[0], env.observation_space.spaces[0])
-        # TODO ask adam about the action/observation spaces.
-        # I am worried about asymmetric envs like goalie
+class GymCompeteToOurs(Wrapper, MultiAgentEnv):
+    """This adapts gym_compete.MultiAgentEnv to our eponymous MultiAgentEnv.
 
-        self.spec = env.spec
-        self._env = env
+       The main differences are that we have a scalar done (episode-based) rather than vector
+       (agent-based), and only return one info dict (property of environment not agent)."""
+    def __init__(self, env):
+        Wrapper.__init__(self, env)
+        MultiAgentEnv.__init__(self, num_agents=2)
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
 
     def step(self, action_n):
-        observations, rewards, dones, infos = self._env.step(action_n)
-
-        observations = list(observations)
-        rewards = list(rewards)
+        observations, rewards, dones, infos = self.env.step(action_n)
         done = any(dones)
         infos = {i: v for i, v in enumerate(infos)}
-
         return observations, rewards, done, infos
 
     def reset(self):
-        return list(self._env.reset())
+        return self.env.reset()
 
 
 def announce_winner(sim_stream):
