@@ -8,7 +8,7 @@ import gym
 
 from aprl.agents.multi_monitor import MultiMonitor
 from aprl.agents.ppo_self_play import PPOSelfPlay
-from aprl.envs import DummyVecMultiEnv
+from aprl.envs import make_dummy_vec_multi_env
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 
@@ -45,7 +45,7 @@ def main():
         env.seed(args.seed + 10*i)
         return env
     env_fns = [functools.partial(make_env, i) for i in range(args.vec_env)]
-    env = DummyVecMultiEnv(env_fns)
+    env = make_dummy_vec_multi_env(env_fns)
 
     # Perform self-play
     self_play = PPOSelfPlay(population_size=args.population_size,

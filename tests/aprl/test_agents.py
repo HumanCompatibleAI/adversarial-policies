@@ -19,7 +19,7 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env
 
 def test_multi_monitor():
     """Smoke test for MultiMonitor."""
-    env = gym.make('aprl/IMP-v0')
+    env = gym.make('aprl/IteratedMatchingPennies-v0')
     with tempfile.TemporaryDirectory(prefix='test_multi_mon') as d:
         env = MultiMonitor(env, filename=os.path.join(d, 'test'))
         for eps in range(5):
@@ -37,7 +37,7 @@ def test_ppo_self_play():
     """Smoke test for PPOSelfPlay."""
     with tempfile.TemporaryDirectory(prefix='test_ppo_self_play') as d:
         def make_env(i):
-            env = gym.make('aprl/IMP-v0')
+            env = gym.make('aprl/IteratedMatchingPennies-v0')
             fname = os.path.join(d, 'test{:d}'.format(i))
             env = MultiMonitor(env, filename=fname,
                                allow_early_resets=True)
