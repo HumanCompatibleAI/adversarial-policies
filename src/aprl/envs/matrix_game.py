@@ -1,20 +1,24 @@
+"""Two-player, normal-form games with symmetric action spaces."""
+
 from gym.spaces.discrete import Discrete
+from gym.spaces.tuple_space import Tuple
 import numpy as np
 
 from aprl.envs import MultiAgentEnv
 
 
 class MatrixGameEnv(MultiAgentEnv):
-    """Models two-player, normal-form games with symetrically sized action space."""
+    """Models two-player, normal-form games with symmetrically sized action space."""
     metadata = {'render.modes': ['human']}
     ACTION_TO_SYM = None
 
     def __init__(self, num_actions, payoff):
         """payoff_matrices must be a pair of num_actions*num_actions payoff matrices."""
         agent_space = Discrete(num_actions)
-        super().__init__(num_agents=2,
-                         agent_action_space=agent_space,
-                         agent_observation_space=agent_space)
+        overall_space = Tuple((agent_space, agent_space))
+        self.action_space = overall_space
+        self.observation_space = overall_space
+        super().__init__(num_agents=2)
 
         payoff = np.array(payoff)
         assert (payoff.shape == (2, num_actions, num_actions))
@@ -24,15 +28,15 @@ class MatrixGameEnv(MultiAgentEnv):
         assert(len(action_n) == 2)
         i, j = action_n
         # observation is the other players move
-        self.obs_n = np.array([j, i])
+        self.obs_n = (j, i)
         rew_n = self.payoff[:, i, j]
         done = False
         return self.obs_n, rew_n, done, dict()
 
     def reset(self):
         # State is previous players action, so this doesn't make much sense;
-        # just assume [0, 0] is start.
-        self.obs_n = np.array([0, 0])
+        # just assume (0, 0) is start.
+        self.obs_n = (0, 0)
         return self.obs_n
 
     def seed(self, seed=None):
@@ -43,7 +47,7 @@ class MatrixGameEnv(MultiAgentEnv):
         # note observations are flipped -- observe other agents actions
         p2, p1 = self.obs_n
         if self.ACTION_TO_SYM is not None:
-            p1, p2 = list(map(self.ACTION_TO_SYM.get, [p1, p2]))
+            p1, p2 = tuple(map(self.ACTION_TO_SYM.get, (p1, p2)))
         return f'P1: {p1}, P2: {p2}'
 
 

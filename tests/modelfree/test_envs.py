@@ -2,7 +2,7 @@ import gym
 import pytest
 
 from tests.aprl.test_envs import check_env, check_random_rollout
-from modelfree.gym_compete_conversion import TheirsToOurs
+from modelfree.gym_compete_conversion import GymCompeteToOurs
 
 spec_list = [spec
              for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)
@@ -16,7 +16,7 @@ def test_envs_exist():
 def spec_to_env(fn):
     def helper(spec):
         their_env = spec.make()
-        our_env = TheirsToOurs(their_env)
+        our_env = GymCompeteToOurs(their_env)
         return fn(our_env)
     return helper
 

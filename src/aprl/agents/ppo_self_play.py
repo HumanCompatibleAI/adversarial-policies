@@ -14,7 +14,7 @@ import numpy as np
 import tensorflow as tf
 
 from aprl.agents.self_play import AbstractMultiEnvRunner, SelfPlay
-from aprl.envs import MultiToSingleObsVec
+from aprl.envs import FakeSingleSpacesVec
 
 try:
     from mpi4py import MPI
@@ -158,7 +158,7 @@ class PPOSelfPlay(SelfPlay):
 
         self.graphs = [tf.Graph() for _ in range(population_size)]
         self.sess = [make_sess(graph=graph) for graph in self.graphs]
-        fake_env = MultiToSingleObsVec(env)
+        fake_env = FakeSingleSpacesVec(env)
         for i in range(population_size):
             policy = build_policy(fake_env, network, **network_kwargs)
 
