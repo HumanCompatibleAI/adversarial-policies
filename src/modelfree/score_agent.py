@@ -47,13 +47,13 @@ score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 @score_agent_ex.named_config
 def human_score_config():
-    agent_a = "/home/neel/multiagent-competition/agent-zoo/sumo/humans/agent_parameters-v1.pkl"
+    agent_a_path = "1"
     agent_a_type = "zoo"
-    env = "sumo-humans-v0"
+    env_name = "SumoHumans-v0"
     agent_b_type = "our_mlp"
-    agent_b = "outs/20190208_144744 test-experiments/model.pkl"
+    agent_b_path = "outs/20190208_144744 test-experiments/model.pkl"
     samples = 20
-    watch = True
+    render = True
     videos = False
     video_dir = "videos/"
     _ = locals()  # quieten flake8 unused variable warning
