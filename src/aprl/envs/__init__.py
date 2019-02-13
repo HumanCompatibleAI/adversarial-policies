@@ -12,7 +12,7 @@ register(
     entry_point='aprl.envs.crowded_line:CrowdedLineEnv',
     max_episode_steps=200,
     reward_threshold=0,
-    kwargs={'num_agents': 10},
+    kwargs={'num_agents': 3},
 )
 
 register(

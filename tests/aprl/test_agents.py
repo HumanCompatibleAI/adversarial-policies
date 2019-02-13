@@ -32,12 +32,11 @@ def test_multi_monitor():
             assert set(epinfo.keys()) == {'r', 'r0', 'r1', 'l', 't'}
 
 
-@pytest.mark.xfail(reason="Runner assumes symmetric observation space")
 def test_ppo_self_play():
     """Smoke test for PPOSelfPlay."""
     with tempfile.TemporaryDirectory(prefix='test_ppo_self_play') as d:
         def make_env(i):
-            env = gym.make('aprl/IteratedMatchingPennies-v0')
+            env = gym.make('aprl/CrowdedLine-v0')
             fname = os.path.join(d, 'test{:d}'.format(i))
             env = MultiMonitor(env, filename=fname,
                                allow_early_resets=True)

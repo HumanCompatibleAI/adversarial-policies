@@ -1,5 +1,6 @@
 # flake8: noqa
 # TODO: fix PEP8 violations inherited from Baselines
+# TODO: mostly untested -- should view this implementation as suspect
 
 from collections.__init__ import deque
 import functools
@@ -13,7 +14,7 @@ from baselines.common.policies import build_policy
 import numpy as np
 import tensorflow as tf
 
-from aprl.agents.self_play import AbstractMultiEnvRunner, SelfPlay
+from aprl.agents.self_play import AbstractMultiEnvRunner, e_arr, SelfPlay
 from aprl.envs import FakeSingleSpacesVec
 
 try:
@@ -39,8 +40,8 @@ class PPOMultiRunner(AbstractMultiEnvRunner):
     run():
     - Make a mini batch
     """
-    def __init__(self, *, env, models, nsteps, gamma, lam):
-        super().__init__(env=env, models=models, nsteps=nsteps)
+    def __init__(self, *, env, agents, nsteps, gamma, lam):
+        super().__init__(env=env, agents=agents, nsteps=nsteps)
         # Lambda used in GAE (General Advantage Estimation)
         self.lam = lam
         # Discount rate
@@ -51,26 +52,29 @@ class PPOMultiRunner(AbstractMultiEnvRunner):
         # self.obs, self.dones and actions are indexed [env_id, model_id].
 
         # Here, we init the lists that will contain the experience buffer
-        def e():
-            return [[] for _ in self.models]
-        mb_obs, mb_rewards, mb_actions = e(), e(), e()
-        mb_values, mb_dones, mb_neglogpacs = e(), e(), e()
+        assert len(self.agents) == len(self.env.observation_space.spaces)
+        assert len(self.agents) == len(self.env.action_space.spaces)
+
+        def e_list():
+            return [[] for _ in self.agents]
+
+        mb_obs, mb_rewards, mb_actions = e_list(), e_list(), e_list()
+        mb_values, mb_dones, mb_neglogpacs = e_list(), e_list(), e_list()
         epinfos = []
 
         # Gather environment experience for n in range number of steps
-        actions = np.zeros((self.nenv,) + self.env.action_space.shape,
-                           dtype=self.env.action_space.dtype.name)
+        actions = e_arr(self.nenv, self.env.action_space)
         for _ in range(self.nsteps):
             # Given observations, get action value and neglopacs
             # We already have self.obs because Runner superclass
             # runs self.obs[:] = env.reset() on init.
-            for i, model in enumerate(self.models):
+            for i, agent in enumerate(self.agents):
                 # SOMEDAY: evaluate models in parallel?
-                a, v, self.states[i], nlogp = model.step(self.obs[:, i],
+                a, v, self.states[i], nlogp = agent.step(self.obs[i],
                                                          S=self.states[i],
                                                          M=self.dones)
-                mb_obs[i].append(self.obs[:, i].copy())
-                actions[:, i] = a
+                mb_obs[i].append(self.obs[i].copy())
+                actions[i] = a
                 mb_actions[i].append(a)
                 mb_values[i].append(v)
                 mb_neglogpacs[i].append(nlogp)
@@ -78,26 +82,27 @@ class PPOMultiRunner(AbstractMultiEnvRunner):
 
             # Take actions in env and look the results
             # Infos contains a ton of useful informations
-            self.obs[:], rewards, self.dones[:], infos = self.env.step(actions)
+            obs, rewards, self.dones[:], infos = self.env.step(actions)
+            for sobs, eobs in zip(self.obs, obs):
+                sobs[:] = eobs
             for info in infos:
                 maybeepinfo = info.get('episode')
                 if maybeepinfo: epinfos.append(maybeepinfo)
-            for i in range(self.nmodels):
-                mb_rewards[i].append(rewards[:, i])
+            for i in range(self.nagents):
+                mb_rewards[i].append(rewards[i])
 
         #batch of steps to batch of rollouts
-        mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
+        mb_obs = [np.asarray(x, dtype=sobs.dtype) for x, sobs in zip(mb_obs, self.obs)]
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
-        mb_actions = np.asarray(mb_actions, dtype=actions.dtype)
+        mb_actions = [np.asarray(x, dtype=sact.dtype) for x, sact in zip(mb_actions, actions)]
         mb_values = np.asarray(mb_values, dtype=np.float32)
         mb_neglogpacs = np.asarray(mb_neglogpacs, dtype=np.float32)
         mb_dones = np.asarray(mb_dones, dtype=np.bool)
-        last_values = np.zeros((self.nenv,) + self.env.observation_space.shape,
-                               dtype=np.float32)
-        for i, model in enumerate(self.models):
-            last_values[:, i] = self.model.value(self.obs[:, i],
-                                                 S=self.states[i],
-                                                 M=self.dones)
+        last_values = np.zeros((self.nenv, len(self.env.observation_space.spaces)))
+        for i, agent in enumerate(self.agents):
+            last_values[:, i] = agent.value(self.obs[i],
+                                            S=self.states[i],
+                                            M=self.dones)
         last_values = last_values.swapaxes(0, 1)
 
         # discount/bootstrap off value fn
@@ -115,7 +120,7 @@ class PPOMultiRunner(AbstractMultiEnvRunner):
         mb_returns = mb_advs + mb_values
 
         res = []
-        for i in range(self.nmodels):
+        for i in range(self.nagents):
             x = (*map(_sf01, (mb_obs[i], mb_returns[i], mb_dones[i],
                               mb_actions[i], mb_values[i], mb_neglogpacs[i])),
                  self.states[i])
@@ -147,8 +152,11 @@ class PPOSelfPlay(SelfPlay):
         set_global_seeds(seed)
 
         # Get state_space and action_space
-        ob_space = env.observation_space
-        ac_space = env.action_space
+        ob_space = env.observation_space.spaces[0]
+        ac_space = env.action_space.spaces[0]
+        for ob_sp, ac_sp in zip(env.observation_space.spaces, env.action_space.spaces):
+            assert ob_sp == ob_space
+            assert ac_sp == ac_space
 
         # Calculate the batch_size
         self.nsteps = nsteps
