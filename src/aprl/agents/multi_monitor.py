@@ -21,8 +21,7 @@ class MultiMonitor(Monitor):
         self.rewards.append(rew)
         if done:
             self.needs_reset = True
-            eprew = sum(self.rewards)
-            eprew = list(map(lambda x: round(x, 6), eprew))
+            eprew = np.asarray(self.rewards).sum(axis=0).round(6)
             joint_eprew = np.mean(eprew)
             eplen = len(self.rewards)
             epinfo = {"r": joint_eprew,
