@@ -8,8 +8,7 @@ if [[ ${MUJOCO_KEY} == "" ]]; then
 fi
 
 # Run the same CI tests that Travis will run on local machine.
-docker pull humancompatibleai/adversarial_policies:latest
-docker build --cache-from humancompatibleai/adversarial_policies \
+docker build --cache-from humancompatibleai/adversarial_policies:local-test \
              --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
              -t humancompatibleai/adversarial_policies:local-test .
 if [[ $? -ne 0 ]]; then

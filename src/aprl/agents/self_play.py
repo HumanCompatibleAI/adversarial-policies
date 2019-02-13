@@ -1,19 +1,40 @@
-from baselines.common.runners import AbstractEnvRunner
+from abc import ABC, abstractmethod
+
 import numpy as np
 
 from aprl.utils import getattr_unwrapped
 
 
-class AbstractMultiEnvRunner(AbstractEnvRunner):
-    def __init__(self, *, env, models, nsteps):
-        super().__init__(env=env, model=models[0], nsteps=nsteps)
-        self.nmodels = len(models)
-        self.models = models
-        self.states = [model.initial_state for model in models]
-        self.dones = np.zeros(self.nenv, dtype=np.bool)
+def e_arr(nenv, multi_space):
+    return [np.zeros((nenv, ) + space.shape, dtype=space.dtype.name)
+            for space in multi_space.spaces]
+
+
+class AbstractMultiEnvRunner(ABC):
+    """MultiEnv equivalent of AbstractEnvRunner in baselines."""
+    def __init__(self, *, env, agents, nsteps):
+        self.env = env
+        self.agents = agents
+        self.nagents = len(agents)
+        self.nenv = nenv = env.num_envs if hasattr(env, 'num_envs') else 1
+        self.obs = e_arr(nenv, env.observation_space)
+        obs = env.reset()
+        for sobs, eobs in zip(self.obs, obs):
+            sobs[:] = eobs
+        self.nsteps = nsteps
+        self.states = [model.initial_state for model in agents]
+        self.dones = np.zeros(nenv, dtype=np.bool)
+
+    @abstractmethod
+    def run(self):
+        raise NotImplementedError
 
 
 class SelfPlay(object):
+    """Self-play amongst randomly sampled members of a population.
+
+    Assumes symmetric multi-agent environment so that any policy can play as any agent."""
+
     TRAINING_TYPES = ['best']
 
     def __init__(self, population_size, training_type, runner_class, env):
@@ -34,13 +55,13 @@ class SelfPlay(object):
                                    replace=False)
         if self.training_type == 'best':
             # Use latest version of models
-            models = [self.models[pi] for pi in players]
+            agents = [self.models[pi] for pi in players]
         else:
             # SOMEDAY: support other training types, e.g. random history
             raise NotImplementedError
 
         # Generate a rollout
-        runner = self.runner_class(env=self.env, models=models, nsteps=nsteps)
+        runner = self.runner_class(env=self.env, agents=agents, nsteps=nsteps)
         trajs, epinfos = runner.run()
 
         # epinfos contains reward for each player.
@@ -59,7 +80,7 @@ class SelfPlay(object):
             for i in range(self.num_agents)
         ]
 
-        return list(zip(players, models, trajs, agent_epinfos))
+        return list(zip(players, agents, trajs, agent_epinfos))
 
     def learn(self, *args, **kwargs):
         raise NotImplementedError

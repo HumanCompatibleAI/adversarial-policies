@@ -217,7 +217,8 @@ class VecMultiEnv(VecEnv):
     """Like a VecEnv, but each environment is a MultiEnv. Adds extra attribute, num_agents.
 
        Observations and actions are a num_agents-length tuple, with the i'th entry of shape
-       (num_envs, ) + {observation,action}_space.spaces[i].shape"""
+       (num_envs, ) + {observation,action}_space.spaces[i].shape. Rewards are a ndarray of shape
+       (num_agents, num_envs)."""
     def __init__(self, num_envs, num_agents, observation_space, action_space):
         VecEnv.__init__(self, num_envs, observation_space, action_space)
         self.num_agents = num_agents
@@ -309,6 +310,7 @@ class _DictToTuple(VecMultiWrapper):
     def step_wait(self):
         obs, rews, done, info = self.venv.step_wait()
         obs = _dict_to_tuple(obs)
+        rews = rews.T
         return obs, rews, done, info
 
 
