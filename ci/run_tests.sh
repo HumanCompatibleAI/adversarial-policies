@@ -18,5 +18,11 @@ venv=${env}venv
 source ${venv}/bin/activate
 curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
 python setup.py install
+
+RET=0
 pytest --cov=src/ tests/${env}
+RET=$(($RET + $?))
 codecov --flags ${env}
+RET=$(($RET + $?))
+
+exit $RET
