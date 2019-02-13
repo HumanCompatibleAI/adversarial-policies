@@ -23,7 +23,7 @@ import tensorflow as tf
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
 from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
 from modelfree.reward_shaping import (LinearAnnealer, RewardShapingEnv, Scheduler,
-                                      annealer_collection)
+                                      annealer_collection, NoisyAgentWrapper)
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 
@@ -118,16 +118,18 @@ def load_our_mlp(agent_name, env, env_name, _, sess):
     return trained_agent
 
 
-def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir, vector, wrapper):
+def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir, vector,
+                     env_wrapper, victim_wrapper):
     def agent_fn(env, sess):
-        return load_zoo_agent(path=victim, env=env, env_name=env_name,
-                              index=victim_index, sess=sess)
+        zoo_agent = load_zoo_agent(path=victim, env=env, env_name=env_name,
+                                index=victim_index, sess=sess)
+        return victim_wrapper(zoo_agent)
 
     def make_env(i):
         return make_single_env(env_name, seed + i, agent_fn, out_dir, env_id=i)
 
     venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
-    venv = wrapper(venv)
+    venv = env_wrapper(venv)
 
     if not no_normalize:
         venv = VecNormalize(venv)
@@ -234,6 +236,8 @@ def human_default():
     nsteps = 2048
     load_path = None
     rew_shape_anneal_frac = None
+    victim_noise_anneal_frac = None
+    victim_noise_param = None
     _ = locals()
     del _
 
@@ -261,7 +265,7 @@ def default_ppo_config():
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
                  no_normalize, seed, total_timesteps, network, nsteps, load_path,
-                 rew_shape_anneal_frac):
+                 rew_shape_anneal_frac, victim_noise_anneal_frac, victim_noise_param):
     # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
@@ -271,20 +275,37 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
     if rew_shape_anneal_frac is not None:
         assert 0 <= rew_shape_anneal_frac <= 1
         rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
-        scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
-                              rew_shape_func=rew_shape_func)
 
-        def wrapper(x):
+        def env_wrapper(x):
             return RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
     else:
-        scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
-                              rew_shape_func=None)
+        rew_shape_func = None
 
-        def wrapper(x):
+        def env_wrapper(x):
             return x
 
+    if victim_noise_anneal_frac is not None:
+        assert 0 <= victim_noise_anneal_frac <= 1
+        assert 0 <= victim_noise_param
+
+        noise_anneal_func = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac).get_value
+
+        scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
+                              rew_shape_func=rew_shape_func,
+                              noise_func=noise_anneal_func)
+        def victim_wrapper(x):
+            return NoisyAgentWrapper(x, noise_annealer=scheduler.get_noise_val)
+
+    else:
+        noise_anneal_func = None
+
+        def victim_wrapper(x):
+            return x
+
+
     env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
-                           seed=seed, out_dir=out_dir, vector=vectorize, wrapper=wrapper)
+                           seed=seed, out_dir=out_dir, vector=vectorize, env_wrapper=env_wrapper,
+                           victim_wrapper=victim_wrapper)
 
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                 vector=vectorize, network=network, no_normalize=no_normalize,
