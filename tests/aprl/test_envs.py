@@ -79,14 +79,6 @@ test_random_rollout = pytest.mark.parametrize("spec", spec_list)(spec_to_env(che
 # Test VecMultiEnv classes
 
 
-class SimpleMultiEnv(envs.MatrixGameEnv):
-    def __init__(self, seed):
-        num_actions = 0x100
-        np.random.seed(seed)
-        payoff = np.random.random((2, num_actions, num_actions))
-        return super().__init__(num_actions=num_actions, payoff=payoff)
-
-
 def assert_envs_equal(env1, env2, num_steps):
     """
     Compare two environments over num_steps steps and make sure
@@ -132,10 +124,15 @@ def assert_envs_equal(env1, env2, num_steps):
         env2.close()
 
 
-def test_vec_env():
+@pytest.mark.parametrize("spec", spec_list)
+def check_vec_env(spec):
     """Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
        each other."""
-    env_fns = [functools.partial(SimpleMultiEnv, i) for i in range(4)]
+    def make_env(i):
+        env = spec.make()
+        env.seed(42 + i)
+        return env
+    env_fns = [lambda: make_env(i) for i in range(4)]
     venv1 = envs.make_dummy_vec_multi_env(env_fns)
     venv2 = envs.make_subproc_vec_multi_env(env_fns)
     assert_envs_equal(venv1, venv2, 100)
