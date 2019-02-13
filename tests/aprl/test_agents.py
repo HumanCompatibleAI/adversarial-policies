@@ -20,6 +20,7 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env
 def test_multi_monitor():
     """Smoke test for MultiMonitor."""
     env = gym.make('aprl/IteratedMatchingPennies-v0')
+    env.seed(42)
     with tempfile.TemporaryDirectory(prefix='test_multi_mon') as d:
         env = MultiMonitor(env, filename=os.path.join(d, 'test'))
         for eps in range(5):
@@ -32,12 +33,12 @@ def test_multi_monitor():
             assert set(epinfo.keys()) == {'r', 'r0', 'r1', 'l', 't'}
 
 
-@pytest.mark.xfail(reason="Runner assumes symmetric observation space")
 def test_ppo_self_play():
     """Smoke test for PPOSelfPlay."""
     with tempfile.TemporaryDirectory(prefix='test_ppo_self_play') as d:
         def make_env(i):
-            env = gym.make('aprl/IteratedMatchingPennies-v0')
+            env = gym.make('aprl/CrowdedLine-v0')
+            env.seed(42 + i)
             fname = os.path.join(d, 'test{:d}'.format(i))
             env = MultiMonitor(env, filename=fname,
                                allow_early_resets=True)
@@ -58,6 +59,7 @@ def test_lqr_mujoco(dynamics_cls):
     Jupyter notebook experiments/mujoco_control.ipynb has quantitative results
     attained; for efficiency, we only run for a few iterations here."""
     env = gym.make('Reacher-v2').unwrapped
+    env.seed(42)
     env.reset()
     dynamics = dynamics_cls(env)
     cost = MujocoFiniteDiffCost(env)
