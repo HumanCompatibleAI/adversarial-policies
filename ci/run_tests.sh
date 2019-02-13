@@ -20,7 +20,10 @@ curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
 python setup.py install
 
 RET=0
-pytest --cov=src/ tests/${env}
+pytest --cov=${venv}/lib/python3.6/site-packages/aprl/ tests/${env}
+RET=$(($RET + $?))
+mv .coverage .coverage.${env}
+coverage combine  # rewrite paths from virtualenv to src/
 RET=$(($RET + $?))
 codecov --flags ${env}
 RET=$(($RET + $?))
