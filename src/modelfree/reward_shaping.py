@@ -61,16 +61,52 @@ class RewardShapingEnv(VecEnvWrapper):
         return c
 
 
+class NoisyAgentWrapper(object):
+    def __init__(self, agent, noise_annealer, noise_type='gaussian'):
+        """
+        - agent: ResettableAgent (most likely) - noise will be added to the actions of
+        this agent in order to build a curriculum of weaker to stronger victims
+        - noise_annealer: Annealer.get_value - presumably the noise should be decreased over time
+        in order to get the adversarial policy to perform well on a normal victim.
+        This function should be tied to a Scheduler to keep it stateless.
+        - noise_type: str - the type of noise parametrized by noise_annealer's value.
+        Current options are [gaussian]
+        """
+        self.agent = agent
+        self.noise_annealer = noise_annealer
+        self.noise_generator = self._get_noise_generator(noise_type)
+
+    def _get_noise_generator(self, noise_type):
+        noise_generators = {
+            'gaussian': lambda x, size: np.random.normal(scale=x, size=size)
+        }
+        return noise_generators[noise_type]
+
+    def get_action(self, observation):
+        noise_param = self.noise_annealer()
+        original_action = self.agent.get_action(observation)
+        action_size = original_action.shape
+
+        noise = self.noise_generator(noise_param, action_size)
+        noisy_action = original_action + noise
+        return noisy_action
+
+    def reset(self):
+        return self.agent.reset()
+
+
 # TODO: should this inherit from something?
 class Scheduler(object):
     """Keep track of timefrac_remainings and return time-dependent values"""
     schedule_num = 0
 
-    def __init__(self, lr_func, rew_shape_func):
+    def __init__(self, lr_func, rew_shape_func=None, noise_func=None):
         # print('made a scheduler')
         # print(Scheduler.schedule_num)
         self._lr_func = lr_func
         self._rew_shape_func = rew_shape_func
+        self._noise_func = noise_func
+
         self.frac_remaining = 1  # frac_remaining goes from 1 to 0
         self.same_thing = False
         Scheduler.schedule_num += 1
@@ -97,6 +133,12 @@ class Scheduler(object):
             print('not anymore')
         return val
 
+    def get_noise_val(self, frac_remaining=None):
+        self._update_frac_remaining(frac_remaining)
+        return self._noise_func(self.frac_remaining)
+
+
+# Annealers
 
 class Annealer(ABC):
     """Abstract class for implementing Annealers."""
