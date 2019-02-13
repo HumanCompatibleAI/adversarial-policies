@@ -1,6 +1,5 @@
 from baselines.common.vec_env import VecEnvWrapper
 from abc import ABC, abstractmethod
-
 class RewardShapingEnv(VecEnvWrapper):
     """A more direct interface for shaping the reward of the attacking agent."""
 
@@ -25,9 +24,6 @@ class RewardShapingEnv(VecEnvWrapper):
 
     def reset(self):
         return self.env.reset()
-
-    #def step_wait(self):
-    #    return self.env.step_wait()
 
     def step_wait(self):
         obs, rew, done, infos = self.env.step_wait()
@@ -61,6 +57,7 @@ class RewardShapingEnv(VecEnvWrapper):
         assert 0 <= c <= 1
         return c
 
+
 # TODO: should this inherit from something?
 class Scheduler(object):
     """Keep track of timefrac_remainings and return time-dependent values"""
@@ -90,7 +87,7 @@ class Scheduler(object):
     def get_rew_shape_val(self, frac_remaining=None):
         self._update_frac_remaining(frac_remaining)
         val = self._rew_shape_func(self.frac_remaining)
-        #if self.same_thing:
+        # if self.same_thing:
         #    print('same thing')
         if not self.same_thing:
             print('not anymore')
@@ -107,6 +104,7 @@ class Annealer(ABC):
     def get_value(self, step):
         raise NotImplementedError()
 
+
 class ConstantAnnealer(Annealer):
     """Returns a constant value"""
     def __init__(self, const_val):
@@ -115,6 +113,7 @@ class ConstantAnnealer(Annealer):
 
     def get_value(self, frac_remaining):
         return self.const_val
+
 
 class LinearAnnealer(Annealer):
     """Linearly anneals from start_val to end_val over end_frac fraction of training"""
@@ -126,9 +125,10 @@ class LinearAnnealer(Annealer):
         anneal_progress = min(1.0, (1 - frac_remaining) / self.end_frac)
         return (1 - anneal_progress) * self.start_val + anneal_progress * self.end_val
 
+
 annealer_collection = {
     # Schedule used in the multiagent competition paper for reward shaping.
-    'default_reward' : LinearAnnealer(1, 0, 0.00005),
+    'default_reward': LinearAnnealer(1, 0, 0.5),
     # Default baselines.ppo2 learning rate
-    'default_lr'     : ConstantAnnealer(3e-4)
+    'default_lr': ConstantAnnealer(3e-4)
 }

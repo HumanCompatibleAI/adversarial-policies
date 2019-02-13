@@ -21,7 +21,7 @@ from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
-from modelfree.reward_shaping import RewardShapingEnv, Scheduler, annealer_collection
+from modelfree.reward_shaping import RewardShapingEnv, Scheduler, LinearAnnealer, annealer_collection
 from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
@@ -117,7 +117,7 @@ def load_our_mlp(agent_name, env, env_name, _, sess):
     return trained_agent
 
 
-def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir, vector):
+def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir, vector, wrapper):
     def agent_fn(env, sess):
         return load_zoo_agent(path=victim, env=env, env_name=env_name,
                               index=victim_index, sess=sess)
@@ -194,7 +194,8 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="
                            nminibatches=min(4, vector),
                            log_interval=1,
                            save_interval=1,
-                           load_path=load_path)
+                           load_path=load_path,
+                           lr=lr_func)
         model.save(model_path)
         if not no_normalize:
             save_stats(env, osp.join(out_dir, 'normalize.pkl'))
@@ -209,7 +210,7 @@ def setup_logger(out_dir="results", exp_name="test"):
     out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
     os.mkdir(out_dir)
     logger.configure(dir=osp.join(out_dir, 'mon'),
-                     format_strs=['tensorboard'])
+                     format_strs=['tensorboard', 'stdout'])
     return out_dir
 
 
@@ -224,14 +225,16 @@ def human_default():
     env = "multicomp/SumoHumans-v0"
     vectorize = 8
     out_dir = "outs"
-    exp_name = "test-experiments"
+    exp_name = "experiment"
     no_normalize = True
     seed = 1
     total_timesteps = 1e8
     network = "mlp"
     nsteps = 2048
     load_path = None
-    shape_reward = True
+    rew_shape_anneal_frac = None
+    _ = locals()
+    del _
     #return locals()  # not needed by sacred, but supresses unused variable warning
 
 @ppo_baseline_ex.config
@@ -257,17 +260,16 @@ def default_ppo_config():
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
                  no_normalize, seed, total_timesteps, network, nsteps, load_path,
-                 shape_reward):
+                 rew_shape_anneal_frac):
     # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
-    env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
-                           seed=seed, out_dir=out_dir, vector=vectorize)
 
-    if shape_reward:
-        rew_shape_func = annealer_collection['default_reward'].get_value
+    if rew_shape_anneal_frac is not None:
+        assert 0 <= rew_shape_anneal_frac <= 1
+        rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
         scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
                               rew_shape_func=rew_shape_func)
         wrapper = lambda x: RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
@@ -275,6 +277,9 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
         scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
                               rew_shape_func=None)
         wrapper = lambda x: x
+
+    env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
+                           seed=seed, out_dir=out_dir, vector=vectorize, wrapper=wrapper)
 
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                  vector=vectorize, network=network, no_normalize=no_normalize,
