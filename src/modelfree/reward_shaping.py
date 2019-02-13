@@ -1,18 +1,21 @@
-from baselines.common.vec_env import VecEnvWrapper
 from abc import ABC, abstractmethod
+
+from baselines.common.vec_env import VecEnvWrapper
+
+
 class RewardShapingEnv(VecEnvWrapper):
     """A more direct interface for shaping the reward of the attacking agent."""
 
     default_shaping_params = {
-        #'center_reward' : 1,
-        #'ctrl_cost'     : -1,
-        #'contact_cost'  : -1,
-        #'survive'       : 1,
+        # 'center_reward' : 1,
+        # 'ctrl_cost'     : -1,
+        # 'contact_cost'  : -1,
+        # 'survive'       : 1,
 
         # sparse reward field as per gym_compete/new_envs/multi_agent_env:151
-        'reward_remaining' : 1,
+        'reward_remaining': 1,
         # dense reward field as per gym_compete/new_envs/agents/humanoid_fighter:45
-        'reward_move' : 1
+        'reward_move': 1
     }
 
     def __init__(self, env, shaping_params=default_shaping_params,
@@ -39,9 +42,9 @@ class RewardShapingEnv(VecEnvWrapper):
 
                 if self.reward_annealer is not None:
                     c = self.get_annealed_exploration_reward()
-                    if rew_type is 'reward_remaining':
+                    if rew_type == 'reward_remaining':
                         weighted_reward *= (1 - c)
-                    elif rew_type is 'reward_move':
+                    elif rew_type == 'reward_move':
                         weighted_reward *= c
 
                 shaped_reward += weighted_reward
@@ -62,12 +65,13 @@ class RewardShapingEnv(VecEnvWrapper):
 class Scheduler(object):
     """Keep track of timefrac_remainings and return time-dependent values"""
     schedule_num = 0
+
     def __init__(self, lr_func, rew_shape_func):
-        #print('made a scheduler')
-        #print(Scheduler.schedule_num)
+        # print('made a scheduler')
+        # print(Scheduler.schedule_num)
         self._lr_func = lr_func
         self._rew_shape_func = rew_shape_func
-        self.frac_remaining = 1 # frac_remaining goes from 1 to 0
+        self.frac_remaining = 1  # frac_remaining goes from 1 to 0
         self.same_thing = False
         Scheduler.schedule_num += 1
 
@@ -75,8 +79,8 @@ class Scheduler(object):
         if frac_remaining is not None:
             self.same_thing = True
             self.frac_remaining = frac_remaining
-            #print("new frac_remaining", frac_remaining)
-            #print("reward shaping", self.get_rew_shape_val())
+            # print("new frac_remaining", frac_remaining)
+            # print("reward shaping", self.get_rew_shape_val())
 
     def get_lr(self, frac_remaining=None):
         # Note that baselines expects this function to be [0, 1] -> R+,

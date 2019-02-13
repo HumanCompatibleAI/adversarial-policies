@@ -21,8 +21,9 @@ from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
-from modelfree.reward_shaping import RewardShapingEnv, Scheduler, LinearAnnealer, annealer_collection
 from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
+from modelfree.reward_shaping import (LinearAnnealer, RewardShapingEnv, Scheduler,
+                                      annealer_collection)
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 
@@ -235,7 +236,7 @@ def human_default():
     rew_shape_anneal_frac = None
     _ = locals()
     del _
-    #return locals()  # not needed by sacred, but supresses unused variable warning
+
 
 @ppo_baseline_ex.config
 def default_ppo_config():
@@ -272,17 +273,21 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
         rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
         scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
                               rew_shape_func=rew_shape_func)
-        wrapper = lambda x: RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
+
+        def wrapper(x):
+            return RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
     else:
         scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
                               rew_shape_func=None)
-        wrapper = lambda x: x
+
+        def wrapper(x):
+            return x
 
     env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
                            seed=seed, out_dir=out_dir, vector=vectorize, wrapper=wrapper)
 
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
-                 vector=vectorize, network=network, no_normalize=no_normalize,
-                 nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr)
+                vector=vectorize, network=network, no_normalize=no_normalize,
+                nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr)
     env.close()
     return res

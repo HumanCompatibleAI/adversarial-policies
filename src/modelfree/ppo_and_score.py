@@ -15,13 +15,16 @@ def default_config():
         "score": {}
     }
 
-@ppo_and_score_ex.config
-def default_config():
+
+@ppo_and_score_ex.named_config
+def ant_score_config():
     config = {  # noqa: F841
-        "ppo": {"victim" : "/home/neel/multiagent-competition/agent-zoo/sumo/ants/agent_parameters-v1.pkl",
-		"total_timesteps" : 1e7},
-        "score": {"agent_a" : "/home/neel/multiagent-competition/agent-zoo/sumo/ants/agent_parameters-v1.pkl",
-		  "watch" : False}
+        "ppo": {"victim": "/home/neel/multiagent-competition/agent-zoo/" + \
+                "sumo/ants/agent_parameters-v1.pkl",
+                "total_timesteps": 1e7},
+        "score": {"agent_a": "/home/neel/multiagent-competition/agent-zoo/" + \
+                  "sumo/ants/agent_parameters-v1.pkl",
+                  "watch": False}
     }
 
 

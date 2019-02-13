@@ -59,6 +59,7 @@ def human_score_config():
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
+
 @score_agent_ex.config
 def default_score_config():
     agent_a_type = "zoo"
@@ -72,6 +73,7 @@ def default_score_config():
     video_dir = "videos/"
     _ = locals()  # quieten flake8 unused variable warning
     del _
+
 
 @score_agent_ex.automain
 def score_agent(_run, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
