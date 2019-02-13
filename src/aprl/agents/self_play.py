@@ -4,9 +4,11 @@ import numpy as np
 
 from aprl.utils import getattr_unwrapped
 
+
 def e_arr(nenv, multi_space):
     return [np.zeros((nenv, ) + space.shape, dtype=space.dtype.name)
-           for space in multi_space.spaces]
+            for space in multi_space.spaces]
+
 
 class AbstractMultiEnvRunner(ABC):
     """MultiEnv equivalent of AbstractEnvRunner in baselines."""
