@@ -14,18 +14,25 @@ modelfree)
     ;;
 esac
 
+set -e  # exit immediately on any error
+
 venv=${env}venv
 source ${venv}/bin/activate
-curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
-python setup.py install
 
-RET=0
-pytest --cov=${venv}/lib/python3.6/site-packages/aprl/ tests/${env}
-RET=$(($RET + $?))
+
+echo "Downloading MuJoCo Key"
+curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
+
+set -o xtrace  # print commands
+pip install .
+
+COV_PACKAGES="aprl modelfree"
+COV_FLAGS=""
+for package in $COV_PACKAGES; do
+    COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.6/site-packages/${package}"
+done
+pytest $COV_FLAGS tests/${env}
+
 mv .coverage .coverage.${env}
 coverage combine  # rewrite paths from virtualenv to src/
-RET=$(($RET + $?))
 codecov --flags ${env}
-RET=$(($RET + $?))
-
-exit $RET
