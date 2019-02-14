@@ -5,10 +5,25 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
-from modelfree.gym_compete_conversion import announce_winner, load_zoo_agent
-from modelfree.ppo_baseline import load_our_mlp
+from modelfree.policy_loader import get_agent_any_type
 from modelfree.simulation_utils import simulate
 from modelfree.utils import VideoWrapper, make_session
+
+
+def announce_winner(sim_stream):
+    """This function determines the winner of a match in one of the gym_compete environments.
+    :param sim_stream: a stream of obs, rewards, dones, infos from one of the gym_compete envs.
+    :return: the index of the winning player, or None if it was a tie."""
+    for _, _, dones, infos in sim_stream:
+        if dones[0]:
+            draw = True
+            for i in range(len(infos)):
+                if 'winner' in infos[i]:
+                    return i
+            if draw:
+                return None
+
+    raise Exception("No Winner or Tie was ever announced")
 
 
 def get_empirical_score(_run, env, agents, episodes, render=False):
@@ -33,16 +48,8 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     return result
 
 
-def get_agent_any_type(agent, agent_type, env, env_name, index, sess=None):
-    agent_loaders = {
-        "zoo": load_zoo_agent,
-        "our_mlp": load_our_mlp
-    }
-    return agent_loaders[agent_type](agent, env, env_name, index, sess=sess)
-
-
 score_agent_ex = Experiment('score_agent')
-score_agent_ex.observers.append(FileStorageObserver.create('my_runs'))
+score_agent_ex.observers.append(FileStorageObserver.create("data/sacred"))
 
 
 @score_agent_ex.config

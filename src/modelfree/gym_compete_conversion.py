@@ -32,22 +32,6 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
         return self.env.reset()
 
 
-def announce_winner(sim_stream):
-    """This function determines the winner of a match in one of the gym_compete environments.
-    :param sim_stream: a stream of obs, rewards, dones, infos from one of the gym_compete envs.
-    :return: the index of the winning player, or None if it was a tie."""
-    for _, _, dones, infos in sim_stream:
-        if dones[0]:
-            draw = True
-            for i in range(len(infos)):
-                if 'winner' in infos[i]:
-                    return i
-            if draw:
-                return None
-
-    raise Exception("No Winner or Tie was ever announced")
-
-
 def get_policy_type_for_agent_zoo(env_name):
     """Determines the type of policy gym_complete used in each environment. This is needed because
     we must tell their code how to load their own policies.
