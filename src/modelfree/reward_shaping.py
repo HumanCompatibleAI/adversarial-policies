@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
+import logging
 from baselines.common.vec_env import VecEnvWrapper
+from gym.envs.mujoco import HumanoidEnv
 
 
 class RewardShapingEnv(VecEnvWrapper):
@@ -95,12 +97,29 @@ class NoisyAgentWrapper(object):
         return self.agent.reset()
 
 
+class HumanoidEnvWrapper(VecEnvWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+
+    def reset(self):
+        return self.env.reset()
+
+    def step_wait(self):
+        obs, rew, done, infos = self.env.step_wait()
+        num_envs = len(obs)
+        for env_num in range(num_envs):
+            rew[env_num] -= infos[env_num]['reward_linvel']
+
+        return obs, rew, done, infos
+
+
 # TODO: should this inherit from something?
 class Scheduler(object):
-    """Keep track of timefrac_remainings and return time-dependent values"""
+    """Keep track of frac_remaining and return time-dependent values"""
     schedule_num = 0
 
-    def __init__(self, lr_func, rew_shape_func=None, noise_func=None):
+    def __init__(self, lr_func=None, rew_shape_func=None, noise_func=None):
         # print('made a scheduler')
         # print(Scheduler.schedule_num)
         self._lr_func = lr_func
@@ -115,26 +134,36 @@ class Scheduler(object):
         if frac_remaining is not None:
             self.same_thing = True
             self.frac_remaining = frac_remaining
-            # print("new frac_remaining", frac_remaining)
-            # print("reward shaping", self.get_rew_shape_val())
 
-    def get_lr(self, frac_remaining=None):
+    def set_lr_func(self, lr_func):
+        self._lr_func = lr_func
+
+    def get_lr_val(self, frac_remaining=None):
         # Note that baselines expects this function to be [0, 1] -> R+,
         # where 1 is the beginning of training and 0 is the end of training.
         self._update_frac_remaining(frac_remaining)
+        assert callable(self._lr_func)
         return self._lr_func(self.frac_remaining)
+
+    def set_rew_shape_func(self, rew_shape_func):
+        self._rew_shape_func = rew_shape_func
 
     def get_rew_shape_val(self, frac_remaining=None):
         self._update_frac_remaining(frac_remaining)
+        assert callable(self._rew_shape_func)
         val = self._rew_shape_func(self.frac_remaining)
         # if self.same_thing:
         #    print('same thing')
         if not self.same_thing:
-            print('not anymore')
+            logging.warning('not anymore')
         return val
+
+    def set_noise_func(self, noise_func):
+        self._noise_func = noise_func
 
     def get_noise_val(self, frac_remaining=None):
         self._update_frac_remaining(frac_remaining)
+        assert callable(self._noise_func)
         return self._noise_func(self.frac_remaining)
 
 

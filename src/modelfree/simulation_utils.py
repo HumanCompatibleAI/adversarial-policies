@@ -20,6 +20,23 @@ def simulate(env, agents, render=False):
 
         yield observations, rewards, dones, infos
 
+def simulate_single(env, agent, render=False):
+    """
+    Run Environment env with the agents in agents
+    :param env: any enviroment following the openai-gym spec
+    :param agents: agents that have get-action functions
+    :param render: true if the run should be rendered to the screen
+    :return: streams information about the simulation
+    """
+    observation = env.reset()
+    done = False
+
+    while not done:
+        if render:
+            env.render()
+
+        observation, rewards, dones, infos = env.step(agent.get_action(observation))
+        yield observation, rewards, dones, infos
 
 class ResettableAgent(object):
     def __init__(self, get_action_in, reset_in, values=None, sess=None):

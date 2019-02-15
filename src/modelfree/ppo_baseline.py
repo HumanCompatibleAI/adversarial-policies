@@ -23,7 +23,8 @@ import tensorflow as tf
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
 from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
 from modelfree.reward_shaping import (LinearAnnealer, RewardShapingEnv, Scheduler,
-                                      annealer_collection, NoisyAgentWrapper)
+                                      annealer_collection, NoisyAgentWrapper,
+                                      HumanoidEnvWrapper)
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 
@@ -91,13 +92,33 @@ def make_single_env(env_name, seed, agent_fn, out_dir, env_id=0):
     return single_env
 
 
+def make_real_single_env(env_name, seed, out_dir, env_id=0):
+    g = tf.Graph()
+    sess = make_session(g)
+    with sess.as_default():
+        env = gym.make(env_name)
+        env.seed(seed)
+        env.observation_space.dtype = np.dtype(np.float32)
+        env.action_space.dtype = np.dtype(np.float32)
+
+        if out_dir is not None:
+            mon_dir = osp.join(out_dir, 'mon')
+            os.makedirs(mon_dir, exist_ok=True)
+            env = Monitor(env, osp.join(mon_dir, 'log{}'.format(env_id)))
+    # TODO: close TF session once env is closed?
+    return env
+
+
 def load_our_mlp(agent_name, env, env_name, _, sess):
     # TODO: Find a way of loading a policy without training for one timestep.
     def agent_fn(env, sess):
         return ZeroAgent(env.action_space.shape[0])
 
     def make_env():
-        return make_single_env(env_name=env_name, seed=0, agent_fn=agent_fn, out_dir=None)
+        if 'multicomp' in env_name:
+            return make_single_env(env_name=env_name, seed=0, agent_fn=agent_fn, out_dir=None)
+        else:
+            return make_real_single_env(env_name=env_name, seed=0, out_dir=None)
 
     denv = DummyVecEnv([make_env])
 
@@ -127,6 +148,20 @@ def make_zoo_vec_env(env_name, victim, victim_index, no_normalize, seed, out_dir
 
     def make_env(i):
         return make_single_env(env_name, seed + i, agent_fn, out_dir, env_id=i)
+
+    venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
+    venv = env_wrapper(venv)
+
+    if not no_normalize:
+        venv = VecNormalize(venv)
+
+    return venv
+
+
+def make_single_vec_env(env_name, no_normalize, seed, out_dir, vector, env_wrapper):
+
+    def make_env(i):
+        return make_real_single_env(env_name, seed + i, out_dir, env_id=i)
 
     venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
     venv = env_wrapper(venv)
@@ -235,6 +270,7 @@ def human_default():
     network = "mlp"
     nsteps = 2048
     load_path = None
+    env_wrapper_type = None
     rew_shape_anneal_frac = None
     victim_noise_anneal_frac = None
     victim_noise_param = None
@@ -265,50 +301,54 @@ def default_ppo_config():
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
                  no_normalize, seed, total_timesteps, network, nsteps, load_path,
-                 rew_shape_anneal_frac, victim_noise_anneal_frac, victim_noise_param):
+                 rew_shape_anneal_frac, victim_noise_anneal_frac, victim_noise_param,
+                 env_wrapper_type):
     # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
+    scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value)
 
     if rew_shape_anneal_frac is not None:
         assert 0 <= rew_shape_anneal_frac <= 1
         rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
+        scheduler.set_rew_shape_func(rew_shape_func)
 
         def env_wrapper(x):
             return RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
     else:
-        rew_shape_func = None
-
+        wrappers = {
+            'humanoid': HumanoidEnvWrapper,
+            None: lambda x: x
+        }
         def env_wrapper(x):
-            return x
+            return wrappers[env_wrapper_type](x)
 
     if victim_noise_anneal_frac is not None:
         assert 0 <= victim_noise_anneal_frac <= 1
-        assert 0 <= victim_noise_param
-
+        assert 0 < victim_noise_param
         noise_anneal_func = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac).get_value
+        scheduler.set_noise_func(noise_anneal_func)
 
-        scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value,
-                              rew_shape_func=rew_shape_func,
-                              noise_func=noise_anneal_func)
         def victim_wrapper(x):
             return NoisyAgentWrapper(x, noise_annealer=scheduler.get_noise_val)
 
     else:
-        noise_anneal_func = None
 
         def victim_wrapper(x):
             return x
 
-
-    env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
-                           seed=seed, out_dir=out_dir, vector=vectorize, env_wrapper=env_wrapper,
-                           victim_wrapper=victim_wrapper)
+    if 'multicomp' in env:
+        env = make_zoo_vec_env(env_name=env, victim=victim, victim_index=0, no_normalize=no_normalize,
+                               seed=seed, out_dir=out_dir, vector=vectorize, env_wrapper=env_wrapper,
+                               victim_wrapper=victim_wrapper)
+    else:
+        env = make_single_vec_env(env_name=env, no_normalize=no_normalize, seed=seed, out_dir=out_dir,
+                                  vector=vectorize, env_wrapper=env_wrapper)
 
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                 vector=vectorize, network=network, no_normalize=no_normalize,
-                nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr)
+                nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr_val)
     env.close()
     return res
