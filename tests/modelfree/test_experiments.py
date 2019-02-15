@@ -48,7 +48,7 @@ def test_score_agent(config):
 
 PPO_BASELINE_CONFIGS = [
     {'vectorize': 1},
-    {'no_normalize': False},
+    {'normalize': True},
     {'victim_type': 'mlp', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
 ]
 

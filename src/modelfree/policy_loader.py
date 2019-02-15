@@ -27,9 +27,7 @@ def load_baselines_mlp(agent_name, env, env_name, _, sess):
                                save_interval=1,
                                load_path=agent_name)
 
-    stateful_model = StatefulModel(denv, model, sess)
-
-    return stateful_model
+    return StatefulModel(model, sess)
 
 
 AGENT_LOADERS = {

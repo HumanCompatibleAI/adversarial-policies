@@ -48,6 +48,7 @@ class VideoWrapper(Wrapper):
 
 
 def make_session(graph=None):
+    # TODO: why so little parallelism?
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
         intra_op_parallelism_threads=1)
@@ -88,11 +89,12 @@ class ConstantPolicy(Policy):
     def __init__(self, constant):
         self.constant_action = constant
 
-    def act(self, observation):
-        return self.constant_action
+    def act(self, observations):
+        actions = np.array([self.constant_action] * self.batch_size)
+        return actions, {}
 
-    def reset(self):
-        pass
+    def reset(self, batch_size):
+        self.batch_size = batch_size
 
 
 class ZeroPolicy(ConstantPolicy):
@@ -101,22 +103,20 @@ class ZeroPolicy(ConstantPolicy):
 
 
 class StatefulModel(Policy):
-    def __init__(self, env, model, sess):
+    def __init__(self, model, sess):
         self._sess = sess
-        self.nenv = env.num_envs
-        self.env = env
-        self._dones = [False for _ in range(self.nenv)]
         self.model = model
         self._states = model.initial_state
 
-    def act(self, observation):
+    def act(self, observations):
         with self._sess.as_default():
-            step_res = self.model.step([observation] * self.nenv, S=self._states, M=self._dones)
+            step_res = self.model.step(observations, S=self._states, M=self._dones)
             actions, values, self._states, neglocpacs = step_res
-            return actions
+            return actions, {}
 
-    def reset(self):
-        self._dones = [True] * self.nenv
+    def reset(self, batch_size):
+        self._states = self.model
+        self._dones = [True] * batch_size
 
 
 def simulate(env, agents, render=False):
@@ -128,14 +128,19 @@ def simulate(env, agents, render=False):
     :return: streams information about the simulation
     """
     observations = env.reset()
-    dones = [False]
+    dones = [False] * len(agents)
 
-    while not dones[0]:
+    for agent in agents:
+        agent.reset(batch_size=1)
+
+    while not any(dones):
         if render:
             env.render()
         actions = []
         for agent, observation in zip(agents, observations):
-            actions.append(agent.act(observation)[0])
+            observation = np.array([observation])
+            action, _info = agent.act(observation)
+            actions.append(action[0])
 
         observations, rewards, dones, infos = env.step(actions)
 

@@ -42,7 +42,7 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
         else:
             result['wincounts'][winner] += 1
         for agent in agents:
-            agent.reset()
+            agent.reset(batch_size=1)
 
     return result
 

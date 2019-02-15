@@ -194,12 +194,13 @@ class CurryEnv(MultiWrapper):
 
         self._agent_to_fix = agent_idx
         self._agent = agent
+        self._agent.reset(batch_size=1)
         self._last_obs = None
         self._last_reward = None
 
     def step(self, actions):
-        action = self._agent.act(self._last_obs)[0]
-        actions.insert(self._agent_to_fix, action)
+        action, _info = self._agent.act(np.array([self._last_obs]))
+        actions.insert(self._agent_to_fix, action[0])
         observations, rewards, done, infos = self.env.step(actions)
 
         observations, self._last_obs = _tuple_pop(observations, self._agent_to_fix)
