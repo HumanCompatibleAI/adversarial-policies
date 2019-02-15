@@ -19,7 +19,7 @@ from modelfree.utils import make_session, make_single_env
 
 
 def make_zoo_vec_env(env_name, victim_path, victim_type, victim_index,
-                     no_normalize, seed, out_dir, vector):
+                     normalize, seed, out_dir, vector):
     def agent_fn(env, sess):
         return get_agent_any_type(agent=victim_path, agent_type=victim_type, env=env,
                                   env_name=env_name, index=victim_index, sess=sess)
@@ -29,7 +29,7 @@ def make_zoo_vec_env(env_name, victim_path, victim_type, victim_index,
 
     venv = SubprocVecEnv([functools.partial(make_env, i) for i in range(vector)])
 
-    if not no_normalize:
+    if normalize:
         venv = VecNormalize(venv)
 
     return venv
@@ -45,21 +45,21 @@ def save_stats(env_wrapper, path):
 
 
 def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm",
-          no_normalize=False, nsteps=2048, load_path=None):
+          normalize=False, batch_size=2048, load_path=None):
     g = tf.Graph()
     sess = make_session(g)
     model_path = osp.join(out_dir, 'model.pkl')
     with sess:
         model = ppo2.learn(network=network, env=env,
                            total_timesteps=total_timesteps,
-                           nsteps=nsteps // vector,
+                           nsteps=batch_size // vector,
                            seed=seed,
                            nminibatches=min(4, vector),
                            log_interval=1,
                            save_interval=1,
                            load_path=load_path)
         model.save(model_path)
-        if not no_normalize:
+        if normalize:
             save_stats(env, osp.join(out_dir, 'normalize.pkl'))
     return osp.join(model_path)
 
@@ -81,18 +81,18 @@ ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
 
 @ppo_baseline_ex.config
 def default_ppo_config():
-    victim_path = "1"
-    victim_type = "zoo"
-    env = "multicomp/SumoAnts-v0"
-    vectorize = 8
-    out_dir = "data/baselines"
-    exp_name = "Dummy Exp Name"
-    no_normalize = True
+    env = "multicomp/SumoAnts-v0"   # Gym environment ID
+    victim_type = "zoo"             # type supported by policy_loader.py
+    victim_path = "1"               # path or other unique identifier
+    vectorize = 8                   # number of environments to run in parallel
+    out_dir = "data/baselines"      # root of directory to store baselines log
+    exp_name = "Dummy Exp Name"     # name of experiment
+    normalize = False               # normalize observations
+    total_timesteps = 1000000       # total number of timesteps to train for
+    network = "mlp"                 # policy network type
+    batch_size = 2048               # batch size
     seed = 1
-    total_timesteps = 1000000
-    network = "mlp"
-    nsteps = 2048
-    load_path = None
+    load_path = None                # path to load initial policy from
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -100,18 +100,18 @@ def default_ppo_config():
 # TODO: use victim_type
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim_path, victim_type, out_dir, exp_name, vectorize,
-                 no_normalize, seed, total_timesteps, network, nsteps, load_path):
+                 normalize, seed, total_timesteps, network, batch_size, load_path):
     # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
     env = make_zoo_vec_env(env_name=env, victim_path=victim_path, victim_type=victim_type,
-                           victim_index=0, no_normalize=no_normalize, seed=seed,
+                           victim_index=0, normalize=normalize, seed=seed,
                            out_dir=out_dir, vector=vectorize)
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
-                vector=vectorize, network=network, no_normalize=no_normalize,
-                nsteps=nsteps, load_path=load_path)
+                vector=vectorize, network=network, normalize=normalize,
+                batch_size=batch_size, load_path=load_path)
     env.close()
 
     return res

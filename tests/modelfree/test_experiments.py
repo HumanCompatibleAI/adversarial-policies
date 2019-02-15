@@ -7,10 +7,11 @@ import os
 import pytest
 
 from modelfree.score_agent import score_agent_ex
+from modelfree.ppo_and_score import ppo_and_score_ex
 from modelfree.ppo_baseline import ppo_baseline_ex
 
 
-EXPERIMENTS = [score_agent_ex, ppo_baseline_ex]
+EXPERIMENTS = [score_agent_ex, ppo_and_score_ex, ppo_baseline_ex]
 
 
 @pytest.mark.parametrize('experiment', EXPERIMENTS)
