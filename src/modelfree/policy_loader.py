@@ -5,7 +5,7 @@ from baselines.ppo2 import ppo2
 
 from modelfree.gym_compete_conversion import load_zoo_agent
 from modelfree.simulation_utils import ResettableAgent
-from modelfree.utils import ZeroAgent, StatefulModel, make_single_env
+from modelfree.utils import StatefulModel, ZeroAgent, make_single_env
 
 
 def load_baselines_mlp(agent_name, env, env_name, _, sess):

@@ -1,3 +1,5 @@
+"""Test environments from gym_compete and our wrappers around them."""
+
 import gym
 import pytest
 

@@ -28,8 +28,8 @@ def announce_winner(sim_stream):
 
 def get_empirical_score(_run, env, agents, episodes, render=False):
     result = {
-        "ties": 0,
-        "wincounts": [0] * len(agents)
+        'ties': 0,
+        'wincounts': [0] * len(agents)
     }
 
     # This tells sacred about the intermediate computation so it
@@ -39,9 +39,9 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     for i in range(episodes):
         winner = announce_winner(simulate(env, agents, render=render))
         if winner is None:
-            result["ties"] += 1
+            result['ties'] += 1
         else:
-            result["wincounts"][winner] += 1
+            result['wincounts'][winner] += 1
         for agent in agents:
             agent.reset()
 
@@ -49,27 +49,27 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 
 
 score_agent_ex = Experiment('score_agent')
-score_agent_ex.observers.append(FileStorageObserver.create("data/sacred"))
+score_agent_ex.observers.append(FileStorageObserver.create('data/sacred'))
 
 
 @score_agent_ex.config
 def default_score_config():
-    agent_a_type = "zoo"
-    agent_a_path = "1"
-    env_name = "multicomp/SumoAnts-v0"
-    agent_b_type = "zoo"
-    agent_b_path = "2"
-    samples = 5
-    render = True
-    videos = False
-    video_dir = "videos/"
+    env_name = 'multicomp/SumoAnts-v0'  # Gym env ID
+    agent_a_type = 'zoo'   # type supported by policy_loader.py
+    agent_a_path = '1'     # path or other unique identifier
+    agent_b_type = 'zoo'   # type supported by policy_loader.py
+    agent_b_path = '2'     # path or other unique identifier
+    episodes = 1           # number of episodes to evaluate
+    render = True          # display on screen (warning: slow)
+    videos = False         # generate videos
+    video_dir = 'videos/'  # video directory
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @score_agent_ex.automain
 def score_agent(_run, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                samples, render, videos, video_dir):
+                episodes, render, videos, video_dir):
     env = gym.make(env_name)
     if videos:
         env = VideoWrapper(env, video_dir)
@@ -82,4 +82,4 @@ def score_agent(_run, env_name, agent_a_path, agent_b_path, agent_a_type, agent_
         zipped = zip(agent_paths, agent_types, sessions)
         agents = [get_agent_any_type(agent, agent_type, env, env_name, i, sess=sess)
                   for i, (agent, agent_type, sess) in enumerate(zipped)]
-        return get_empirical_score(_run, env, agents, samples, render=render)
+        return get_empirical_score(_run, env, agents, episodes, render=render)
