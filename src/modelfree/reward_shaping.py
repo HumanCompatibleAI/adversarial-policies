@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import logging
+import time
 from baselines.common.vec_env import VecEnvWrapper
+from baselines.bench.monitor import ResultsWriter
+from modelfree.simulation_utils import ResettableAgent
 from gym.envs.mujoco import HumanoidEnv
 
 
@@ -12,12 +15,12 @@ class RewardShapingEnv(VecEnvWrapper):
         # 'center_reward' : 1,
         # 'ctrl_cost'     : -1,
         # 'contact_cost'  : -1,
-        # 'survive'       : 1,
+        'survive': 10,
 
         # sparse reward field as per gym_compete/new_envs/multi_agent_env:151
         'reward_remaining': 1,
         # dense reward field as per gym_compete/new_envs/agents/humanoid_fighter:45
-        'reward_move': 1
+        'reward_move': 10
     }
 
     def __init__(self, env, shaping_params=default_shaping_params,
@@ -26,6 +29,24 @@ class RewardShapingEnv(VecEnvWrapper):
         self.env = env
         self.shaping_params = shaping_params
         self.reward_annealer = reward_annealer
+        self.results_writer = ResultsWriter(
+            "reward_scale",
+            header={"t_start": time.time()},
+            extra_keys=('sparse', 'dense', 'length')
+        )
+        self._reset_stat_lists()
+
+        print('created logger')
+
+    def _reset_stat_lists(self, idx=None):
+        if idx is None:
+            self.dense_rews = [0.] * 8
+            self.sparse_rews = [0.] * 8
+            self.ep_lengths = [0.] * 8
+        else:
+            self.dense_rews[idx] = 0.
+            self.sparse_rews[idx] = 0.
+            self.ep_lengths[idx] = 0.
 
     def reset(self):
         return self.env.reset()
@@ -35,22 +56,33 @@ class RewardShapingEnv(VecEnvWrapper):
         num_envs = len(obs)
         # replace rew with differently shaped rew
         # victim is agent 0, attacker is agent 1
+
         for env_num in range(num_envs):
             shaped_reward = 0
             for rew_type, rew_value in infos[env_num][1].items():
                 if rew_type not in self.shaping_params:
                     continue
                 weighted_reward = self.shaping_params[rew_type] * rew_value
-
+                self.ep_lengths[env_num] += 1
                 if self.reward_annealer is not None:
                     c = self.get_annealed_exploration_reward()
                     if rew_type == 'reward_remaining':
                         weighted_reward *= (1 - c)
-                    elif rew_type == 'reward_move':
+                        self.sparse_rews[env_num] += weighted_reward
+                    else:
                         weighted_reward *= c
+                        self.dense_rews[env_num] += weighted_reward
+
+                if done[env_num] and self.sparse_rews[env_num] != 0:
+                    epinfo = {"sparse": self.sparse_rews[env_num],
+                              "dense": round(self.dense_rews[env_num], 2),
+                              "length": self.ep_lengths[env_num]}
+                    self._reset_stat_lists(idx=env_num)
+                    self.results_writer.write_row(epinfo)
 
                 shaped_reward += weighted_reward
             rew[env_num] = shaped_reward
+
         return obs, rew, done, infos
 
     def get_annealed_exploration_reward(self):
@@ -63,7 +95,7 @@ class RewardShapingEnv(VecEnvWrapper):
         return c
 
 
-class NoisyAgentWrapper(object):
+class NoisyAgentWrapper(ResettableAgent):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
         - agent: ResettableAgent (most likely) - noise will be added to the actions of
