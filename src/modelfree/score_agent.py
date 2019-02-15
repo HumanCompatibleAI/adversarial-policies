@@ -6,8 +6,7 @@ from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
 from modelfree.policy_loader import get_agent_any_type
-from modelfree.simulation_utils import simulate
-from modelfree.utils import VideoWrapper, make_session
+from modelfree.utils import VideoWrapper, make_session, simulate
 
 
 def announce_winner(sim_stream):

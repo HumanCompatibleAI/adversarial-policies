@@ -31,7 +31,7 @@ COV_FLAGS=""
 for package in $COV_PACKAGES; do
     COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.6/site-packages/${package}"
 done
-pytest $COV_FLAGS tests/${env}
+pytest -vv $COV_FLAGS tests/${env}
 
 mv .coverage .coverage.${env}
 coverage combine  # rewrite paths from virtualenv to src/

@@ -18,8 +18,8 @@ from modelfree.policy_loader import get_agent_any_type
 from modelfree.utils import make_session, make_single_env
 
 
-def make_zoo_vec_env(env_name, victim_path, victim_type, victim_index,
-                     normalize, seed, out_dir, vector):
+def make_vec_env(env_name, victim_path, victim_type, victim_index,
+                 normalize, seed, out_dir, vector):
     def agent_fn(env, sess):
         return get_agent_any_type(agent=victim_path, agent_type=victim_type, env=env,
                                   env_name=env_name, index=victim_index, sess=sess)
@@ -88,7 +88,7 @@ def default_ppo_config():
     out_dir = "data/baselines"      # root of directory to store baselines log
     exp_name = "Dummy Exp Name"     # name of experiment
     normalize = False               # normalize observations
-    total_timesteps = 1000000       # total number of timesteps to train for
+    total_timesteps = 4096          # total number of timesteps to train for
     network = "mlp"                 # policy network type
     batch_size = 2048               # batch size
     seed = 1
@@ -97,7 +97,6 @@ def default_ppo_config():
     del _
 
 
-# TODO: use victim_type
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim_path, victim_type, out_dir, exp_name, vectorize,
                  normalize, seed, total_timesteps, network, batch_size, load_path):
@@ -106,9 +105,9 @@ def ppo_baseline(_run, env, victim_path, victim_type, out_dir, exp_name, vectori
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
-    env = make_zoo_vec_env(env_name=env, victim_path=victim_path, victim_type=victim_type,
-                           victim_index=0, normalize=normalize, seed=seed,
-                           out_dir=out_dir, vector=vectorize)
+    env = make_vec_env(env_name=env, victim_path=victim_path, victim_type=victim_type,
+                       victim_index=0, normalize=normalize, seed=seed,
+                       out_dir=out_dir, vector=vectorize)
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                 vector=vectorize, network=network, normalize=normalize,
                 batch_size=batch_size, load_path=load_path)

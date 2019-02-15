@@ -8,7 +8,6 @@ import numpy as np
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv
-from modelfree.simulation_utils import ResettableAgent
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -107,9 +106,4 @@ def load_zoo_agent(path, env, env_name, index, sess):
     with sess.graph.as_default():
         policy = load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
                                  env, env_suffix, index, sess=sess)
-
-    def get_action(observation):
-        with sess.as_default():
-            return policy.act(stochastic=True, observation=observation)[0]
-
-    return ResettableAgent(get_action, policy.reset)
+        return policy

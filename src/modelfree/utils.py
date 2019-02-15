@@ -84,18 +84,18 @@ def make_single_env(env_name, seed, agent_fn, out_dir, env_id=0):
     return single_env
 
 
-class ConstantAgent(object):
+class ConstantPolicy(Policy):
     def __init__(self, constant):
         self.constant_action = constant
 
-    def get_action(self, _):
+    def act(self, observation):
         return self.constant_action
 
     def reset(self):
         pass
 
 
-class ZeroAgent(ConstantAgent):
+class ZeroPolicy(ConstantPolicy):
     def __init__(self, shape):
         super().__init__(np.zeros(shape))
 
@@ -109,11 +109,34 @@ class StatefulModel(Policy):
         self.model = model
         self._states = model.initial_state
 
-    def get_action(self, observation):
+    def act(self, observation):
         with self._sess.as_default():
             step_res = self.model.step([observation] * self.nenv, S=self._states, M=self._dones)
             actions, values, self._states, neglocpacs = step_res
-            return actions[0]
+            return actions
 
     def reset(self):
         self._dones = [True] * self.nenv
+
+
+def simulate(env, agents, render=False):
+    """
+    Run Environment env with the agents in agents
+    :param env: any enviroment following the openai-gym spec
+    :param agents: agents that have get-action functions
+    :param render: true if the run should be rendered to the screen
+    :return: streams information about the simulation
+    """
+    observations = env.reset()
+    dones = [False]
+
+    while not dones[0]:
+        if render:
+            env.render()
+        actions = []
+        for agent, observation in zip(agents, observations):
+            actions.append(agent.act(observation)[0])
+
+        observations, rewards, dones, infos = env.step(actions)
+
+        yield observations, rewards, dones, infos

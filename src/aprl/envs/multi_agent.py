@@ -180,7 +180,7 @@ class CurryEnv(MultiWrapper):
     def __init__(self, env, agent, agent_idx=0):
         """Fixes one of the players in a MultiAgentEnv.
         :param env(MultiAgentEnv): the environment.
-        :param agent(ResettableAgent): The agent to be fixed
+        :param agent(Policy): The agent to be fixed
         :param agent_idx(int): The index of the agent that should be fixed
         :return: a new MultiAgentEnv with num_agents decremented. It behaves like env but
                  with all actions at index agent_idx set to those returned by agent.
@@ -198,7 +198,7 @@ class CurryEnv(MultiWrapper):
         self._last_reward = None
 
     def step(self, actions):
-        action = self._agent.get_action(self._last_obs)
+        action = self._agent.act(self._last_obs)[0]
         actions.insert(self._agent_to_fix, action)
         observations, rewards, done, infos = self.env.step(actions)
 
