@@ -6,8 +6,8 @@ import os
 from baselines import logger
 import gym
 
-from aprl.agents.multi_monitor import MultiMonitor
 from aprl.agents.ppo_self_play import PPOSelfPlay
+from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs import make_dummy_vec_multi_env
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"

@@ -1,12 +1,15 @@
 import os
+from os import path as osp
 import pickle
 import pkgutil
 
+import gym
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
 import tensorflow as tf
 
+from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv
 
 
@@ -21,6 +24,18 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
         self.action_space = env.action_space
         self.observation_space = env.observation_space
 
+        # Gym added dtype's to shapes in commit 1c5a463
+        # Baselines depends on this, but we have to use an older version of Gym
+        # to keep support for MuJoCo 1.31. Monkeypatch shapes to fix this.
+        # Note: the environments actually return float64, but this precision is not needed.
+        def set_dtype(tuple_space, dtype):
+            tuple_space.dtype = dtype
+            for space in tuple_space.spaces:
+                space.dtype = dtype
+
+        set_dtype(self.observation_space, np.dtype('float32'))
+        set_dtype(self.action_space, np.dtype('float32'))
+
     def step(self, action_n):
         observations, rewards, dones, infos = self.env.step(action_n)
         done = any(dones)
@@ -29,6 +44,19 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
 
     def reset(self):
         return self.env.reset()
+
+
+def make_gym_compete_env(env_name, seed, i, out_dir):
+    multi_env = gym.make(env_name)
+    multi_env = GymCompeteToOurs(multi_env)
+    multi_env.seed(seed + i)
+
+    if out_dir is not None:
+        mon_dir = osp.join(out_dir, 'mon')
+        os.makedirs(mon_dir, exist_ok=True)
+        multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)))
+
+    return multi_env
 
 
 def get_policy_type_for_agent_zoo(env_name):
