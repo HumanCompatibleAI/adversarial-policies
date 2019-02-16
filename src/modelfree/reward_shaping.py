@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import logging
 import time
+from baselines import logger
 from baselines.common.vec_env import VecEnvWrapper
 from baselines.bench.monitor import ResultsWriter
 from modelfree.simulation_utils import ResettableAgent
@@ -13,9 +14,9 @@ class RewardShapingEnv(VecEnvWrapper):
 
     default_shaping_params = {
         # 'center_reward' : 1,
-        # 'ctrl_cost'     : -1,
-        # 'contact_cost'  : -1,
-        'survive': 10,
+        # 'reward_ctrl'     : -1,
+        # 'reward_contact'  : -1,
+        'reward_survive': 10,
 
         # sparse reward field as per gym_compete/new_envs/multi_agent_env:151
         'reward_remaining': 1,
@@ -35,18 +36,24 @@ class RewardShapingEnv(VecEnvWrapper):
             extra_keys=('sparse', 'dense', 'length')
         )
         self._reset_stat_lists()
+        self.counter = 0
+        self.sparse_buf = [[] for _ in range(8)]
+        self.dense_buf = [[] for _ in range(8)]
+        self.final_sparse_buf = []
+        self.final_dense_buf = []
 
         print('created logger')
 
-    def _reset_stat_lists(self, idx=None):
-        if idx is None:
-            self.dense_rews = [0.] * 8
-            self.sparse_rews = [0.] * 8
-            self.ep_lengths = [0.] * 8
-        else:
-            self.dense_rews[idx] = 0.
-            self.sparse_rews[idx] = 0.
-            self.ep_lengths[idx] = 0.
+
+    def _log_sparse_dense_rewards(self):
+        if self.counter == 2048 * 8:
+            num_episodes = len(self.final_sparse_buf)
+            logger.logkv('epsparsemean', sum(self.final_sparse_buf) / num_episodes)
+            logger.logkv('epdensemean', sum(self.final_dense_buf) / num_episodes)
+
+            self.final_sparse_buf = []
+            self.final_dense_buf = []
+            self.counter = 0
 
     def reset(self):
         return self.env.reset()
@@ -54,33 +61,34 @@ class RewardShapingEnv(VecEnvWrapper):
     def step_wait(self):
         obs, rew, done, infos = self.env.step_wait()
         num_envs = len(obs)
+
         # replace rew with differently shaped rew
         # victim is agent 0, attacker is agent 1
-
         for env_num in range(num_envs):
             shaped_reward = 0
             for rew_type, rew_value in infos[env_num][1].items():
                 if rew_type not in self.shaping_params:
                     continue
+
                 weighted_reward = self.shaping_params[rew_type] * rew_value
-                self.ep_lengths[env_num] += 1
                 if self.reward_annealer is not None:
                     c = self.get_annealed_exploration_reward()
                     if rew_type == 'reward_remaining':
+                        self.sparse_buf[env_num].append(weighted_reward)
                         weighted_reward *= (1 - c)
-                        self.sparse_rews[env_num] += weighted_reward
                     else:
+                        self.dense_buf[env_num].append(weighted_reward)
                         weighted_reward *= c
-                        self.dense_rews[env_num] += weighted_reward
-
-                if done[env_num] and self.sparse_rews[env_num] != 0:
-                    epinfo = {"sparse": self.sparse_rews[env_num],
-                              "dense": round(self.dense_rews[env_num], 2),
-                              "length": self.ep_lengths[env_num]}
-                    self._reset_stat_lists(idx=env_num)
-                    self.results_writer.write_row(epinfo)
 
                 shaped_reward += weighted_reward
+
+            if done[env_num]:
+                self.final_sparse_buf.append(sum(self.sparse_buf[env_num]))
+                self.final_dense_buf.append(sum(self.dense_buf[env_num]))
+                self.sparse_buf[env_num] = []
+                self.dense_buf[env_num] = []
+            self.counter += 1
+            self._log_sparse_dense_rewards()
             rew[env_num] = shaped_reward
 
         return obs, rew, done, infos

@@ -245,7 +245,7 @@ ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 
 def setup_logger(out_dir="results", exp_name="test"):
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
-    out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
+    out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
     os.mkdir(out_dir)
     logger.configure(dir=osp.join(out_dir, 'mon'),
                      format_strs=['tensorboard', 'stdout'])
