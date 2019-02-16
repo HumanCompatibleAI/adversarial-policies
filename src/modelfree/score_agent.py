@@ -6,7 +6,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
-from aprl.envs.multi_agent import make_subproc_vec_multi_env
+from aprl.envs.multi_agent import make_dummy_vec_multi_env
 from modelfree.gym_compete_conversion import make_gym_compete_env
 from modelfree.policy_loader import get_agent_any_type
 from modelfree.utils import VideoWrapper, make_session, simulate
@@ -80,7 +80,11 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
     env_fns = [lambda: make_env(i) for i in range(vectorize)]
-    venv = make_subproc_vec_multi_env(env_fns)
+    # WARNING: Be careful changing this to subproc!
+    # On XDummy, rendering in a subprocess when you have already rendered in the parent causes
+    # things to block indefinitely. This does not seem to be an issue on native X servers,
+    # but will break our tests and remote rendering.
+    venv = make_dummy_vec_multi_env(env_fns)
 
     agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]

@@ -10,6 +10,7 @@ RUN    apt-get update -q \
     libgl1-mesa-glx \
     libglew-dev \
     libosmesa6-dev \
+    ffmpeg \
     software-properties-common \
     net-tools \
     parallel \

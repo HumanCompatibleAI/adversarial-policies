@@ -1,5 +1,3 @@
-import functools
-
 from baselines.common.vec_env.test_vec_env import assert_envs_equal
 import gym
 from gym.spaces.tuple_space import Tuple
