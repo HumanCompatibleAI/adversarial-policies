@@ -1,3 +1,3 @@
 mujoco-py==0.5.7
 git+git://github.com/openai/gym.git@0c91364#wheel=gym
-git+git://github.com/HumanCompatibleAI/multiagent-competition.git@60ee87#wheel=gym_compete
+git+git://github.com/HumanCompatibleAI/multiagent-competition.git@67b75a#wheel=gym_compete

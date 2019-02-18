@@ -9,4 +9,5 @@ isort>=4.3
 sacred>=0.7.4
 GitPython>=2.1
 git+git://github.com/HumanCompatibleAI/baselines.git@8978e3#egg=baselines
+stable-baselines>=2.4.1
 git+git://github.com/HumanCompatibleAI/ilqr.git#egg=ilqr

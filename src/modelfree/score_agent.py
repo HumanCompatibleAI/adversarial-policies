@@ -43,8 +43,6 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
             result['ties'] += 1
         else:
             result['wincounts'][winner] += 1
-        for agent in agents:
-            agent.reset(batch_size=env.num_envs)
         if ep + 1 >= episodes:
             break
 

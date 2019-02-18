@@ -5,7 +5,7 @@ import gym
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_dummy_vec_multi_env
 from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
-from modelfree.utils import StatefulModel, ZeroPolicy
+from modelfree.utils import OldToStable, ZeroPolicy
 
 
 def load_baselines_mlp(agent_name, env, env_name, _, sess):
@@ -30,7 +30,7 @@ def load_baselines_mlp(agent_name, env, env_name, _, sess):
                                save_interval=1,
                                load_path=agent_name)
 
-    return StatefulModel(model, sess)
+    return OldToStable(model)
 
 
 AGENT_LOADERS = {

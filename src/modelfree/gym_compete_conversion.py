@@ -97,16 +97,14 @@ def set_from_flat(var_list, flat_params, sess=None):
 
 def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
     # Construct graph
+    kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
+                  ac_space=env.action_space.spaces[index], n_env=env.num_envs,
+                  n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False,
+                  normalize=True)
     if policy_type == 'lstm':
-        policy = LSTMPolicy(scope=scope, reuse=False,
-                            ob_space=env.observation_space.spaces[index],
-                            ac_space=env.action_space.spaces[index],
-                            hiddens=[128, 128], normalize=True, sess=sess)
+        policy = LSTMPolicy(hiddens=[128, 128], **kwargs)
     elif policy_type == 'mlp':
-        policy = MlpPolicyValue(scope=scope, reuse=False,
-                                ob_space=env.observation_space.spaces[index],
-                                ac_space=env.action_space.spaces[index],
-                                hiddens=[64, 64], normalize=True, sess=sess)
+        policy = MlpPolicyValue(hiddens=[64, 64], **kwargs)
     else:
         raise NotImplementedError()
 

@@ -3,8 +3,8 @@ from os import path as osp
 
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
-from gym_compete.policy import Policy
 import numpy as np
+from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 
@@ -52,16 +52,14 @@ def make_session(graph=None):
     return sess
 
 
-class ConstantPolicy(Policy):
+class ConstantPolicy(BasePolicy):
     def __init__(self, constant):
         self.constant_action = constant
+        self.initial_state = None
 
-    def act(self, observations):
+    def step(self, obs, state=None, mask=None):
         actions = np.array([self.constant_action] * self.batch_size)
-        return actions, {}
-
-    def reset(self, batch_size):
-        self.batch_size = batch_size
+        return actions, None, None, None
 
 
 class ZeroPolicy(ConstantPolicy):
@@ -69,49 +67,39 @@ class ZeroPolicy(ConstantPolicy):
         super().__init__(np.zeros(shape))
 
 
-class StatefulModel(Policy):
-    def __init__(self, model, sess):
-        self._sess = sess
-        self.model = model
-        self._states = model.initial_state
+class OldToStable(BasePolicy):
+    def __init__(self, old_model):
+        self.old = old_model
+        self.initial_state = old_model.initial_state
 
-    def act(self, observations):
-        with self._sess.as_default():
-            step_res = self.model.step(observations, S=self._states, M=self._dones)
-            actions, values, self._states, neglocpacs = step_res
-            return actions, {}
-
-    def reset(self, batch_size):
-        self._states = self.model
-        self._dones = [True] * batch_size
+    def step(self, obs, state=None, mask=None):
+        return self.old.step(obs, S=state, M=mask)
 
 
-def simulate(venv, agents, render=False):
+def simulate(venv, policies, render=False):
     """
     Run Environment env with the agents in agents
-    :param venv: any enviroment following the openai-gym spec
-    :param agents: agents that have get-action functions
+    :param venv(VecEnv): vector environment.
+    :param policies(list<BasePolicy>): a policy per agent.
     :param render: true if the run should be rendered to the screen
     :return: streams information about the simulation
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
-
-    for agent in agents:
-        agent.reset(batch_size=venv.num_envs)
+    states = [policy.initial_state for policy in policies]
 
     while True:
         if render:
             venv.render()
+
         actions = []
-        for agent, agent_observation in zip(agents, observations):
-            agent_action, _info = agent.act(agent_observation)
-            actions.append(agent_action)
+        new_states = []
+        for policy, obs, state in zip(policies, observations, states):
+            act, _val, new_state, _logp = policy.step(obs, state=state, mask=dones)
+            actions.append(act)
+            new_states.append(new_state)
         actions = tuple(actions)
+        states = new_states
 
         observations, rewards, dones, infos = venv.step(actions)
-        if any(dones):  # TODO: this makes no sense -- fix interface
-            for agent in agents:
-                agent.reset(batch_size=venv.num_envs)
-
         yield observations, rewards, dones, infos

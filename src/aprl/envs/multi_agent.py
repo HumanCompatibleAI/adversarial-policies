@@ -318,11 +318,11 @@ def _tuple_space_filter(tuple_space, filter_idx):
 
 class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
-    def __init__(self, venv, agent, agent_idx=0):
+    def __init__(self, venv, policy, agent_idx=0):
         """Fixes one of the players in a VecMultiEnv.
         :param env(VecMultiEnv): the environments.
-        :param agent(Policy): The agent to be fixed
-        :param agent_idx(int): The index of the agent that should be fixed
+        :param policy(Policy): the policy to use for the agent at agent_idx.
+        :param agent_idx(int): the index of the agent that should be fixed.
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
                  with all actions at index agent_idx set to those returned by agent."""
         super().__init__(venv)
@@ -333,21 +333,23 @@ class CurryVecEnv(VecMultiWrapper):
         self.action_space = _tuple_space_filter(self.action_space, agent_idx)
 
         self._agent_to_fix = agent_idx
-        self._agent = agent
-        self._agent.reset(batch_size=venv.num_envs)
+        self._policy = policy
+        self._state = policy.initial_state
         self._last_obs = None
-        self._last_reward = None
+        self._last_dones = [False] * venv.num_envs
 
     def step_async(self, actions):
-        action, _info = self._agent.act(self._last_obs)
+        res = self._policy.step(self._last_obs, state=self._state, mask=self._last_dones)
+        action, val, self._state, _neglogp = res
         actions.insert(self._agent_to_fix, action)
         self.venv.step_async(actions)
 
     def step_wait(self):
-        observations, rewards, done, infos = self.venv.step_wait()
+        observations, rewards, dones, infos = self.venv.step_wait()
         observations, self._last_obs = _tuple_pop(observations, self._agent_to_fix)
-        rewards, self._last_reward = _tuple_pop(rewards, self._agent_to_fix)
-        return observations, rewards, done, infos
+        rewards, _ = _tuple_pop(rewards, self._agent_to_fix)
+        self._last_dones = dones
+        return observations, rewards, dones, infos
 
     def reset(self):
         observations = self.venv.reset()
