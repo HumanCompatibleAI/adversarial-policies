@@ -7,9 +7,9 @@ from sacred.observers import FileStorageObserver
 import tensorflow as tf
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env
-from modelfree.gym_compete_conversion import make_gym_compete_env
+from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
-from modelfree.utils import VideoWrapper, make_session, simulate
+from modelfree.utils import VideoWrapper, make_env, make_session, simulate
 
 
 def announce_winner(sim_stream):
@@ -65,6 +65,7 @@ def default_score_config():
     render = True          # display on screen (warning: slow)
     videos = False         # generate videos
     video_dir = 'videos/'  # video directory
+    seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -78,12 +79,12 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     gym.logger.DISABLED = 50
     gym.logger.set_level = gym.logger.setLevel
 
-    def make_env(i):
-        env = make_gym_compete_env(env_name, _seed, i, None)
+    def env_fn(i):
+        env = make_env(env_name, _seed, i, None, pre_wrapper=GymCompeteToOurs)
         if videos:
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
-    env_fns = [lambda: make_env(i) for i in range(num_env)]
+    env_fns = [lambda: env_fn(i) for i in range(num_env)]
     # WARNING: Be careful changing this to subproc!
     # On XDummy, rendering in a subprocess when you have already rendered in the parent causes
     # things to block indefinitely. This does not seem to be an issue on native X servers,

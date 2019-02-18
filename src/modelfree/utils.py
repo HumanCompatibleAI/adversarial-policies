@@ -1,11 +1,14 @@
 import os
 from os import path as osp
 
+import gym
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
 import numpy as np
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
+
+from aprl.common.multi_monitor import MultiMonitor
 
 
 class VideoWrapper(Wrapper):
@@ -103,3 +106,20 @@ def simulate(venv, policies, render=False):
 
         observations, rewards, dones, infos = venv.step(actions)
         yield observations, rewards, dones, infos
+
+
+def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None):
+    multi_env = gym.make(env_name)
+    if pre_wrapper is not None:
+        multi_env = pre_wrapper(multi_env)
+    multi_env.seed(seed + i)
+
+    if out_dir is not None:
+        mon_dir = osp.join(out_dir, 'mon')
+        os.makedirs(mon_dir, exist_ok=True)
+        multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)))
+
+    if post_wrapper is not None:
+        multi_env = post_wrapper(multi_env)
+
+    return multi_env

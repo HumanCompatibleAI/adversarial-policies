@@ -12,9 +12,12 @@ from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
-from modelfree.gym_compete_conversion import make_gym_compete_env
+from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
-from modelfree.utils import make_session
+from modelfree.utils import make_env, make_session
+
+ppo_baseline_ex = Experiment("ppo_baseline")
+ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
 
 
 class EmbedVictimWrapper(VecEnvWrapper):
@@ -41,8 +44,9 @@ class EmbedVictimWrapper(VecEnvWrapper):
         super().close()
 
 
-def train(env, out_dir="results", seed=1, total_timesteps=1, num_env=8, policy="our-lstm",
-          batch_size=2048, load_path=None):
+@ppo_baseline_ex.capture
+def train(_seed, env, out_dir, total_timesteps, num_env, policy,
+          batch_size, load_path):
     g = tf.Graph()
     sess = make_session(g)
 
@@ -64,7 +68,7 @@ def train(env, out_dir="results", seed=1, total_timesteps=1, num_env=8, policy="
             model.save(checkpoint_path)
 
         model.learn(total_timesteps=total_timesteps, log_interval=1,
-                    seed=seed, callback=checkpoint)
+                    seed=_seed, callback=checkpoint)
 
         model_path = osp.join(out_dir, 'final_model.pkl')
         model.save(model_path)
@@ -87,10 +91,6 @@ def setup_logger(out_dir="results", exp_name="test"):
     return out_dir
 
 
-ppo_baseline_ex = Experiment("ppo_baseline")
-ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
-
-
 @ppo_baseline_ex.config
 def default_ppo_config():
     env_name = "multicomp/SumoAnts-v0"   # Gym environment ID
@@ -103,7 +103,7 @@ def default_ppo_config():
     total_timesteps = 4096          # total number of timesteps to train for
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
-    seed = 1
+    seed = 0
     load_path = None                # path to load initial policy from
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -111,23 +111,21 @@ def default_ppo_config():
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, out_dir, exp_name,
-                 num_env, seed, total_timesteps, policy, batch_size, load_path):
+                 num_env, seed):
     # TODO: some bug with vectorizing goalie
     if env_name == 'kick-and-defend' and num_env != 1:
         raise Exception("Kick and Defend doesn't work with vectorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
 
-    def make_env(i):
-        return make_gym_compete_env(env_name, seed, i, out_dir)
+    def env_fn(i):
+        return make_env(env_name, seed, i, out_dir, pre_wrapper=GymCompeteToOurs)
 
-    multi_env = make_subproc_vec_multi_env([lambda: make_env(i) for i in range(num_env)])
+    multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
     single_env = EmbedVictimWrapper(multi_env=multi_env, env_name=env_name,
                                     victim_path=victim_path, victim_type=victim_type,
                                     victim_index=victim_index)
-
-    res = train(single_env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
-                num_env=num_env, policy=policy, batch_size=batch_size, load_path=load_path)
+    res = train(env=single_env)
     single_env.close()
 
     return res
