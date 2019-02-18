@@ -11,4 +11,4 @@ ppo_and_score_ex = Experiment("ppo_and_score", ingredients=[ppo_baseline_ex, sco
 @ppo_and_score_ex.automain
 def ppo_and_score():
     model_path = ppo_baseline()
-    return score_agent(agent_b_type='mlp', agent_b_path=model_path)
+    return score_agent(agent_b_type='ppo2', agent_b_path=model_path)

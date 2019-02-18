@@ -1,11 +1,11 @@
 import collections
 
-from baselines.common.vec_env import VecEnv, VecEnvWrapper
-from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 import gym
 from gym import Env, Wrapper
 import numpy as np
+from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
+from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 from aprl.utils import getattr_unwrapped
 
@@ -79,7 +79,7 @@ class FakeSingleSpacesVec(VecEnv):
     def step_wait(self):
         raise NotImplementedError()
 
-    def close_extras(self):
+    def close(self):
         raise NotImplementedError()
 
 
@@ -334,26 +334,24 @@ class CurryVecEnv(VecMultiWrapper):
 
         self._agent_to_fix = agent_idx
         self._policy = policy
-        self._state = policy.initial_state
-        self._last_obs = None
-        self._last_dones = [False] * venv.num_envs
+        self._state = None
+        self._obs = None
+        self._dones = [False] * venv.num_envs
 
     def step_async(self, actions):
-        res = self._policy.step(self._last_obs, state=self._state, mask=self._last_dones)
-        action, val, self._state, _neglogp = res
+        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones)
         actions.insert(self._agent_to_fix, action)
         self.venv.step_async(actions)
 
     def step_wait(self):
-        observations, rewards, dones, infos = self.venv.step_wait()
-        observations, self._last_obs = _tuple_pop(observations, self._agent_to_fix)
+        observations, rewards, self._dones, infos = self.venv.step_wait()
+        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
         rewards, _ = _tuple_pop(rewards, self._agent_to_fix)
-        self._last_dones = dones
-        return observations, rewards, dones, infos
+        return observations, rewards, self._dones, infos
 
     def reset(self):
         observations = self.venv.reset()
-        observations, self._last_obs = _tuple_pop(observations, self._agent_to_fix)
+        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
         return observations
 
 

@@ -25,7 +25,7 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 SCORE_AGENT_CONFIGS = [
     {'agent_b_type': 'zoo', 'agent_b_path': '2', 'videos': True},
     {
-        'agent_b_type': 'mlp',
+        'agent_b_type': 'ppo2',
         'agent_b_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl'),
         'episodes': 5
     },
@@ -47,9 +47,8 @@ def test_score_agent(config):
 
 
 PPO_BASELINE_CONFIGS = [
-    {'vectorize': 1},
-    {'normalize': True},
-    {'victim_type': 'mlp', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
+    {'num_env': 1},
+    {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
 ]
 
 

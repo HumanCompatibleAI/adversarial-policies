@@ -7,6 +7,7 @@ import gym
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
+from stable_baselines.common import BaseRLModel
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
@@ -79,7 +80,7 @@ def get_policy_type_for_agent_zoo(env_name):
         raise ValueError(msg)
 
 
-def set_from_flat(var_list, flat_params, sess=None):
+def set_from_flat(var_list, flat_params, sess):
     shapes = list(map(lambda x: x.get_shape().as_list(), var_list))
     total_size = np.sum([int(np.prod(shape)) for shape in shapes])
     theta = tf.placeholder(tf.float32, [total_size])
@@ -90,12 +91,40 @@ def set_from_flat(var_list, flat_params, sess=None):
         assigns.append(tf.assign(v, tf.reshape(theta[start:start + size], shape)))
         start += size
     op = tf.group(*assigns)
-    if sess is None:
-        sess = tf.get_default_session()
     sess.run(op, {theta: flat_params})
 
 
-def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
+class PolicyToModel(BaseRLModel):
+    def __init__(self, policy):
+        self.policy = policy
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        if state is None:
+            state = self.policy.initial_state
+        if mask is None:
+            mask = [False for _ in range(self.policy.n_env)]
+
+        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
+                                                           deterministic=deterministic)
+        return actions, states
+
+    def setup_model(self):
+        pass
+
+    def learn(self):
+        raise NotImplementedError()
+
+    def action_probability(self, observation, state=None, mask=None, actions=None):
+        raise NotImplementedError()
+
+    def save(self, save_path):
+        raise NotImplementedError()
+
+    def load(self):
+        raise NotImplementedError()
+
+
+def load_zoo_policy(tag, policy_type, scope, env, env_name, index, sess):
     # Construct graph
     kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
                   ac_space=env.action_space.spaces[index], n_env=env.num_envs,
@@ -110,8 +139,8 @@ def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
 
     # Load parameters
     dir = os.path.join('agent_zoo', env_name)
-    asymmetric_fname = f'agent{index}_parameters-v{id}.pkl'
-    symmetric_fname = f'agent_parameters-v{id}.pkl'
+    asymmetric_fname = f'agent{index}_parameters-v{tag}.pkl'
+    symmetric_fname = f'agent_parameters-v{tag}.pkl'
     try:  # asymmetric version, parameters tagged with agent id
         params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
     except OSError:  # symmetric version, parameters not associated with a specific agent
@@ -121,7 +150,7 @@ def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
     params = pickle.loads(params_pkl)
     set_from_flat(policy.get_variables(), params, sess=sess)
 
-    return policy
+    return PolicyToModel(policy)
 
 
 def load_zoo_agent(path, env, env_name, index, sess):

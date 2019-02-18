@@ -1,7 +1,7 @@
 import time
 
-from baselines.bench import Monitor
 import numpy as np
+from stable_baselines.bench import Monitor
 
 from aprl.utils import getattr_unwrapped
 
@@ -16,28 +16,36 @@ class MultiMonitor(Monitor):
                          info_keywords=extra_rks + info_keywords)
         self.info_keywords = info_keywords
 
-    def update(self, ob, rew, done, info):
-        # Same as Monitor.update, except handle rewards being vector-valued
-        self.rewards.append(rew)
+    def step(self, action):
+        """
+        Step the environment with the given action
+
+        :param action: ([int] or [float]) the action
+        :return: ([int] or [float], [float], [bool], dict) observation, reward, done, information
+        """
+        if self.needs_reset:
+            raise RuntimeError("Tried to step environment that needs reset")
+        observation, reward, done, info = self.env.step(action)
+        self.rewards.append(reward)
         if done:
             self.needs_reset = True
-            eprew = np.asarray(self.rewards).sum(axis=0).round(6)
-            joint_eprew = np.mean(eprew)
+            ep_rew = np.asarray(self.rewards).sum(axis=0).round(6)
+            joint_eprew = np.mean(ep_rew)
             eplen = len(self.rewards)
-            epinfo = {"r": joint_eprew,
-                      "l": eplen,
-                      "t": round(time.time() - self.tstart, 6)}
-            for i, rew in enumerate(eprew):
-                epinfo["r{:d}".format(i)] = rew
-            for k in self.info_keywords:
-                epinfo[k] = info[k]
-            self.episode_rewards.append(eprew)
+            ep_info = {"r": joint_eprew,
+                       "l": eplen,
+                       "t": round(time.time() - self.t_start, 6)}
+            for i, rew in enumerate(ep_rew):
+                ep_info["r{:d}".format(i)] = rew
+            for key in self.info_keywords:
+                ep_info[key] = info[key]
+            self.episode_rewards.append(ep_rew)
             self.episode_lengths.append(eplen)
-            self.episode_times.append(time.time() - self.tstart)
-            epinfo.update(self.current_reset_info)
-            self.results_writer.write_row(epinfo)
-
-            if isinstance(info, dict):
-                info['episode'] = epinfo
-
+            self.episode_times.append(time.time() - self.t_start)
+            ep_info.update(self.current_reset_info)
+            if self.logger:
+                self.logger.writerow(ep_info)
+                self.file_handler.flush()
+            info['episode'] = ep_info
         self.total_steps += 1
+        return observation, reward, done, info

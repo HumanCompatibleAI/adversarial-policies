@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env
 from modelfree.gym_compete_conversion import make_gym_compete_env
-from modelfree.policy_loader import get_agent_any_type
+from modelfree.policy_loader import load_policy
 from modelfree.utils import VideoWrapper, make_session, simulate
 
 
@@ -60,7 +60,7 @@ def default_score_config():
     agent_a_path = '1'     # path or other unique identifier
     agent_b_type = 'zoo'   # type supported by policy_loader.py
     agent_b_path = '2'     # path or other unique identifier
-    vectorize = 1          # number of environments to run in parallel
+    num_env = 1            # number of environments to run in parallel
     episodes = 1           # number of episodes to evaluate
     render = True          # display on screen (warning: slow)
     videos = False         # generate videos
@@ -71,13 +71,19 @@ def default_score_config():
 
 @score_agent_ex.automain
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                vectorize, episodes, render, videos, video_dir):
+                num_env, episodes, render, videos, video_dir):
+    # Monkeypatch old Gym version to make stable_baselines happy
+    import gym
+    gym.logger.MIN_LEVEL = 30
+    gym.logger.DISABLED = 50
+    gym.logger.set_level = gym.logger.setLevel
+
     def make_env(i):
         env = make_gym_compete_env(env_name, _seed, i, None)
         if videos:
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
-    env_fns = [lambda: make_env(i) for i in range(vectorize)]
+    env_fns = [lambda: make_env(i) for i in range(num_env)]
     # WARNING: Be careful changing this to subproc!
     # On XDummy, rendering in a subprocess when you have already rendered in the parent causes
     # things to block indefinitely. This does not seem to be an issue on native X servers,
@@ -89,9 +95,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     graphs = [tf.Graph() for _ in agent_paths]
     sessions = [make_session(graph) for graph in graphs]
     with sessions[0], sessions[1]:
-        zipped = zip(agent_paths, agent_types, sessions)
-        agents = [get_agent_any_type(agent, agent_type, venv, env_name, i, sess=sess)
-                  for i, (agent, agent_type, sess) in enumerate(zipped)]
+        zipped = zip(agent_types, agent_paths, sessions)
+        agents = [load_policy(policy_type, policy_path, venv, env_name, i, sess=sess)
+                  for i, (policy_type, policy_path, sess) in enumerate(zipped)]
         score = get_empirical_score(_run, venv, agents, episodes, render=render)
     venv.close()
 

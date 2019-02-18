@@ -3,8 +3,8 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Pipe, Process
 
-from baselines.common.vec_env import CloudpickleWrapper
 import gym
+from stable_baselines.common.vec_env import CloudpickleWrapper
 
 from aprl.common.mujoco import MujocoState
 
@@ -125,7 +125,7 @@ class MonteCarloSingle(MonteCarlo):
 # TODO: profile -- where is it spending most the time? any single threaded bottlenecks?
 def _worker(remote, parent_remote, dynamic_fn_wrapper, horizon, trajectories):
     parent_remote.close()
-    dynamics = dynamic_fn_wrapper.x()
+    dynamics = dynamic_fn_wrapper.var()
     dynamics.reset()
     mc = MonteCarloSingle(dynamics, horizon, trajectories)
     try:

@@ -1,7 +1,4 @@
-import functools
 import multiprocessing
-import os
-import tempfile
 
 import gym
 from ilqr import iLQR
@@ -12,28 +9,6 @@ from aprl.agents.monte_carlo import (MonteCarloSingle, MonteCarloParallel, Mujoc
                                      receding_horizon)
 from aprl.agents.mujoco_lqr import (MujocoFiniteDiffCost, MujocoFiniteDiffDynamicsBasic,
                                     MujocoFiniteDiffDynamicsPerformance)
-from aprl.agents.ppo_self_play import PPOSelfPlay
-from aprl.common.multi_monitor import MultiMonitor
-from aprl.envs.multi_agent import make_dummy_vec_multi_env
-
-
-def test_ppo_self_play():
-    """Smoke test for PPOSelfPlay."""
-    with tempfile.TemporaryDirectory(prefix='test_ppo_self_play') as d:
-        def make_env(i):
-            env = gym.make('aprl/CrowdedLine-v0')
-            env.seed(42 + i)
-            fname = os.path.join(d, 'test{:d}'.format(i))
-            env = MultiMonitor(env, filename=fname,
-                               allow_early_resets=True)
-            return env
-        env_fns = [functools.partial(make_env, i) for i in range(4)]
-        venv = make_dummy_vec_multi_env(env_fns)
-        self_play = PPOSelfPlay(population_size=4,
-                                training_type='best',
-                                env=venv,
-                                network='mlp')
-        self_play.learn(total_timesteps=10000)
 
 
 dynamics_list = [MujocoFiniteDiffDynamicsBasic, MujocoFiniteDiffDynamicsPerformance]

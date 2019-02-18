@@ -86,7 +86,7 @@ def simulate(venv, policies, render=False):
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
-    states = [policy.initial_state for policy in policies]
+    states = [None for policy in policies]
 
     while True:
         if render:
@@ -95,7 +95,7 @@ def simulate(venv, policies, render=False):
         actions = []
         new_states = []
         for policy, obs, state in zip(policies, observations, states):
-            act, _val, new_state, _logp = policy.step(obs, state=state, mask=dones)
+            act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
             new_states.append(new_state)
         actions = tuple(actions)

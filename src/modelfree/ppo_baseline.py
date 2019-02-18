@@ -3,18 +3,17 @@
 import datetime
 import os
 import os.path as osp
-import pickle
 
-from baselines import logger
-from baselines.common.vec_env.vec_normalize import VecEnvWrapper, VecNormalize
-from baselines.ppo2 import ppo2
+import gym
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
+from stable_baselines import PPO2, logger
+from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import make_gym_compete_env
-from modelfree.policy_loader import get_agent_any_type
+from modelfree.policy_loader import load_policy
 from modelfree.utils import make_session
 
 
@@ -24,8 +23,8 @@ class EmbedVictimWrapper(VecEnvWrapper):
         self.sess = make_session(victim_graph)
         with self.sess.as_default():
             # TODO: multi_env is a VecEnv not an Env, may break loaders?
-            victim = get_agent_any_type(agent=victim_path, agent_type=victim_type, env=multi_env,
-                                        env_name=env_name, index=victim_index, sess=self.sess)
+            victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
+                                 env_name=env_name, index=victim_index, sess=self.sess)
             curried_env = CurryVecEnv(multi_env, victim, agent_idx=victim_index)
             single_env = FlattenSingletonVecEnv(curried_env)
 
@@ -42,32 +41,33 @@ class EmbedVictimWrapper(VecEnvWrapper):
         super().close()
 
 
-def save_stats(env_wrapper, path):
-    venv = env_wrapper.venv
-    env_wrapper.venv = None
-    with open(path, 'wb') as f:
-        serialized = pickle.dump(env_wrapper, f)
-    env_wrapper.venv = venv
-    return serialized
-
-
-def train(env, out_dir="results", seed=1, total_timesteps=1, vector=8, network="our-lstm",
-          normalize=False, batch_size=2048, load_path=None):
+def train(env, out_dir="results", seed=1, total_timesteps=1, num_env=8, policy="our-lstm",
+          batch_size=2048, load_path=None):
     g = tf.Graph()
     sess = make_session(g)
-    model_path = osp.join(out_dir, 'model.pkl')
+
     with sess:
-        model = ppo2.learn(network=network, env=env,
-                           total_timesteps=total_timesteps,
-                           nsteps=batch_size // vector,
-                           seed=seed,
-                           nminibatches=min(4, vector),
-                           log_interval=1,
-                           save_interval=1,
-                           load_path=load_path)
+        kwargs = dict(env=env,
+                      n_steps=batch_size // num_env,
+                      nminibatches=min(4, num_env))   # TODO: why?
+        if load_path is not None:
+            # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
+            model = PPO2.load(load_path, **kwargs)
+        else:
+            model = PPO2(policy=policy, **kwargs)
+
+        def checkpoint(locals, globals):
+            update = locals['update']
+            checkpoint_dir = osp.join(out_dir, 'checkpoint')
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
+            model.save(checkpoint_path)
+
+        model.learn(total_timesteps=total_timesteps, log_interval=1,
+                    seed=seed, callback=checkpoint)
+
+        model_path = osp.join(out_dir, 'final_model.pkl')
         model.save(model_path)
-        if normalize:
-            save_stats(env, osp.join(out_dir, 'normalize.pkl'))
     return osp.join(model_path)
 
 
@@ -78,7 +78,12 @@ def setup_logger(out_dir="results", exp_name="test"):
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
     out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
-    logger.configure(dir=osp.join(out_dir, 'mon'))
+    # Monkeypatch old Gym version to make stable_baselines happy
+    gym.logger.MIN_LEVEL = 30
+    gym.logger.DISABLED = 50
+    gym.logger.set_level = gym.logger.setLevel
+
+    logger.configure(folder=osp.join(out_dir, 'mon'))
     return out_dir
 
 
@@ -92,12 +97,11 @@ def default_ppo_config():
     victim_type = "zoo"             # type supported by policy_loader.py
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
-    vectorize = 8                   # number of environments to run in parallel
+    num_env = 8                     # number of environments to run in parallel
     out_dir = "data/baselines"      # root of directory to store baselines log
     exp_name = "Dummy Exp Name"     # name of experiment
-    normalize = False               # normalize observations
     total_timesteps = 4096          # total number of timesteps to train for
-    network = "mlp"                 # policy network type
+    policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
     seed = 1
     load_path = None                # path to load initial policy from
@@ -107,9 +111,9 @@ def default_ppo_config():
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, out_dir, exp_name,
-                 vectorize, normalize, seed, total_timesteps, network, batch_size, load_path):
+                 num_env, seed, total_timesteps, policy, batch_size, load_path):
     # TODO: some bug with vectorizing goalie
-    if env_name == 'kick-and-defend' and vectorize != 1:
+    if env_name == 'kick-and-defend' and num_env != 1:
         raise Exception("Kick and Defend doesn't work with vectorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
@@ -117,15 +121,13 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, out_dir
     def make_env(i):
         return make_gym_compete_env(env_name, seed, i, out_dir)
 
-    multi_env = make_subproc_vec_multi_env([lambda: make_env(i) for i in range(vectorize)])
+    multi_env = make_subproc_vec_multi_env([lambda: make_env(i) for i in range(num_env)])
     single_env = EmbedVictimWrapper(multi_env=multi_env, env_name=env_name,
                                     victim_path=victim_path, victim_type=victim_type,
                                     victim_index=victim_index)
-    if normalize:
-        single_env = VecNormalize(single_env)
+
     res = train(single_env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
-                vector=vectorize, network=network, normalize=normalize,
-                batch_size=batch_size, load_path=load_path)
+                num_env=num_env, policy=policy, batch_size=batch_size, load_path=load_path)
     single_env.close()
 
     return res
