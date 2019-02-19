@@ -99,10 +99,6 @@ def default_ppo_config():
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  num_env, seed):
-    # TODO: some bug with vectorizing goalie
-    if env_name == 'kick-and-defend' and num_env != 1:
-        raise Exception("Kick and Defend doesn't work with vectorization above 1")
-
     out_dir = setup_logger(root_dir, exp_name)
 
     def env_fn(i):

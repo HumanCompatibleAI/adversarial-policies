@@ -116,7 +116,7 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
 
             # Load parameters
             dir = os.path.join('agent_zoo', env_name)
-            asymmetric_fname = f'agent{index}_parameters-v{tag}.pkl'
+            asymmetric_fname = f'agent{index+1}_parameters-v{tag}.pkl'
             symmetric_fname = f'agent_parameters-v{tag}.pkl'
             try:  # asymmetric version, parameters tagged with agent id
                 params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
