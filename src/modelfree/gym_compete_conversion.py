@@ -19,20 +19,6 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
     def __init__(self, env):
         Wrapper.__init__(self, env)
         MultiAgentEnv.__init__(self, num_agents=2)
-        self.action_space = env.action_space
-        self.observation_space = env.observation_space
-
-        # Gym added dtype's to shapes in commit 1c5a463
-        # Baselines depends on this, but we have to use an older version of Gym
-        # to keep support for MuJoCo 1.31. Monkeypatch shapes to fix this.
-        # Note: the environments actually return float64, but this precision is not needed.
-        def set_dtype(tuple_space, dtype):
-            tuple_space.dtype = dtype
-            for space in tuple_space.spaces:
-                space.dtype = dtype
-
-        set_dtype(self.observation_space, np.dtype('float32'))
-        set_dtype(self.action_space, np.dtype('float32'))
 
     def step(self, action_n):
         observations, rewards, dones, infos = self.env.step(action_n)

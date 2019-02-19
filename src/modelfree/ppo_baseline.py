@@ -4,7 +4,6 @@ import datetime
 import os
 import os.path as osp
 
-import gym
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import PPO2, logger
@@ -82,10 +81,6 @@ def setup_logger(out_dir="results", exp_name="test"):
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
     out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
-    # Monkeypatch old Gym version to make stable_baselines happy
-    gym.logger.MIN_LEVEL = 30
-    gym.logger.DISABLED = 50
-    gym.logger.set_level = gym.logger.setLevel
 
     logger.configure(folder=osp.join(out_dir, 'mon'))
     return out_dir
@@ -98,7 +93,7 @@ def default_ppo_config():
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
     num_env = 8                     # number of environments to run in parallel
-    out_dir = "data/baselines"      # root of directory to store baselines log
+    root_dir = "data/baselines"     # root of directory to store baselines log
     exp_name = "Dummy Exp Name"     # name of experiment
     total_timesteps = 4096          # total number of timesteps to train for
     policy = "MlpPolicy"            # policy network type
@@ -110,22 +105,22 @@ def default_ppo_config():
 
 
 @ppo_baseline_ex.automain
-def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, out_dir, exp_name,
+def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  num_env, seed):
     # TODO: some bug with vectorizing goalie
     if env_name == 'kick-and-defend' and num_env != 1:
         raise Exception("Kick and Defend doesn't work with vectorization above 1")
 
-    out_dir = setup_logger(out_dir, exp_name)
+    out_dir = setup_logger(root_dir, exp_name)
 
     def env_fn(i):
-        return make_env(env_name, seed, i, out_dir, pre_wrapper=GymCompeteToOurs)
+        return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
 
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
     single_env = EmbedVictimWrapper(multi_env=multi_env, env_name=env_name,
                                     victim_path=victim_path, victim_type=victim_type,
                                     victim_index=victim_index)
-    res = train(env=single_env)
+    res = train(env=single_env, out_dir=out_dir)
     single_env.close()
 
     return res

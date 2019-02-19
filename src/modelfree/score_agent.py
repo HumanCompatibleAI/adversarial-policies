@@ -73,12 +73,6 @@ def default_score_config():
 @score_agent_ex.automain
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 num_env, episodes, render, videos, video_dir):
-    # Monkeypatch old Gym version to make stable_baselines happy
-    import gym
-    gym.logger.MIN_LEVEL = 30
-    gym.logger.DISABLED = 50
-    gym.logger.set_level = gym.logger.setLevel
-
     def env_fn(i):
         env = make_env(env_name, _seed, i, None, pre_wrapper=GymCompeteToOurs)
         if videos:
