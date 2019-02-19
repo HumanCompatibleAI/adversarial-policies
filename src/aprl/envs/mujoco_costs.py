@@ -4,8 +4,6 @@ All cost functions are intended to exactly reproduce that of the negative reward
 in the original Gym environment, unless otherwise noted. However, note they are
 defined in terms of the raw MuJoCo state (qpos, qvel), not Gym observations."""
 
-# TODO: does this belong in agents instead of envs?
-
 from ilqr.cost import BatchAutoDiffCost
 from theano import tensor as T
 

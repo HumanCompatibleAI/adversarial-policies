@@ -122,7 +122,6 @@ class MonteCarloSingle(MonteCarlo):
         return best
 
 
-# TODO: profile -- where is it spending most the time? any single threaded bottlenecks?
 def _worker(remote, parent_remote, dynamic_fn_wrapper, horizon, trajectories):
     parent_remote.close()
     dynamics = dynamic_fn_wrapper.var()
