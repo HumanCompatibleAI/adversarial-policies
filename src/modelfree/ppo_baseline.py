@@ -8,12 +8,11 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import PPO2, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
-import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
-from modelfree.utils import make_env, make_session
+from modelfree.utils import make_env
 
 ppo_baseline_ex = Experiment("ppo_baseline")
 ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
@@ -21,14 +20,10 @@ ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
 
 class EmbedVictimWrapper(VecEnvWrapper):
     def __init__(self, multi_env, env_name, victim_path, victim_type, victim_index):
-        victim_graph = tf.Graph()
-        self.sess = make_session(victim_graph)
-        with self.sess.as_default():
-            # TODO: multi_env is a VecEnv not an Env, may break loaders?
-            victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
-                                 env_name=env_name, index=victim_index, sess=self.sess)
-            curried_env = CurryVecEnv(multi_env, victim, agent_idx=victim_index)
-            single_env = FlattenSingletonVecEnv(curried_env)
+        self.victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
+                                  env_name=env_name, index=victim_index)
+        curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        single_env = FlattenSingletonVecEnv(curried_env)
 
         super().__init__(single_env)
 
@@ -39,39 +34,36 @@ class EmbedVictimWrapper(VecEnvWrapper):
         return self.venv.step_wait()
 
     def close(self):
-        self.sess.close()
+        self.victim.sess.close()
         super().close()
 
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
           batch_size, load_path):
-    g = tf.Graph()
-    sess = make_session(g)
+    kwargs = dict(env=env,
+                  n_steps=batch_size // num_env,
+                  nminibatches=min(4, num_env))   # TODO: why?
+    if load_path is not None:
+        # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
+        model = PPO2.load(load_path, **kwargs)
+    else:
+        model = PPO2(policy=policy, **kwargs)
 
-    with sess:
-        kwargs = dict(env=env,
-                      n_steps=batch_size // num_env,
-                      nminibatches=min(4, num_env))   # TODO: why?
-        if load_path is not None:
-            # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
-            model = PPO2.load(load_path, **kwargs)
-        else:
-            model = PPO2(policy=policy, **kwargs)
+    def checkpoint(locals, globals):
+        update = locals['update']
+        checkpoint_dir = osp.join(out_dir, 'checkpoint')
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
+        model.save(checkpoint_path)
 
-        def checkpoint(locals, globals):
-            update = locals['update']
-            checkpoint_dir = osp.join(out_dir, 'checkpoint')
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
-            model.save(checkpoint_path)
+    model.learn(total_timesteps=total_timesteps, log_interval=1,
+                seed=_seed, callback=checkpoint)
 
-        model.learn(total_timesteps=total_timesteps, log_interval=1,
-                    seed=_seed, callback=checkpoint)
-
-        model_path = osp.join(out_dir, 'final_model.pkl')
-        model.save(model_path)
-    return osp.join(model_path)
+    model_path = osp.join(out_dir, 'final_model.pkl')
+    model.save(model_path)
+    model.sess.close()
+    return model_path
 
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"

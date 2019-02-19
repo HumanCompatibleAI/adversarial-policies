@@ -7,11 +7,9 @@ from modelfree.gym_compete_conversion import load_zoo_agent
 
 
 def load_stable_baselines(cls):
-    def f(path, env, env_name, index, sess):
-        with sess.as_default():
-            with sess.graph.as_default():
-                denv = FakeSingleSpacesVec(env, agent_id=index)
-                return cls.load(path, env=denv)
+    def f(path, env, env_name, index):
+        denv = FakeSingleSpacesVec(env, agent_id=index)
+        return cls.load(path, env=denv)
     return f
 
 
@@ -21,8 +19,8 @@ AGENT_LOADERS = {
 }
 
 
-def load_policy(policy_type, policy_path, env, env_name, index, sess=None):
+def load_policy(policy_type, policy_path, env, env_name, index):
     agent_loader = AGENT_LOADERS.get(policy_type)
     if agent_loader is None:
         raise ValueError(f"Unrecognized agent type '{policy_type}'")
-    return agent_loader(policy_path, env, env_name, index, sess=sess)
+    return agent_loader(policy_path, env, env_name, index)

@@ -9,6 +9,7 @@ from stable_baselines.common import BaseRLModel
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv
+from modelfree.utils import make_session
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -67,6 +68,7 @@ def set_from_flat(var_list, flat_params, sess):
 class PolicyToModel(BaseRLModel):
     def __init__(self, policy):
         self.policy = policy
+        self.sess = policy.sess
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         if state is None:
@@ -94,41 +96,43 @@ class PolicyToModel(BaseRLModel):
         raise NotImplementedError()
 
 
-def load_zoo_policy(tag, policy_type, scope, env, env_name, index, sess):
-    # Construct graph
-    kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
-                  ac_space=env.action_space.spaces[index], n_env=env.num_envs,
-                  n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False,
-                  normalize=True)
-    if policy_type == 'lstm':
-        policy = LSTMPolicy(hiddens=[128, 128], **kwargs)
-    elif policy_type == 'mlp':
-        policy = MlpPolicyValue(hiddens=[64, 64], **kwargs)
-    else:
-        raise NotImplementedError()
+def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
+    g = tf.Graph()
+    sess = make_session(g)
 
-    # Load parameters
-    dir = os.path.join('agent_zoo', env_name)
-    asymmetric_fname = f'agent{index}_parameters-v{tag}.pkl'
-    symmetric_fname = f'agent_parameters-v{tag}.pkl'
-    try:  # asymmetric version, parameters tagged with agent id
-        params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
-    except OSError:  # symmetric version, parameters not associated with a specific agent
-        params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
+    with sess.as_default():
+        with g.as_default():
+            # Construct graph
+            kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
+                          ac_space=env.action_space.spaces[index], n_env=env.num_envs,
+                          n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False,
+                          normalize=True)
+            if policy_type == 'lstm':
+                policy = LSTMPolicy(hiddens=[128, 128], **kwargs)
+            elif policy_type == 'mlp':
+                policy = MlpPolicyValue(hiddens=[64, 64], **kwargs)
+            else:
+                raise NotImplementedError()
 
-    # Restore parameters
-    params = pickle.loads(params_pkl)
-    set_from_flat(policy.get_variables(), params, sess=sess)
+            # Load parameters
+            dir = os.path.join('agent_zoo', env_name)
+            asymmetric_fname = f'agent{index}_parameters-v{tag}.pkl'
+            symmetric_fname = f'agent_parameters-v{tag}.pkl'
+            try:  # asymmetric version, parameters tagged with agent id
+                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
+            except OSError:  # symmetric version, parameters not associated with a specific agent
+                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
 
-    return PolicyToModel(policy)
+            # Restore parameters
+            params = pickle.loads(params_pkl)
+            set_from_flat(policy.get_variables(), params, sess)
+
+            return PolicyToModel(policy)
 
 
-def load_zoo_agent(path, env, env_name, index, sess):
+def load_zoo_agent(path, env, env_name, index):
     env_prefix, env_suffix = env_name.split('/')
     assert env_prefix == 'multicomp'
     policy_type = get_policy_type_for_agent_zoo(env_suffix)
-
-    with sess.graph.as_default():
-        policy = load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
-                                 env, env_suffix, index, sess=sess)
-        return policy
+    return load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
+                           env, env_suffix, index)

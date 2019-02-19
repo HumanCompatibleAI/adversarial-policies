@@ -4,12 +4,11 @@ import os.path as osp
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-import tensorflow as tf
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env
 from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
-from modelfree.utils import VideoWrapper, make_env, make_session, simulate
+from modelfree.utils import VideoWrapper, make_env, simulate
 
 
 def announce_winner(sim_stream):
@@ -87,13 +86,12 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]
-    graphs = [tf.Graph() for _ in agent_paths]
-    sessions = [make_session(graph) for graph in graphs]
-    with sessions[0], sessions[1]:
-        zipped = zip(agent_types, agent_paths, sessions)
-        agents = [load_policy(policy_type, policy_path, venv, env_name, i, sess=sess)
-                  for i, (policy_type, policy_path, sess) in enumerate(zipped)]
-        score = get_empirical_score(_run, venv, agents, episodes, render=render)
+    zipped = zip(agent_types, agent_paths)
+    agents = [load_policy(policy_type, policy_path, venv, env_name, i)
+              for i, (policy_type, policy_path) in enumerate(zipped)]
+    score = get_empirical_score(_run, venv, agents, episodes, render=render)
+    for agent in agents:
+        agent.sess.close()
     venv.close()
 
     return score
