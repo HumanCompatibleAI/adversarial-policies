@@ -22,9 +22,8 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryEnv, FlattenSingletonEnv
 from modelfree.gym_compete_conversion import GymCompeteToOurs, load_zoo_agent
-from modelfree.reward_shaping import (LinearAnnealer, RewardShapingEnv, Scheduler,
-                                      annealer_collection, NoisyAgentWrapper,
-                                      HumanoidEnvWrapper)
+from modelfree.shaping_wrappers import RewardShapingEnv, NoisyAgentWrapper, HumanoidEnvWrapper
+from modelfree.scheduling import annealer_collection, LinearAnnealer, Scheduler
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
 
@@ -258,22 +257,8 @@ ppo_baseline_ex.observers.append(FileStorageObserver.create('my_runs'))
 
 @ppo_baseline_ex.named_config
 def human_default():
-    victim = "1"
-    victim_type = "zoo"
     env = "multicomp/SumoHumans-v0"
-    vectorize = 8
-    out_dir = "outs"
-    exp_name = "experiment"
-    no_normalize = True
-    seed = 1
     total_timesteps = 1e8
-    network = "mlp"
-    nsteps = 2048
-    load_path = None
-    env_wrapper_type = None
-    rew_shape_anneal_frac = None
-    victim_noise_anneal_frac = None
-    victim_noise_param = None
     _ = locals()
     del _
 
@@ -285,13 +270,17 @@ def default_ppo_config():
     env = "multicomp/SumoAnts-v0"
     vectorize = 8
     out_dir = "outs"
-    exp_name = "test-experiments"
+    exp_name = "experiment"
     no_normalize = True
     seed = 1
     total_timesteps = 100000
     network = "mlp"
     nsteps = 2048
     load_path = None
+    env_wrapper_type = None
+    rew_shape_anneal_frac = None
+    victim_noise_anneal_frac = None
+    victim_noise_param = None
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -308,20 +297,21 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
 
     out_dir = setup_logger(out_dir, exp_name)
-    scheduler = Scheduler(lr_func=annealer_collection['default_lr'].get_value)
+    scheduler = Scheduler(func_dict={'lr': annealer_collection['default_lr'].get_value})
 
     if rew_shape_anneal_frac is not None:
         assert 0 <= rew_shape_anneal_frac <= 1
         rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
-        scheduler.set_rew_shape_func(rew_shape_func)
+        scheduler.set_func('rew_shape', rew_shape_func)
 
         def env_wrapper(x):
-            return RewardShapingEnv(x, reward_annealer=scheduler.get_rew_shape_val)
+            return RewardShapingEnv(x, reward_annealer=scheduler.get_func('rew_shape'))
     else:
         wrappers = {
             'humanoid': HumanoidEnvWrapper,
             None: lambda x: x
         }
+
         def env_wrapper(x):
             return wrappers[env_wrapper_type](x)
 
@@ -329,10 +319,10 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
         assert 0 <= victim_noise_anneal_frac <= 1
         assert 0 < victim_noise_param
         noise_anneal_func = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac).get_value
-        scheduler.set_noise_func(noise_anneal_func)
+        scheduler.set_func('noise', noise_anneal_func)
 
         def victim_wrapper(x):
-            return NoisyAgentWrapper(x, noise_annealer=scheduler.get_noise_val)
+            return NoisyAgentWrapper(x, noise_annealer=scheduler.get_func('noise'))
 
     else:
 
@@ -349,6 +339,6 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
 
     res = train(env, out_dir=out_dir, seed=seed, total_timesteps=total_timesteps,
                 vector=vectorize, network=network, no_normalize=no_normalize,
-                nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_lr_val)
+                nsteps=nsteps, load_path=load_path, lr_func=scheduler.get_func('lr'))
     env.close()
     return res
