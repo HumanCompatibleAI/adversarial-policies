@@ -59,7 +59,6 @@ def get_policy_type_for_agent_zoo(env_name):
         "RunToGoalAnts-v0": "mlp",
         "YouShallNotPassHumans-v0": "mlp",
         "SumoHumans-v0": "lstm",
-        "SumoHumansAutoContact-v0": "lstm",
         "SumoAnts-v0": "lstm",
     }
     if env_name in policy_types:
@@ -100,6 +99,7 @@ def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
     else:
         raise NotImplementedError()
 
+
     # Load parameters
     dir = os.path.join('agent_zoo', env_name)
     asymmetric_fname = f'agent{index}_parameters-v{id}.pkl'
@@ -117,6 +117,12 @@ def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
 
 
 def load_zoo_agent(path, env, env_name, index, sess):
+    symlink_dict = {
+        'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
+    }
+    if symlink_dict.get(env_name, None) is not None:
+        env_name = symlink_dict[env_name]
+
     env_prefix, env_suffix = env_name.split('/')
     assert env_prefix == 'multicomp'
     policy_type = get_policy_type_for_agent_zoo(env_suffix)

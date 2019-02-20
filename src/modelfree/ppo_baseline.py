@@ -1,6 +1,7 @@
 """Uses PPO to train an attack policy against a fixed victim policy."""
 
 import datetime
+import json
 import functools
 import os
 import os.path as osp
@@ -26,6 +27,7 @@ from modelfree.shaping_wrappers import RewardShapingEnv, NoisyAgentWrapper, Huma
 from modelfree.scheduling import annealer_collection, LinearAnnealer, Scheduler
 from modelfree.simulation_utils import ResettableAgent
 from modelfree.utils import make_session
+from modelfree import envs
 
 
 class ConstantAgent(object):
@@ -278,7 +280,7 @@ def default_ppo_config():
     nsteps = 2048
     load_path = None
     env_wrapper_type = None
-    rew_shape_anneal_frac = None
+    rew_shape_params = None
     victim_noise_anneal_frac = None
     victim_noise_param = None
     _ = locals()  # quieten flake8 unused variable warning
@@ -290,8 +292,8 @@ def default_ppo_config():
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
                  no_normalize, seed, total_timesteps, network, nsteps, load_path,
-                 rew_shape_anneal_frac, victim_noise_anneal_frac, victim_noise_param,
-                 env_wrapper_type):
+                 rew_shape_params, victim_noise_anneal_frac,
+                 victim_noise_param, env_wrapper_type):
     # TODO: some bug with vectorizing goalie
     if env == 'kick-and-defend' and vectorize != 1:
         raise Exception("Kick and Defend doesn't work with vecorization above 1")
@@ -299,13 +301,23 @@ def ppo_baseline(_run, env, victim, victim_type, out_dir, exp_name, vectorize,
     out_dir = setup_logger(out_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': annealer_collection['default_lr'].get_value})
 
-    if rew_shape_anneal_frac is not None:
+    if rew_shape_params is not None:
+        shaping_params = RewardShapingEnv.default_shaping_params
+        if rew_shape_params is not None:
+            config = json.load(open(rew_shape_params))
+            shaping_params.update(config)
+
+        rew_shape_anneal_frac = shaping_params.get('rew_shape_anneal_frac', 0)
         assert 0 <= rew_shape_anneal_frac <= 1
-        rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
+        if rew_shape_anneal_frac > 0:
+            rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
+        else:
+            rew_shape_func = None
         scheduler.set_func('rew_shape', rew_shape_func)
 
         def env_wrapper(x):
-            return RewardShapingEnv(x, reward_annealer=scheduler.get_func('rew_shape'))
+            return RewardShapingEnv(x, shaping_params=shaping_params,
+                                    reward_annealer=scheduler.get_func('rew_shape'))
     else:
         wrappers = {
             'humanoid': HumanoidEnvWrapper,
