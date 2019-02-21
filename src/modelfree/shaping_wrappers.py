@@ -1,8 +1,11 @@
 from collections import defaultdict
+import json
+
 import numpy as np
 from baselines import logger
 from baselines.common.vec_env import VecEnvWrapper
 from modelfree.simulation_utils import ResettableAgent
+from modelfree.scheduling import LinearAnnealer
 
 
 class RewardShapingEnv(VecEnvWrapper):
@@ -96,7 +99,8 @@ class RewardShapingEnv(VecEnvWrapper):
         assert 0 <= c <= 1
         return c
 
-
+# TODO: ResettableAgent no longer exists. agent will be of type BasePolicy
+# Read stable_baselines to see if its BaseRLModel or BasePolicy
 class NoisyAgentWrapper(ResettableAgent):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
@@ -147,3 +151,39 @@ class HumanoidEnvWrapper(VecEnvWrapper):
 
         return obs, rew, done, infos
 
+
+def get_env_wrapper(rew_shape_params, env_wrapper_type, scheduler):
+    if rew_shape_params is not None:
+        shaping_params = RewardShapingEnv.default_shaping_params
+        if rew_shape_params is not None:
+            config = json.load(open(rew_shape_params))
+            shaping_params.update(config)
+
+        rew_shape_anneal_frac = shaping_params.get('rew_shape_anneal_frac', 0)
+        assert 0 <= rew_shape_anneal_frac <= 1
+        if rew_shape_anneal_frac > 0:
+            rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
+        else:
+            rew_shape_func = None
+
+        scheduler.set_func('rew_shape', rew_shape_func)
+        return lambda x: RewardShapingEnv(x, shaping_params=shaping_params,
+                                          reward_annealer=scheduler.get_func('rew_shape'))
+    else:
+        wrappers = {
+            'humanoid': HumanoidEnvWrapper,
+            None: lambda x: x
+        }
+        return lambda x: wrappers[env_wrapper_type](x)
+
+
+def get_victim_wrapper(victim_noise_anneal_frac, victim_noise_param, scheduler):
+    if victim_noise_anneal_frac is not None:
+        assert 0 <= victim_noise_anneal_frac <= 1
+        assert 0 < victim_noise_param
+        noise_anneal_func = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac).get_value
+        scheduler.set_func('noise', noise_anneal_func)
+        return lambda x: NoisyAgentWrapper(x, noise_annealer=scheduler.get_func('noise'))
+
+    else:
+        return lambda x: x
