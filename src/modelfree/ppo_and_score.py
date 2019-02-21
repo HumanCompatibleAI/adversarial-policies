@@ -2,18 +2,10 @@
 
 from sacred import Experiment
 
-from modelfree.ppo_baseline import ppo_baseline_ex
-from modelfree.score_agent import score_agent_ex
+from modelfree.ppo_baseline import ppo_baseline, ppo_baseline_ex
+from modelfree.score_agent import score_agent, score_agent_ex
 
-ppo_and_score_ex = Experiment("ppo_and_score")
-
-
-@ppo_and_score_ex.config
-def default_config():
-    config = {  # noqa: F841
-        "ppo": {},
-        "score": {}
-    }
+ppo_and_score_ex = Experiment("ppo_and_score", ingredients=[ppo_baseline_ex, score_agent_ex])
 
 
 @ppo_and_score_ex.named_config
@@ -29,8 +21,6 @@ def ant_score_config():
 
 
 @ppo_and_score_ex.automain
-def ppo_and_score(config):
-    training_results = ppo_baseline_ex.run(config_updates=config["ppo"])
-    config["score"]["agent_b"] = training_results.result
-
-    return score_agent_ex.run(config_updates=config["score"])
+def ppo_and_score():
+    model_path = ppo_baseline()
+    return score_agent(agent_b_type='ppo2', agent_b_path=model_path)

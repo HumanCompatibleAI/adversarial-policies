@@ -1,11 +1,11 @@
 import collections
 
-from baselines.common.vec_env import VecEnv, VecEnvWrapper
-from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 import gym
 from gym import Env, Wrapper
 import numpy as np
+from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
+from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 from aprl.utils import getattr_unwrapped
 
@@ -62,7 +62,9 @@ class FakeSingleSpaces(gym.Env):
 
 
 class FakeSingleSpacesVec(VecEnv):
-    """VecEnv equivalent of FakeSingleSpaces."""
+    """VecEnv equivalent of FakeSingleSpaces.
+    :param venv(VecMultiEnv)
+    :return a dummy VecEnv instance."""
     def __init__(self, venv, agent_id=0):
         observation_space = venv.observation_space.spaces[agent_id]
         action_space = venv.action_space.spaces[agent_id]
@@ -77,7 +79,7 @@ class FakeSingleSpacesVec(VecEnv):
     def step_wait(self):
         raise NotImplementedError()
 
-    def close_extras(self):
+    def close(self):
         raise NotImplementedError()
 
 
@@ -86,10 +88,10 @@ class FlattenSingletonEnv(Wrapper):
 
     This is typically used after first applying CurryEnv until there is only one agent left."""
     def __init__(self, env):
-        '''
+        """
         :param env: a MultiAgentEnv.
-        :return a single-agent Gym environment.
-        '''
+        :return a single-agent Gym Env.
+        """
         assert env.num_agents == 1
         super().__init__(env)
         self.observation_space = env.observation_space.spaces[0]
@@ -162,55 +164,6 @@ class FlattenMultiEnv(Wrapper):
 
     def reset(self):
         return self.env.reset()[0]
-
-
-def _tuple_pop(input, i):
-    output = list(input)
-    elt = output.pop(i)
-    return tuple(output), elt
-
-
-def _tuple_space_filter(tuple_space, filter_idx):
-    filtered_spaces = (space for i, space in enumerate(tuple_space.spaces) if i != filter_idx)
-    return gym.spaces.Tuple(tuple(filtered_spaces))
-
-
-class CurryEnv(MultiWrapper):
-    """Substitutes in a fixed agent for one of the players in a MultiAgentEnv."""
-    def __init__(self, env, agent, agent_idx=0):
-        """Fixes one of the players in a MultiAgentEnv.
-        :param env(MultiAgentEnv): the environment.
-        :param agent(ResettableAgent): The agent to be fixed
-        :param agent_idx(int): The index of the agent that should be fixed
-        :return: a new MultiAgentEnv with num_agents decremented. It behaves like env but
-                 with all actions at index agent_idx set to those returned by agent.
-        """
-        super().__init__(env)
-
-        assert env.num_agents >= 1  # allow currying the last agent
-        self.num_agents = env.num_agents - 1
-        self.observation_space = _tuple_space_filter(self.observation_space, agent_idx)
-        self.action_space = _tuple_space_filter(self.action_space, agent_idx)
-
-        self._agent_to_fix = agent_idx
-        self._agent = agent
-        self._last_obs = None
-        self._last_reward = None
-
-    def step(self, actions):
-        action = self._agent.get_action(self._last_obs)
-        actions.insert(self._agent_to_fix, action)
-        observations, rewards, done, infos = self.env.step(actions)
-
-        observations, self._last_obs = _tuple_pop(observations, self._agent_to_fix)
-        rewards, self._last_reward = _tuple_pop(rewards, self._agent_to_fix)
-
-        return observations, rewards, done, infos
-
-    def reset(self):
-        observations = self.env.reset()
-        observations, self._last_obs = _tuple_pop(observations, self._agent_to_fix)
-        return observations
 
 
 class VecMultiEnv(VecEnv):
@@ -350,3 +303,78 @@ class _SubprocVecMultiEnv(SubprocVecEnv, VecMultiEnv):
 # easier alternative and avoid some special casing now. See baselines issue #555.
 make_dummy_vec_multi_env = _make_vec_multi_env(_DummyVecMultiEnv)
 make_subproc_vec_multi_env = _make_vec_multi_env(_SubprocVecMultiEnv)
+
+
+def _tuple_pop(input, i):
+    output = list(input)
+    elt = output.pop(i)
+    return tuple(output), elt
+
+
+def _tuple_space_filter(tuple_space, filter_idx):
+    filtered_spaces = (space for i, space in enumerate(tuple_space.spaces) if i != filter_idx)
+    return gym.spaces.Tuple(tuple(filtered_spaces))
+
+
+class CurryVecEnv(VecMultiWrapper):
+    """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
+    def __init__(self, venv, policy, agent_idx=0):
+        """Fixes one of the players in a VecMultiEnv.
+        :param env(VecMultiEnv): the environments.
+        :param policy(Policy): the policy to use for the agent at agent_idx.
+        :param agent_idx(int): the index of the agent that should be fixed.
+        :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
+                 with all actions at index agent_idx set to those returned by agent."""
+        super().__init__(venv)
+
+        assert venv.num_agents >= 1  # allow currying the last agent
+        self.num_agents = venv.num_agents - 1
+        self.observation_space = _tuple_space_filter(self.observation_space, agent_idx)
+        self.action_space = _tuple_space_filter(self.action_space, agent_idx)
+
+        self._agent_to_fix = agent_idx
+        self._policy = policy
+        self._state = None
+        self._obs = None
+        self._dones = [False] * venv.num_envs
+
+    def step_async(self, actions):
+        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones)
+        actions.insert(self._agent_to_fix, action)
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        observations, rewards, self._dones, infos = self.venv.step_wait()
+        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
+        rewards, _ = _tuple_pop(rewards, self._agent_to_fix)
+        return observations, rewards, self._dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
+        return observations
+
+
+class FlattenSingletonVecEnv(VecEnvWrapper):
+    """Adapts a single-agent VecMultiEnv into a standard Baselines VecEnv.
+
+    This is typically used after first applying CurryVecEnv until there is only one agent left."""
+    def __init__(self, venv):
+        """
+        :param venv: a VecMultiEnv.
+        :return a single-agent Gym Env.
+        """
+        assert venv.num_agents == 1
+        super().__init__(venv)
+        self.observation_space = venv.observation_space.spaces[0]
+        self.action_space = venv.action_space.spaces[0]
+
+    def step_async(self, action):
+        self.venv.step_async([action])
+
+    def step_wait(self):
+        observations, rewards, done, infos = self.venv.step_wait()
+        return observations[0], rewards[0], done, infos
+
+    def reset(self):
+        return self.venv.reset()[0]

@@ -6,10 +6,12 @@ RUN    apt-get update -q \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl \
     git \
+    libopenmpi-dev \
     libgl1-mesa-dev \
     libgl1-mesa-glx \
     libglew-dev \
     libosmesa6-dev \
+    ffmpeg \
     software-properties-common \
     net-tools \
     parallel \

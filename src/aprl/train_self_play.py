@@ -3,11 +3,11 @@ import datetime
 import functools
 import os
 
-from baselines import logger
 import gym
+from stable_baselines import logger
 
-from aprl.agents.multi_monitor import MultiMonitor
 from aprl.agents.ppo_self_play import PPOSelfPlay
+from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs import make_dummy_vec_multi_env
 
 ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
@@ -35,7 +35,7 @@ def main():
     out_dir = '{}-{}'.format(timestamp, args.exp_name)
     out_path = os.path.join(args.output_dir, out_dir)
     os.makedirs(out_path)
-    logger.configure(dir=os.path.join(out_path, 'baselines'))
+    logger.configure(folder=os.path.join(out_path, 'baselines'))
 
     # Construct environments
     def make_env(i):

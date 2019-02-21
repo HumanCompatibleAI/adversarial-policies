@@ -5,10 +5,11 @@ import pkgutil
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
+from stable_baselines.common import BaseRLModel
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv
-from modelfree.simulation_utils import ResettableAgent
+from modelfree.utils import make_session
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -19,8 +20,6 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
     def __init__(self, env):
         Wrapper.__init__(self, env)
         MultiAgentEnv.__init__(self, num_agents=2)
-        self.action_space = env.action_space
-        self.observation_space = env.observation_space
 
     def step(self, action_n):
         observations, rewards, dones, infos = self.env.step(action_n)
@@ -30,22 +29,6 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
 
     def reset(self):
         return self.env.reset()
-
-
-def announce_winner(sim_stream):
-    """This function determines the winner of a match in one of the gym_compete environments.
-    :param sim_stream: a stream of obs, rewards, dones, infos from one of the gym_compete envs.
-    :return: the index of the winning player, or None if it was a tie."""
-    for _, _, dones, infos in sim_stream:
-        if dones[0]:
-            draw = True
-            for i in range(len(infos)):
-                if 'winner' in infos[i]:
-                    return i
-            if draw:
-                return None
-
-    raise Exception("No Winner or Tie was ever announced")
 
 
 def get_policy_type_for_agent_zoo(env_name):
@@ -68,7 +51,7 @@ def get_policy_type_for_agent_zoo(env_name):
         raise ValueError(msg)
 
 
-def set_from_flat(var_list, flat_params, sess=None):
+def set_from_flat(var_list, flat_params, sess):
     shapes = list(map(lambda x: x.get_shape().as_list(), var_list))
     total_size = np.sum([int(np.prod(shape)) for shape in shapes])
     theta = tf.placeholder(tf.float32, [total_size])
@@ -79,60 +62,82 @@ def set_from_flat(var_list, flat_params, sess=None):
         assigns.append(tf.assign(v, tf.reshape(theta[start:start + size], shape)))
         start += size
     op = tf.group(*assigns)
-    if sess is None:
-        sess = tf.get_default_session()
     sess.run(op, {theta: flat_params})
 
 
-def load_zoo_policy(id, policy_type, scope, env, env_name, index, sess):
-    # Construct graph
-    if policy_type == 'lstm':
-        policy = LSTMPolicy(scope=scope, reuse=False,
-                            ob_space=env.observation_space.spaces[index],
-                            ac_space=env.action_space.spaces[index],
-                            hiddens=[128, 128], normalize=True, sess=sess)
-    elif policy_type == 'mlp':
-        policy = MlpPolicyValue(scope=scope, reuse=False,
-                                ob_space=env.observation_space.spaces[index],
-                                ac_space=env.action_space.spaces[index],
-                                hiddens=[64, 64], normalize=True, sess=sess)
-    else:
+class PolicyToModel(BaseRLModel):
+    def __init__(self, policy):
+        self.policy = policy
+        self.sess = policy.sess
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        if state is None:
+            state = self.policy.initial_state
+        if mask is None:
+            mask = [False for _ in range(self.policy.n_env)]
+
+        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
+                                                           deterministic=deterministic)
+        return actions, states
+
+    def setup_model(self):
+        pass
+
+    def learn(self):
+        raise NotImplementedError()
+
+    def action_probability(self, observation, state=None, mask=None, actions=None):
+        raise NotImplementedError()
+
+    def save(self, save_path):
+        raise NotImplementedError()
+
+    def load(self):
         raise NotImplementedError()
 
 
-    # Load parameters
-    dir = os.path.join('agent_zoo', env_name)
-    asymmetric_fname = f'agent{index}_parameters-v{id}.pkl'
-    symmetric_fname = f'agent_parameters-v{id}.pkl'
-    try:  # asymmetric version, parameters tagged with agent id
-        params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
-    except OSError:  # symmetric version, parameters not associated with a specific agent
-        params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
+def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
+    g = tf.Graph()
+    sess = make_session(g)
 
-    # Restore parameters
-    params = pickle.loads(params_pkl)
-    set_from_flat(policy.get_variables(), params, sess=sess)
+    with sess.as_default():
+        with g.as_default():
+            # Construct graph
+            kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
+                          ac_space=env.action_space.spaces[index], n_env=env.num_envs,
+                          n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False,
+                          normalize=True)
+            if policy_type == 'lstm':
+                policy = LSTMPolicy(hiddens=[128, 128], **kwargs)
+            elif policy_type == 'mlp':
+                policy = MlpPolicyValue(hiddens=[64, 64], **kwargs)
+            else:
+                raise NotImplementedError()
 
-    return policy
+            # Load parameters
+            dir = os.path.join('agent_zoo', env_name)
+            asymmetric_fname = f'agent{index+1}_parameters-v{tag}.pkl'
+            symmetric_fname = f'agent_parameters-v{tag}.pkl'
+            try:  # asymmetric version, parameters tagged with agent id
+                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
+            except OSError:  # symmetric version, parameters not associated with a specific agent
+                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
+
+            # Restore parameters
+            params = pickle.loads(params_pkl)
+            set_from_flat(policy.get_variables(), params, sess)
+
+            return PolicyToModel(policy)
 
 
-def load_zoo_agent(path, env, env_name, index, sess):
+def load_zoo_agent(path, env, env_name, index):
     symlink_dict = {
         'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
     }
-    if symlink_dict.get(env_name, None) is not None:
-        env_name = symlink_dict[env_name]
+    env_name = symlink_dict.get(env_name, env_name)
 
     env_prefix, env_suffix = env_name.split('/')
     assert env_prefix == 'multicomp'
     policy_type = get_policy_type_for_agent_zoo(env_suffix)
-
-    with sess.graph.as_default():
-        policy = load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
-                                 env, env_suffix, index, sess=sess)
-
-    def get_action(observation):
-        with sess.as_default():
-            return policy.act(stochastic=True, observation=observation)[0]
-
-    return ResettableAgent(get_action, policy.reset)
+    return load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
+                           env, env_suffix, index)

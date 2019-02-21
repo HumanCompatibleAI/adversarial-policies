@@ -1,4 +1,5 @@
 # flake8: noqa
+# TODO: base the source code on Stable Baselines instead of Baselines
 # TODO: fix PEP8 violations inherited from Baselines
 # TODO: mostly untested -- should view this implementation as suspect
 
