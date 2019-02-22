@@ -81,7 +81,8 @@ def setup_logger(out_dir="results", exp_name="test"):
 @ppo_baseline_ex.named_config
 def human_default():
     env = "multicomp/SumoHumans-v0"
-    total_timesteps = 1e8
+    total_timesteps = int(1e8)
+    batch_size = 16384
     _ = locals()
     del _
 
@@ -121,19 +122,19 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
 
     # Get the correct environment and then wrap it accordingly.
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
-    env_wrapper = get_env_wrapper(rew_shape_params, env_wrapper_type, scheduler)
-    wrapped_multi_env = env_wrapper(multi_env)
 
     # Get the correct victim and then wrap it accordingly.
-    victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=wrapped_multi_env,
+    victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
                          env_name=env_name, index=victim_index)
     victim_wrapper = get_victim_wrapper(victim_noise_anneal_frac, victim_noise_param, scheduler)
     wrapped_victim = victim_wrapper(victim)
 
-    single_env = EmbedVictimWrapper(multi_env=wrapped_multi_env, victim=wrapped_victim,
+    single_env = EmbedVictimWrapper(multi_env=multi_env, victim=wrapped_victim,
                                     victim_index=victim_index)
+    env_wrapper = get_env_wrapper(rew_shape_params, env_wrapper_type, scheduler)
+    wrapped_single_env = env_wrapper(single_env)
 
-    res = train(env=single_env, out_dir=out_dir)
+    res = train(env=wrapped_single_env, out_dir=out_dir)
     single_env.close()
 
     return res

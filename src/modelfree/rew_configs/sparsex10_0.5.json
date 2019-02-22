@@ -1,0 +1,8 @@
+{
+    "reward_center": 10,
+    "reward_ctrl": -10,
+    "reward_contact": -10,
+    "reward_survive": 10,
+    "reward_remaining": 1,
+    "rew_shape_anneal_frac": 0.5
+}

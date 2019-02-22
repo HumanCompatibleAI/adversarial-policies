@@ -37,7 +37,6 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     _run.result = result
 
     for ep, winner in enumerate(announce_winner(simulate(env, agents, render=render))):
-        print(winner)
         if winner is None:
             result['ties'] += 1
         else:
@@ -54,15 +53,7 @@ score_agent_ex.observers.append(FileStorageObserver.create('data/sacred'))
 
 @score_agent_ex.named_config
 def human_score_config():
-    agent_a_path = "1"
-    agent_a_type = "zoo"
-    env_name = "SumoHumans-v0"
-    agent_b_type = "our_mlp"
-    agent_b_path = "outs/20190208_144744 test-experiments/model.pkl"
-    samples = 20
-    render = True
-    videos = False
-    video_dir = "videos/"
+    env_name = "multicomp/SumoHumans-v0"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

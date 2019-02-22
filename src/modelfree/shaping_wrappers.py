@@ -2,11 +2,12 @@ from collections import defaultdict
 import json
 
 import numpy as np
-from baselines import logger
-from baselines.common.vec_env import VecEnvWrapper
-from modelfree.simulation_utils import ResettableAgent
-from modelfree.scheduling import LinearAnnealer
+from stable_baselines import logger
+from stable_baselines.common.vec_env import VecEnvWrapper
+from stable_baselines.common.base_class import BaseRLModel
 
+from modelfree.scheduling import LinearAnnealer
+from modelfree import envs
 
 class RewardShapingEnv(VecEnvWrapper):
     """A more direct interface for shaping the reward of the attacking agent."""
@@ -26,11 +27,10 @@ class RewardShapingEnv(VecEnvWrapper):
     def __init__(self, env, shaping_params=default_shaping_params,
                  reward_annealer=None):
         super().__init__(env)
-        self.env = env
         self.shaping_params = shaping_params
         self.reward_annealer = reward_annealer
         self.counter = 0
-        self.num_envs = len(self.env.ps)
+        # self.num_envs = self.env.num_envs
 
         self.ep_rew_dict = defaultdict(list)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
@@ -49,7 +49,7 @@ class RewardShapingEnv(VecEnvWrapper):
             logger.logkv('epsparsemean', ep_sparse_mean)
 
             c = self.reward_annealer()
-            ep_rew_mean = c * ep_sparse_mean + (1 - c) * ep_dense_mean
+            ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
             logger.logkv('eprewmean_true', ep_rew_mean)
 
             for rew_type in self.ep_rew_dict:
@@ -57,10 +57,10 @@ class RewardShapingEnv(VecEnvWrapper):
             self.counter = 0
 
     def reset(self):
-        return self.env.reset()
+        return self.venv.reset()
 
     def step_wait(self):
-        obs, rew, done, infos = self.env.step_wait()
+        obs, rew, done, infos = self.venv.step_wait()
 
         # replace rew with differently shaped rew
         # victim is agent 0, attacker is agent 1
@@ -99,20 +99,20 @@ class RewardShapingEnv(VecEnvWrapper):
         assert 0 <= c <= 1
         return c
 
-# TODO: ResettableAgent no longer exists. agent will be of type BasePolicy
+
 # Read stable_baselines to see if its BaseRLModel or BasePolicy
-class NoisyAgentWrapper(ResettableAgent):
+class NoisyAgentWrapper(BaseRLModel):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
-        - agent: ResettableAgent (most likely) - noise will be added to the actions of
-        this agent in order to build a curriculum of weaker to stronger victims
-        - noise_annealer: Annealer.get_value - presumably the noise should be decreased over time
-        in order to get the adversarial policy to perform well on a normal victim.
-        This function should be tied to a Scheduler to keep it stateless.
-        - noise_type: str - the type of noise parametrized by noise_annealer's value.
+        Wrap an agent and add noise to its actions
+        :param agent: PolicyToModel(BaseRLModel) the agent to wrap
+        :param noise_annealer: Annealer.get_value - presumably the noise should be decreased
+        over time in order to get the adversarial policy to perform well on a normal victim.
+        :param noise_type: str - the type of noise parametrized by noise_annealer's value.
         Current options are [gaussian]
         """
         self.agent = agent
+        self.sess = agent.sess
         self.noise_annealer = noise_annealer
         self.noise_generator = self._get_noise_generator(noise_type)
 
@@ -122,17 +122,34 @@ class NoisyAgentWrapper(ResettableAgent):
         }
         return noise_generators[noise_type]
 
-    def get_action(self, observation):
-        noise_param = self.noise_annealer()
-        original_action = self.agent.get_action(observation)
-        action_size = original_action.shape
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        original_actions, states = self.agent.predict(observation, state, mask, deterministic)
+        action_shape = original_actions.shape
 
-        noise = self.noise_generator(noise_param, action_size)
-        noisy_action = original_action + noise
-        return noisy_action
+        noise_param = self.noise_annealer()
+        noise = self.noise_generator(noise_param, action_shape)
+        normed_noise = original_actions * noise
+
+        noisy_actions = original_actions + normed_noise
+        return noisy_actions, states
 
     def reset(self):
         return self.agent.reset()
+
+    def setup_model(self):
+        pass
+
+    def learn(self):
+        raise NotImplementedError()
+
+    def action_probability(self, observation, state=None, mask=None, actions=None):
+        raise NotImplementedError()
+
+    def save(self, save_path):
+        raise NotImplementedError()
+
+    def load(self):
+        raise NotImplementedError()
 
 
 class HumanoidEnvWrapper(VecEnvWrapper):
