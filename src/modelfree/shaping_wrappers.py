@@ -3,11 +3,12 @@ import json
 
 import numpy as np
 from stable_baselines import logger
-from stable_baselines.common.vec_env import VecEnvWrapper
 from stable_baselines.common.base_class import BaseRLModel
+from stable_baselines.common.vec_env import VecEnvWrapper
 
+from modelfree import envs  # noqa - needed to register sumo_auto_contact
 from modelfree.scheduling import LinearAnnealer
-from modelfree import envs
+
 
 class RewardShapingEnv(VecEnvWrapper):
     """A more direct interface for shaping the reward of the attacking agent."""
@@ -30,7 +31,6 @@ class RewardShapingEnv(VecEnvWrapper):
         self.shaping_params = shaping_params
         self.reward_annealer = reward_annealer
         self.counter = 0
-        # self.num_envs = self.env.num_envs
 
         self.ep_rew_dict = defaultdict(list)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
@@ -51,6 +51,8 @@ class RewardShapingEnv(VecEnvWrapper):
             c = self.reward_annealer()
             ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
             logger.logkv('eprewmean_true', ep_rew_mean)
+
+            logger.logkv('rew_anneal', c)
 
             for rew_type in self.ep_rew_dict:
                 self.ep_rew_dict[rew_type] = []
@@ -100,7 +102,6 @@ class RewardShapingEnv(VecEnvWrapper):
         return c
 
 
-# Read stable_baselines to see if its BaseRLModel or BasePolicy
 class NoisyAgentWrapper(BaseRLModel):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
@@ -169,7 +170,7 @@ class HumanoidEnvWrapper(VecEnvWrapper):
         return obs, rew, done, infos
 
 
-def get_env_wrapper(rew_shape_params, env_wrapper_type, scheduler):
+def apply_env_wrapper(single_env, rew_shape_params, env_wrapper_type, scheduler):
     if rew_shape_params is not None:
         shaping_params = RewardShapingEnv.default_shaping_params
         if rew_shape_params is not None:
@@ -184,23 +185,24 @@ def get_env_wrapper(rew_shape_params, env_wrapper_type, scheduler):
             rew_shape_func = None
 
         scheduler.set_func('rew_shape', rew_shape_func)
-        return lambda x: RewardShapingEnv(x, shaping_params=shaping_params,
-                                          reward_annealer=scheduler.get_func('rew_shape'))
+        return RewardShapingEnv(single_env, shaping_params=shaping_params,
+                                reward_annealer=scheduler.get_func('rew_shape'))
     else:
         wrappers = {
             'humanoid': HumanoidEnvWrapper,
             None: lambda x: x
         }
-        return lambda x: wrappers[env_wrapper_type](x)
+        return wrappers[env_wrapper_type](single_env)
 
 
-def get_victim_wrapper(victim_noise_anneal_frac, victim_noise_param, scheduler):
+def apply_victim_wrapper(victim, victim_noise_anneal_frac, victim_noise_param, scheduler):
     if victim_noise_anneal_frac is not None:
         assert 0 <= victim_noise_anneal_frac <= 1
         assert 0 < victim_noise_param
-        noise_anneal_func = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac).get_value
+        noise_anneal_func = LinearAnnealer(victim_noise_param, 0,
+                                           victim_noise_anneal_frac).get_value
         scheduler.set_func('noise', noise_anneal_func)
-        return lambda x: NoisyAgentWrapper(x, noise_annealer=scheduler.get_func('noise'))
+        return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_func('noise'))
 
     else:
-        return lambda x: x
+        return victim

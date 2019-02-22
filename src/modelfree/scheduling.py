@@ -85,7 +85,7 @@ class LinearAnnealer(Annealer):
         return (1 - anneal_progress) * self.start_val + anneal_progress * self.end_val
 
 
-annealer_collection = {
+DEFAULT_ANNEALERS = {
     # Schedule used in the multiagent competition paper for reward shaping.
     'default_reward': LinearAnnealer(1, 0, 0.5),
     # Default baselines.ppo2 learning rate

@@ -1,6 +1,6 @@
 from gym.envs.registration import register
 from pkg_resources import resource_filename
-import os
+
 
 register(
     id='multicomp/SumoHumansAutoContact-v0',

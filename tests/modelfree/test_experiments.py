@@ -7,6 +7,7 @@ import os
 import pytest
 
 from modelfree.score_agent import score_agent_ex
+from modelfree.scheduling import Scheduler, LinearAnnealer
 from modelfree.ppo_and_score import ppo_and_score_ex
 from modelfree.ppo_baseline import ppo_baseline_ex
 
@@ -48,6 +49,11 @@ def test_score_agent(config):
 
 
 PPO_BASELINE_CONFIGS = [
+    {
+        'rew_shape_params': 'src/modelfree/rew_configs/sparsex10_0.1.json',
+        'victim_noise_anneal_frac': 0.1,
+        'victim_noise_param': 0.2,
+    },
     {'num_env': 1},
     {'env_name': 'multicomp/KickAndDefend-v0'},
     {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
@@ -60,3 +66,4 @@ def test_ppo_baseline(config):
     config['total_timesteps'] = 4096  # small number of steps to keep things quick
     run = ppo_baseline_ex.run(config_updates=config)
     assert os.path.isfile(run.result), "model weights not saved"
+

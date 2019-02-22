@@ -10,10 +10,10 @@ from stable_baselines import PPO2, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
-from modelfree.shaping_wrappers import get_env_wrapper, get_victim_wrapper
-from modelfree.scheduling import annealer_collection, Scheduler
 from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
+from modelfree.scheduling import DEFAULT_ANNEALERS, Scheduler
+from modelfree.shaping_wrappers import apply_env_wrapper, apply_victim_wrapper
 from modelfree.utils import make_env
 
 ppo_baseline_ex = Experiment("ppo_baseline")
@@ -41,14 +41,15 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path):
+          batch_size, load_path, learning_rate):
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env)
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
         model = PPO2.load(load_path, **kwargs)
     else:
-        model = PPO2(policy=policy, verbose=1, tensorboard_log=out_dir, **kwargs)
+        model = PPO2(policy=policy, verbose=1, tensorboard_log=out_dir,
+                     learning_rate=learning_rate, **kwargs)
 
     def checkpoint(locals, globals):
         update = locals['update']
@@ -113,31 +114,26 @@ def default_ppo_config():
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  num_env, seed, env_wrapper_type, rew_shape_params, victim_noise_anneal_frac,
                  victim_noise_param):
-    out_dir = setup_logger(root_dir, exp_name)
 
     def env_fn(i):
         return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
 
-    scheduler = Scheduler(func_dict={'lr': annealer_collection['default_lr'].get_value})
-
-    # Get the correct environment and then wrap it accordingly.
+    out_dir = setup_logger(root_dir, exp_name)
+    scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
 
     # Get the correct victim and then wrap it accordingly.
     victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
                          env_name=env_name, index=victim_index)
-    victim_wrapper = get_victim_wrapper(victim_noise_anneal_frac, victim_noise_param, scheduler)
-    wrapped_victim = victim_wrapper(victim)
+    wrapped_victim = apply_victim_wrapper(victim, victim_noise_anneal_frac,
+                                          victim_noise_param, scheduler)
 
+    # Get the correct environment and then wrap it accordingly.
     single_env = EmbedVictimWrapper(multi_env=multi_env, victim=wrapped_victim,
                                     victim_index=victim_index)
-    env_wrapper = get_env_wrapper(rew_shape_params, env_wrapper_type, scheduler)
-    wrapped_single_env = env_wrapper(single_env)
+    wrapped_single_env = apply_env_wrapper(single_env, rew_shape_params, env_wrapper_type, scheduler)
 
-    res = train(env=wrapped_single_env, out_dir=out_dir)
+    res = train(env=wrapped_single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'))
     single_env.close()
 
     return res
-
-
-
