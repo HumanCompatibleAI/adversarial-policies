@@ -43,13 +43,15 @@ class EmbedVictimWrapper(VecEnvWrapper):
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
           batch_size, load_path, learning_rate):
     kwargs = dict(env=env,
-                  n_steps=batch_size // num_env)
+                  n_steps=batch_size // num_env,
+                  verbose=1,
+                  tensorboard_log=out_dir,
+                  learning_rate=learning_rate)
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
         model = PPO2.load(load_path, **kwargs)
     else:
-        model = PPO2(policy=policy, verbose=1, tensorboard_log=out_dir,
-                     learning_rate=learning_rate, **kwargs)
+        model = PPO2(policy=policy, **kwargs)
 
     def checkpoint(locals, globals):
         update = locals['update']
