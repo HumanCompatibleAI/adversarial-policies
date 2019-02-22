@@ -133,7 +133,8 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     # Get the correct environment and then wrap it accordingly.
     single_env = EmbedVictimWrapper(multi_env=multi_env, victim=wrapped_victim,
                                     victim_index=victim_index)
-    wrapped_single_env = apply_env_wrapper(single_env, rew_shape_params, env_wrapper_type, scheduler)
+    wrapped_single_env = apply_env_wrapper(single_env, rew_shape_params,
+                                           env_wrapper_type, scheduler)
 
     res = train(env=wrapped_single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'))
     single_env.close()
