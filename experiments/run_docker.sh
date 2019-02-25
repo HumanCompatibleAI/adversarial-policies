@@ -45,4 +45,4 @@ docker run \
        --name ${NAME} \
        --mount type=bind,source="$(pwd)"/data,target=/adversarial-policies/data \
        humancompatibleai/adversarial_policies:${TAG} \
-       bash -c ". ${VENV}venv/bin/activate && pip install . && ${CMD}"
+       bash -c "env=${VENV} ci/prepare_env.sh && ${CMD}"
