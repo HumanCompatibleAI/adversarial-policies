@@ -40,7 +40,7 @@ after_success:
         if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] \
            && [ "$DOCKER_PUSH" == "true" ]; then
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-          sudo docker tag humancompatibleai/adversarial_policies:latest \
-                          humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER
+          sudo docker tag humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER \
+                          humancompatibleai/adversarial_policies:latest
           docker push humancompatibleai/adversarial_policies
         fi
