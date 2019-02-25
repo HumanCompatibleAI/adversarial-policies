@@ -4,19 +4,16 @@ import functools
 
 class Scheduler(object):
     """Keep track of frac_remaining and return time-dependent values"""
-    schedule_num = 0
-
-    def __init__(self, func_dict={}):
+    def __init__(self, func_dict=None):
+        if func_dict is None:
+            func_dict = {}
+        assert isinstance(func_dict, dict)
         self.func_dict = func_dict
         self.allowed_func_types = ['lr', 'rew_shape', 'noise']
-
         self.frac_remaining = 1  # frac_remaining goes from 1 to 0
-        self.same_thing = False
-        Scheduler.schedule_num += 1
 
     def _update_frac_remaining(self, frac_remaining=None):
         if frac_remaining is not None:
-            self.same_thing = True
             self.frac_remaining = frac_remaining
 
     def set_func(self, func_type, func):
@@ -68,7 +65,7 @@ class ConstantAnnealer(Annealer):
     """Returns a constant value"""
     def __init__(self, const_val):
         self.const_val = const_val
-        super().__init__(const_val, None)
+        super().__init__(const_val, const_val)
 
     def get_value(self, frac_remaining):
         return self.const_val
@@ -78,6 +75,7 @@ class LinearAnnealer(Annealer):
     """Linearly anneals from start_val to end_val over end_frac fraction of training"""
     def __init__(self, start_val, end_val, end_frac):
         super().__init__(start_val, end_val)
+        assert 0 <= end_frac <= 1, "Invalid end_frac for LinearAnnealer"
         self.end_frac = end_frac
 
     def get_value(self, frac_remaining):
@@ -89,5 +87,5 @@ DEFAULT_ANNEALERS = {
     # Schedule used in the multiagent competition paper for reward shaping.
     'default_reward': LinearAnnealer(1, 0, 0.5),
     # Default baselines.ppo2 learning rate
-    'default_lr': ConstantAnnealer(3e-4)
+    'default_lr': ConstantAnnealer(3e-4),
 }

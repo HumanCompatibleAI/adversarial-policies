@@ -49,14 +49,17 @@ def test_score_agent(config):
 
 
 PPO_BASELINE_CONFIGS = [
-    {
-        'rew_shape_params': 'src/modelfree/rew_configs/sparsex10_0.1.json',
-        'victim_noise_anneal_frac': 0.1,
-        'victim_noise_param': 0.2,
-    },
     {'num_env': 1},
     {'env_name': 'multicomp/KickAndDefend-v0'},
     {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
+    {
+        'rew_shape_params': 'experiments/rew_configs/densex10_0.1.json',
+        'env_name': 'multicomp/SumoHumans-v0'
+    },
+    {
+        'victim_noise_params': 'experiments/noise_configs/frac0.5_noise0.5.json',
+        'env_name': 'multicomp/SumoHumans-v0'
+    }
 ]
 
 
@@ -66,4 +69,3 @@ def test_ppo_baseline(config):
     config['total_timesteps'] = 4096  # small number of steps to keep things quick
     run = ppo_baseline_ex.run(config_updates=config)
     assert os.path.isfile(run.result), "model weights not saved"
-

@@ -9,6 +9,7 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env
 from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
 from modelfree.utils import VideoWrapper, make_env, simulate
+from modelfree import envs  # noqa - needed to register sumo_auto_contact
 
 
 def announce_winner(sim_stream):
@@ -53,9 +54,7 @@ score_agent_ex.observers.append(FileStorageObserver.create('data/sacred'))
 
 @score_agent_ex.named_config
 def human_score_config():
-    env_name = "multicomp/SumoHumans-v0"
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
+    env_name = "multicomp/SumoHumans-v0"  # noqa: F841
 
 
 @score_agent_ex.config

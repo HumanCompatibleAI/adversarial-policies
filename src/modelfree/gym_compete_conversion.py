@@ -131,10 +131,10 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
 
 
 def load_zoo_agent(path, env, env_name, index):
-    symlink_dict = {
+    env_aliases = {
         'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
     }
-    env_name = symlink_dict.get(env_name, env_name)
+    env_name = env_aliases.get(env_name, env_name)
 
     env_prefix, env_suffix = env_name.split('/')
     assert env_prefix == 'multicomp'

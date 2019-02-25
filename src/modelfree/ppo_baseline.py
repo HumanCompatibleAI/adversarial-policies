@@ -53,6 +53,7 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
     else:
         model = PPO2(policy=policy, **kwargs)
 
+    # TODO: add callback for RewardShapingVecWrapper logging
     def checkpoint(locals, globals):
         update = locals['update']
         checkpoint_dir = osp.join(out_dir, 'checkpoint')
@@ -104,18 +105,22 @@ def default_ppo_config():
     batch_size = 2048               # batch size
     seed = 0
     load_path = None                # path to load initial policy from
-    env_wrapper_type = None
-    rew_shape_params = None
-    victim_noise_anneal_frac = None
-    victim_noise_param = None
+    rew_shaping = False             # bool which triggers the creation of a reward shaping env wrapper.
+    # Optional if rew_shape_params is set.
+    rew_shape_params = None         # path to config file. If None and rew_shaping is True,
+    # then default settings for that environment will be used
+    victim_noise = False            # bool which triggers the creation of a noise-adding agent wrapper.
+    # Optional if victim_noise_params is set.
+    victim_noise_params = None      # path to config file. If None and victim_noise is True,
+    # then default settings for that environment will be used.
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
-                 num_env, seed, env_wrapper_type, rew_shape_params, victim_noise_anneal_frac,
-                 victim_noise_param):
+                 num_env, seed, rew_shaping, rew_shape_params, victim_noise, victim_noise_params,
+                 batch_size):
 
     def env_fn(i):
         return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
@@ -127,16 +132,19 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     # Get the correct victim and then wrap it accordingly.
     victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
                          env_name=env_name, index=victim_index)
-    wrapped_victim = apply_victim_wrapper(victim, victim_noise_anneal_frac,
-                                          victim_noise_param, scheduler)
+    if victim_noise or victim_noise_params is not None:
+        victim = apply_victim_wrapper(victim=victim, victim_noise_params=victim_noise_params,
+                                      env_name=env_name, scheduler=scheduler)
 
     # Get the correct environment and then wrap it accordingly.
-    single_env = EmbedVictimWrapper(multi_env=multi_env, victim=wrapped_victim,
+    single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
                                     victim_index=victim_index)
-    wrapped_single_env = apply_env_wrapper(single_env, rew_shape_params,
-                                           env_wrapper_type, scheduler)
+    if rew_shaping or rew_shape_params is not None:
+        single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
+                                       env_name=env_name, agent_idx=1 - victim_index,
+                                       batch_size=batch_size, scheduler=scheduler)
 
-    res = train(env=wrapped_single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'))
+    res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'))
     single_env.close()
 
     return res
