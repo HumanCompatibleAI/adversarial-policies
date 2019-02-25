@@ -35,6 +35,9 @@ case $key in
     shift
     shift
     ;;
+    *)
+    echo "Unrecognized option '${key}'"
+    exit 1
 esac
 done
 
@@ -43,6 +46,6 @@ docker run \
        -it \
        --env MUJOCO_KEY=${MUJOCO_KEY} \
        --name ${NAME} \
-       --mount type=bind,source="$(pwd)"/data,target=/adversarial-policies/data \
+       --mount type=bind,source="$(pwd)"/data,target=/adversarial_policies/data \
        humancompatibleai/adversarial_policies:${TAG} \
-       bash -c "env=${VENV} ci/prepare_env.sh && ${CMD}"
+       bash -c "env=${VENV} . ci/prepare_env.sh && ${CMD}"
