@@ -1,5 +1,3 @@
-import collections
-
 import gym
 from gym import Env, Wrapper
 import numpy as np
@@ -185,48 +183,6 @@ class VecMultiWrapper(VecEnvWrapper, VecMultiEnv):
                              venv.observation_space, venv.action_space)
 
 
-def _tuple_to_dict(tuple):
-    return collections.OrderedDict(((i, v) for i, v in enumerate(tuple)))
-
-
-def _tuple_to_dict_space(tuple_space):
-    return gym.spaces.Dict(_tuple_to_dict(tuple_space.spaces))
-
-
-def _dict_to_tuple(d):
-    min_k = min(d.keys())
-    assert min_k == 0
-    max_k = max(d.keys())
-    return tuple(d[i] for i in range(max_k + 1))
-
-
-def _dict_to_tuple_space(dict_space):
-    return gym.spaces.Tuple(_dict_to_tuple(dict_space.spaces))
-
-
-class _TupleToDict(MultiWrapper):
-    def __init__(self, env):
-        super().__init__(env)
-        self.action_space = _tuple_to_dict_space(env.action_space)
-        self.observation_space = _tuple_to_dict_space(env.observation_space)
-
-    def step(self, action):
-        obs, rews, done, info = self.env.step(action)
-        obs = _tuple_to_dict(obs)
-        return obs, rews, done, info
-
-    def reset(self):
-        obs = self.env.reset()
-        return _tuple_to_dict(obs)
-
-
-def _decorate_tuple_to_dict(env_fn):
-    def f():
-        env = env_fn()
-        return _TupleToDict(env)
-    return f
-
-
 def tuple_transpose(xs):
     '''Permutes environment and agent dimension.
 
@@ -246,15 +202,12 @@ def tuple_transpose(xs):
     return tuple(tuple([x[i] for x in xs]) for i in range(inner_len))
 
 
-class _DictToTuple(VecMultiWrapper):
+class _ActionTranspose(VecMultiWrapper):
     def __init__(self, venv):
         super().__init__(venv)
-        self.action_space = _dict_to_tuple_space(venv.action_space)
-        self.observation_space = _dict_to_tuple_space(venv.observation_space)
 
     def reset(self):
-        obs = self.venv.reset()
-        return _dict_to_tuple(obs)
+        return self.venv.reset()
 
     def step_async(self, actions):
         actions_per_env = tuple_transpose(actions)
@@ -262,16 +215,14 @@ class _DictToTuple(VecMultiWrapper):
 
     def step_wait(self):
         obs, rews, done, info = self.venv.step_wait()
-        obs = _dict_to_tuple(obs)
         rews = rews.T
         return obs, rews, done, info
 
 
 def _make_vec_multi_env(cls):
     def f(env_fns):
-        env_fns = [_decorate_tuple_to_dict(fn) for fn in env_fns]
         venv = cls(env_fns)
-        return _DictToTuple(venv)
+        return _ActionTranspose(venv)
     return f
 
 

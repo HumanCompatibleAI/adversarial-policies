@@ -108,8 +108,9 @@ def assert_envs_equal(env1, env2, num_steps):
 
         for _ in range(num_steps):
             actions = tuple((env1.action_space.sample() for _ in range(env1.num_envs)))
+            actions = tuple_transpose(actions)
             for env in [env1, env2]:
-                env.step_async(tuple_transpose(actions))
+                env.step_async(actions)
             outs1 = env1.step_wait()
             outs2 = env2.step_wait()
             # Check ob, rew, done; ignore infos
@@ -122,7 +123,7 @@ def assert_envs_equal(env1, env2, num_steps):
 
 
 @pytest.mark.parametrize("spec", spec_list)
-def check_vec_env(spec):
+def test_vec_env(spec):
     """Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
        each other."""
     def make_env(i):

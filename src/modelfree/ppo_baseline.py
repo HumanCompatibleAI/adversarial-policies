@@ -10,7 +10,7 @@ from stable_baselines import PPO2, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
-from modelfree.gym_compete_conversion import GymCompeteToOurs
+from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.policy_loader import load_policy
 from modelfree.scheduling import DEFAULT_ANNEALERS, Scheduler
 from modelfree.shaping_wrappers import apply_env_wrapper, apply_victim_wrapper
@@ -41,7 +41,7 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path, learning_rate):
+          batch_size, load_path, learning_rate, callbacks=None):
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env,
                   verbose=1,
@@ -60,6 +60,10 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
         model.save(checkpoint_path)
+
+        if callbacks is not None:
+            for f in callbacks:
+                f(locals, globals)
 
     model.learn(total_timesteps=total_timesteps, log_interval=1,
                 seed=_seed, callback=checkpoint)
@@ -121,13 +125,16 @@ def default_ppo_config():
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  num_env, seed, rew_shaping, rew_shape_params, victim_noise, victim_noise_params,
                  batch_size):
+    out_dir = setup_logger(root_dir, exp_name)
+    scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
+    callbacks = []
 
     def env_fn(i):
         return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
 
-    out_dir = setup_logger(root_dir, exp_name)
-    scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
+    multi_env = GameOutcomeMonitor(multi_env, logger)
+    callbacks.append(lambda locals, globals: multi_env.log_callback())
 
     # Get the correct victim and then wrap it accordingly.
     victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
@@ -144,7 +151,8 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
                                        env_name=env_name, agent_idx=1 - victim_index,
                                        batch_size=batch_size, scheduler=scheduler)
 
-    res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'))
+    res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
+                callbacks=callbacks)
     single_env.close()
 
     return res

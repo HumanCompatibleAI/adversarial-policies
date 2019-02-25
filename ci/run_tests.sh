@@ -16,15 +16,9 @@ esac
 
 set -e  # exit immediately on any error
 
-venv=${env}venv
-source ${venv}/bin/activate
-
-
-echo "Downloading MuJoCo Key"
-curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
+. ci/prepare_env.sh
 
 set -o xtrace  # print commands
-pip install .
 
 COV_PACKAGES="aprl modelfree"
 COV_FLAGS=""
