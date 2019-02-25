@@ -105,11 +105,11 @@ def default_ppo_config():
     batch_size = 2048               # batch size
     seed = 0
     load_path = None                # path to load initial policy from
-    rew_shaping = False             # bool which triggers the creation of a reward shaping env wrapper.
+    rew_shaping = False             # triggers the creation of a reward shaping env wrapper.
     # Optional if rew_shape_params is set.
     rew_shape_params = None         # path to config file. If None and rew_shaping is True,
     # then default settings for that environment will be used
-    victim_noise = False            # bool which triggers the creation of a noise-adding agent wrapper.
+    victim_noise = False            # triggers the creation of a noise-adding agent wrapper.
     # Optional if victim_noise_params is set.
     victim_noise_params = None      # path to config file. If None and victim_noise is True,
     # then default settings for that environment will be used.
