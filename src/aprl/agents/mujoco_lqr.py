@@ -101,120 +101,137 @@ class SkipStages(Enum):
     ACC = 3
 
 
-class VaryValue(Enum):
+class VaryKind(Enum):
     POS = 0
     VEL = 1
     CTRL = 2
 
 
 def _finite_diff(sim, qacc_warmstart, vary, eps):
+    '''
+    Computes finite differences of qacc w.r.t. variables vary.
+    :param sim: (MjSim) MuJoCo simulator.
+    :param qacc_warmstart: field to initialize qacc_warmstart to before each evaluation.
+    :param vary: a list of variables to vary, specified by a tuple (vary_value, idxs)
+                 where vary_value is a value of VaryValue and idxs is a list of indices.
+    :param eps: the amount to vary each variable.
+    :return: a Jacobian for qacc w.r.t. the subset of variables vary.
+             Shape (sim.data.na, sum([len(idx) for _, idx in vary])).
+    '''
     # Select the variable to perform finite differences over
     variables = {
-        VaryValue.POS: sim.data.qpos,
-        VaryValue.VEL: sim.data.qvel,
-        VaryValue.CTRL: sim.data.ctrl,
+        VaryKind.POS: sim.data.qpos,
+        VaryKind.VEL: sim.data.qvel,
+        VaryKind.CTRL: sim.data.ctrl,
     }
-    variable = variables[vary]
-
     # Select what parts of the forward dynamics computation can be skipped.
     # Everything depends on position, so perform full computation in that case.
     # When varying velocity, can skip position-dependent computations.
     # When varying control, can skip acceleration/force-dependent computations.
     skip_stages = {
-        VaryValue.POS: SkipStages.NONE,
-        VaryValue.VEL: SkipStages.POS,
-        VaryValue.CTRL: SkipStages.VEL,
+        VaryKind.POS: SkipStages.NONE,
+        VaryKind.VEL: SkipStages.POS,
+        VaryKind.CTRL: SkipStages.VEL,
     }
-    skip_stage = skip_stages[vary]
 
-    # Make a copy of variable, to restore after each perturbation
-    original = np.copy(variable)
+    #TODO: copy data from dmain into sim?
+    nvars = sum([len(idx) for _, idx in vary])
+    jacobian = np.zeros((sim.model.nv, nvars))
+
     # Run forward simulation and copy the qacc output. We will take finite
     # differences w.r.t. this value later.
     sim.data.qacc_warmstart[:] = qacc_warmstart
     sim.forward()  # TODO: this computation is probably often redundant
     center = np.copy(sim.data.qacc)
+    idx = 0
 
-    if vary in [VaryValue.VEL, VaryValue.CTRL]:
-        nin = len(variable)
-        nout = len(center)
-        jacobian = np.zeros((nout, nin), dtype=np.float64)
-        for j in range(nin):
-            # perturb
-            variable[j] += eps
-            # compute finite-difference
-            sim.data.qacc_warmstart[:] = qacc_warmstart
-            mjfunc.mj_forwardSkip(sim.model, sim.data, skip_stage.value, 1)
-            jacobian[:, j] = (sim.data.qacc - center) / eps
-            # unperturb
-            variable[j] = original[j]
-    elif vary == VaryValue.POS:
-        # When varying qpos, positions corresponding to ball and free joints
-        # are specified in quaternions. The derivative w.r.t. a quaternion
-        # is only defined in the tangent space to the configuration manifold.
-        # Accordingly, we do not vary the quaternion directly, but instead
-        # use mju_quatIntegrate to perturb with a certain angular velocity.
-        # Note that the Jacobian is always square with size sim.model.nv,
-        # which in the presence of quaternions is smaller than sim.model.nq.
-        nv = sim.model.nv
-        jacobian = np.zeros((nv, nv), dtype=np.float64)
+    for vary_kind, idxs in vary:
+        variable = variables[vary_kind]
+        skip_stage = skip_stages[vary_kind]
 
-        # If qvel[j] belongs to a quaternion, then quatadr[j] gives the address
-        # of that quaternion and  dofpos[j] gives the corresponding degree of
-        # freedom within the quaternion.
-        #
-        # If qvel[j] is not part of a quaternion, then quatadr[j] is -1
-        # and ids[j] gives the index in qpos to that joint. If there are no
-        # quaternions, ids will just be a sequence of consecutive numbers.
-        # But in the presence of a quaternion, it will skip a number.
+        # Make a copy of variable, to restore after each perturbation
+        original = np.copy(variable)
 
-        # Common variables
-        joint_ids = sim.model.dof_jntid
-        jnt_types = sim.model.jnt_type[joint_ids]
-        jnt_qposadr = sim.model.jnt_qposadr[joint_ids]
-        dofadrs = sim.model.jnt_dofadr[joint_ids]
+        if vary_kind in [VaryKind.VEL, VaryKind.CTRL]:
+            nin = len(variable)
+            nout = len(center)
+            jacobian = np.zeros((nout, nin), dtype=np.float64)
+            for j in idxs:
+                # perturb
+                variable[j] += eps
+                # compute finite-difference
+                sim.data.qacc_warmstart[:] = qacc_warmstart
+                mjfunc.mj_forwardSkip(sim.model, sim.data, skip_stage.value, 1)
+                jacobian[:, idx] = (sim.data.qacc - center) / eps
+                idx += 1
+                # unperturb
+                variable[j] = original[j]
+        elif vary_kind == VaryKind.POS:
+            # When varying qpos, positions corresponding to ball and free joints
+            # are specified in quaternions. The derivative w.r.t. a quaternion
+            # is only defined in the tangent space to the configuration manifold.
+            # Accordingly, we do not vary the quaternion directly, but instead
+            # use mju_quatIntegrate to perturb with a certain angular velocity.
+            # Note that the Jacobian is always square with size sim.model.nv,
+            # which in the presence of quaternions is smaller than sim.model.nq.
 
-        # Compute ids
-        js = np.arange(nv)
-        ids = jnt_qposadr + js - dofadrs
+            # If qvel[j] belongs to a quaternion, then quatadr[j] gives the address
+            # of that quaternion and  dofpos[j] gives the corresponding degree of
+            # freedom within the quaternion.
+            #
+            # If qvel[j] is not part of a quaternion, then quatadr[j] is -1
+            # and ids[j] gives the index in qpos to that joint. If there are no
+            # quaternions, ids will just be a sequence of consecutive numbers.
+            # But in the presence of a quaternion, it will skip a number.
 
-        # Compute quatadr and dofpos
-        quatadr = np.tile(-1, nv)
-        dofpos = np.zeros(nv)
+            # Common variables
+            joint_ids = sim.model.dof_jntid
+            jnt_types = sim.model.jnt_type[joint_ids]
+            jnt_qposadr = sim.model.jnt_qposadr[joint_ids]
+            dofadrs = sim.model.jnt_dofadr[joint_ids]
 
-        # A ball joint is always a quaternion.
-        ball_joints = (jnt_types == JointTypes.BALL.value)
-        quatadr[ball_joints] = jnt_qposadr[ball_joints]
-        dofpos[ball_joints] = js[ball_joints] - dofadrs[ball_joints]
+            # Compute ids
+            js = np.array(idxs)
+            ids = jnt_qposadr + js - dofadrs
 
-        # A free joint consists of a Cartesian (x,y,z) and a quaternion.
-        free_joints = (jnt_types == JointTypes.FREE.value) & (js > dofadrs + 3)
-        quatadr[free_joints] = jnt_qposadr[free_joints] + 3
-        dofpos[free_joints] = js[free_joints] - dofadrs[ball_joints] - 3
+            # Compute quatadr and dofpos
+            quatadr = np.tile(-1, len(idxs))
+            dofpos = np.zeros(len(idxs))
 
-        for j in js:
-            # perturb
-            qa = quatadr[j]
-            if qa >= 0:  # quaternion perturbation
-                angvel = np.array([0, 0, 0])
-                angvel[dofpos[j]] = eps
-                # side-effect: perturbs variable[qa:qa+4]
-                mjfunc.mju_quatIntegrate(variable[qa], angvel, 1)
-            else:  # simple perturbation
-                variable[ids[j]] += eps
+            # A ball joint is always a quaternion.
+            ball_joints = (jnt_types == JointTypes.BALL.value)
+            quatadr[ball_joints] = jnt_qposadr[ball_joints]
+            dofpos[ball_joints] = js[ball_joints] - dofadrs[ball_joints]
 
-            # compute finite-difference
-            sim.data.qacc_warmstart[:] = qacc_warmstart
-            mjfunc.mj_forwardSkip(sim.model, sim.data, skip_stage.value, 1)
-            jacobian[:, j] = (sim.data.qacc - center) / eps
+            # A free joint consists of a Cartesian (x,y,z) and a quaternion.
+            free_joints = (jnt_types == JointTypes.FREE.value) & (js > dofadrs + 3)
+            quatadr[free_joints] = jnt_qposadr[free_joints] + 3
+            dofpos[free_joints] = js[free_joints] - dofadrs[ball_joints] - 3
 
-            # unperturb
-            if qa >= 0:  # quaternion perturbation
-                variable[qa:qa+4] = original[qa:qa+4]
-            else:
-                variable[ids[j]] = original[ids[j]]
-    else:
-        assert False
+            for j in js:
+                # perturb
+                qa = quatadr[j]
+                if qa >= 0:  # quaternion perturbation
+                    angvel = np.array([0, 0, 0])
+                    angvel[dofpos[j]] = eps
+                    # side-effect: perturbs variable[qa:qa+4]
+                    mjfunc.mju_quatIntegrate(variable[qa], angvel, 1)
+                else:  # simple perturbation
+                    variable[ids[j]] += eps
+
+                # compute finite-difference
+                sim.data.qacc_warmstart[:] = qacc_warmstart
+                mjfunc.mj_forwardSkip(sim.model, sim.data, skip_stage.value, 1)
+                jacobian[:, idx] = (sim.data.qacc - center) / eps
+                idx += 1
+
+                # unperturb
+                if qa >= 0:  # quaternion perturbation
+                    variable[qa:qa+4] = original[qa:qa+4]
+                else:
+                    variable[ids[j]] = original[ids[j]]
+        else:
+            assert False
 
     return jacobian
 
@@ -303,9 +320,11 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
             self._set_state_action(x, u)
             self._warmstart()
             jacob_vel = _finite_diff(sim, self.warmstart,
-                                     VaryValue.VEL, self._x_eps)
+                                     [(VaryKind.VEL, list(range(self.sim.model.nv)))],
+                                     self._x_eps)
             jacob_pos = _finite_diff(sim, self.warmstart,
-                                     VaryValue.POS, self._x_eps)
+                                     [(VaryKind.POS, list(range(self.sim.model.nv)))],
+                                     self._x_eps)
 
             # This Jacobian is qacc differentiated w.r.t. (qpos, qvel).
             acc_jacobian = np.concatenate((jacob_pos, jacob_vel), axis=1)
@@ -342,7 +361,8 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
             # Finite difference over control: skip = VEL
             # This Jacobian is qacc differentiated w.r.t. ctrl.
             jacobian_acc = _finite_diff(sim, self.warmstart,
-                                        VaryValue.CTRL, self._u_eps)
+                                        [(VaryKind.CTRL, list(range(self.sim.model.nu)))],
+                                        self._u_eps)
             # But we want (qpos, qvel) differentiated w.r.t. ctrl.
             # \nabla_{u_t} \ddot{x}_t = acc_jacobian
             # \nabla_{u_t} \dot{x}_t = dt * \nabla_{u_t} \ddot{x}_t
