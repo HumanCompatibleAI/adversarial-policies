@@ -162,9 +162,8 @@ class MonteCarloParallel(MonteCarlo):
 
         pipes = [Pipe() for _ in range(nremotes)]
         self.remotes, self.work_remotes = zip(*pipes)
-        worker_cfgs = zip(self.work_remotes, self.remotes, env_fns)
         self.ps = []
-        for i, (work_remote, remote, dynamic_fn) in enumerate(worker_cfgs):
+        for work_remote, remote, dynamic_fn in zip(self.work_remotes, self.remotes, env_fns):
             args = (work_remote, remote, CloudpickleWrapper(dynamic_fn),
                     horizon, traj_per_worker)
             process = Process(target=_worker, args=args)

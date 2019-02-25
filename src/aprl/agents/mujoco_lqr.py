@@ -5,9 +5,11 @@ finite-difference approximations for dynamics and cost."""
 from contextlib import contextmanager
 from enum import Enum
 from functools import reduce
+import multiprocessing
 
 from ilqr.cost import FiniteDiffCost
 from ilqr.dynamics import Dynamics, FiniteDiffDynamics
+from mujoco_py import MjSim
 from mujoco_py import functions as mjfunc
 import numpy as np
 
@@ -107,14 +109,15 @@ class VaryKind(Enum):
     CTRL = 2
 
 
-def _finite_diff(sim, qacc_warmstart, vary, eps):
+def _finite_diff(sim, qacc_warmstart, vary, x_eps, u_eps):
     '''
     Computes finite differences of qacc w.r.t. variables vary.
     :param sim: (MjSim) MuJoCo simulator.
-    :param qacc_warmstart: field to initialize qacc_warmstart to before each evaluation.
-    :param vary: a list of variables to vary, specified by a tuple (vary_value, idxs)
+    :param qacc_warmstart: (ndarray) field to initialize qacc_warmstart to before each evaluation.
+    :param vary: (list<tuple>) a list of variables to vary, specified by a tuple (vary_value, idxs)
                  where vary_value is a value of VaryValue and idxs is a list of indices.
-    :param eps: the amount to vary each variable.
+    :param x_eps: (float) the amount to vary each state variable.
+    :param u_eps: (float) the amount to vary each control variable.
     :return: a Jacobian for qacc w.r.t. the subset of variables vary.
              Shape (sim.data.na, sum([len(idx) for _, idx in vary])).
     '''
@@ -134,8 +137,8 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
         VaryKind.CTRL: SkipStages.VEL,
     }
 
-    #TODO: copy data from dmain into sim?
-    nvars = sum([len(idx) for _, idx in vary])
+    # TODO: copy data from dmain into sim?
+    nvars = sum([end - start for _, start, end in vary])
     jacobian = np.zeros((sim.model.nv, nvars))
 
     # Run forward simulation and copy the qacc output. We will take finite
@@ -145,7 +148,7 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
     center = np.copy(sim.data.qacc)
     idx = 0
 
-    for vary_kind, idxs in vary:
+    for vary_kind, start, end in vary:
         variable = variables[vary_kind]
         skip_stage = skip_stages[vary_kind]
 
@@ -153,10 +156,8 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
         original = np.copy(variable)
 
         if vary_kind in [VaryKind.VEL, VaryKind.CTRL]:
-            nin = len(variable)
-            nout = len(center)
-            jacobian = np.zeros((nout, nin), dtype=np.float64)
-            for j in idxs:
+            eps = x_eps if vary_kind == VaryKind.VEL else u_eps
+            for j in range(start, end):
                 # perturb
                 variable[j] += eps
                 # compute finite-difference
@@ -191,12 +192,12 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
             dofadrs = sim.model.jnt_dofadr[joint_ids]
 
             # Compute ids
-            js = np.array(idxs)
+            js = np.arange(sim.model.nv)
             ids = jnt_qposadr + js - dofadrs
 
             # Compute quatadr and dofpos
-            quatadr = np.tile(-1, len(idxs))
-            dofpos = np.zeros(len(idxs))
+            quatadr = np.tile(-1, sim.model.nv)
+            dofpos = np.zeros(sim.model.nv)
 
             # A ball joint is always a quaternion.
             ball_joints = (jnt_types == JointTypes.BALL.value)
@@ -208,21 +209,21 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
             quatadr[free_joints] = jnt_qposadr[free_joints] + 3
             dofpos[free_joints] = js[free_joints] - dofadrs[ball_joints] - 3
 
-            for j in js:
+            for j in range(start, end):
                 # perturb
                 qa = quatadr[j]
                 if qa >= 0:  # quaternion perturbation
                     angvel = np.array([0, 0, 0])
-                    angvel[dofpos[j]] = eps
+                    angvel[dofpos[j]] = x_eps
                     # side-effect: perturbs variable[qa:qa+4]
                     mjfunc.mju_quatIntegrate(variable[qa], angvel, 1)
                 else:  # simple perturbation
-                    variable[ids[j]] += eps
+                    variable[ids[j]] += x_eps
 
                 # compute finite-difference
                 sim.data.qacc_warmstart[:] = qacc_warmstart
                 mjfunc.mj_forwardSkip(sim.model, sim.data, skip_stage.value, 1)
-                jacobian[:, idx] = (sim.data.qacc - center) / eps
+                jacobian[:, idx] = (sim.data.qacc - center) / x_eps
                 idx += 1
 
                 # unperturb
@@ -236,6 +237,34 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
     return jacobian
 
 
+def _worker(model, remote, parent_remote, niter, x_eps, u_eps):
+    parent_remote.close()
+    sim = MjSim(model)
+    sim.model.opt.iterations = niter
+    sim.model.opt.tolerance = 0
+    try:
+        while True:
+            cmd, data = remote.recv()
+            if cmd == 'finitediff':
+                x, u, qacc_warmstart, vary = data
+                MujocoState.from_flattened(x, sim).set_mjdata(sim.data)
+                # TODO: is this enough state restoration?
+                sim.data.ctrl[:] = u
+                sim.data.qacc_warmstart[:] = qacc_warmstart
+                sim.forward()  # make consistent state
+                part_jacobian = _finite_diff(sim, qacc_warmstart, vary, x_eps, u_eps)
+                remote.send(part_jacobian)
+            elif cmd == 'close':
+                remote.close()
+                break
+            else:
+                raise NotImplementedError
+    except KeyboardInterrupt:
+        print('MujocoFiniteDiffDynamicsPerformance worker: got KeyboardInterrupt.')
+    except Exception as e:
+        print('Exception in MujocoFiniteDiffDynamicsPerformance worker: ', e)
+
+
 @contextmanager
 def _consistent_solver(sim, niter=30):
     saved_iterations = sim.model.opt.iterations
@@ -247,26 +276,52 @@ def _consistent_solver(sim, niter=30):
     sim.model.opt.tolerance = saved_tolerance
 
 
+def _split_indices(array_len, num_workers):
+    Neach_section, extras = divmod(array_len, num_workers)
+    section_sizes = [0] + extras * [Neach_section+1] + (num_workers-extras) * [Neach_section]
+    div_points = np.array(section_sizes).cumsum()
+    return div_points
+
+
 class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
     """Finite difference dynamics for a MuJoCo environment."""
     # TODO: assumes frame skip is 1. Can we generalize? Do we want to?
     NWARMUP = 3
 
-    def __init__(self, env, x_eps=1e-6, u_eps=1e-6):
+    def __init__(self, env, nworkers=None, niter=30, x_eps=1e-6, u_eps=1e-6):
         """Inits MujocoFiniteDiffDynamicsPerformance with a MujocoEnv.
 
         :param env (MujocoEnv): a Gym MuJoCo environment. Must not be wrapped.
                CAUTION: assumes env.step(u) sets MuJoCo ctrl to u. (This is true
                for all the built-in Gym MuJoCo environments as of 2019-01.)
-        :param x_eps (float): increment to use for finite difference on state.
-        :param u_eps (float): increment to use for finite difference on control.
+        :param n_iter: (int) number of MuJoCo solver iterations.
+        :param x_eps: (float) increment to use for finite difference on state.
+        :param u_eps: (float) increment to use for finite difference on control.
         """
         MujocoFiniteDiff.__init__(self, env)
         Dynamics.__init__(self)
+        self.niter = niter
         self._x_eps = x_eps
         self._u_eps = u_eps
         self.warmstart = np.zeros_like(self.sim.data.qacc_warmstart)
         self.warmstart_for = None
+        self.jacobian = None
+        self.jacobian_for = None
+
+        if nworkers is None:
+            nworkers = multiprocessing.cpu_count()
+        nworkers = min(nworkers, self.sim.model.nv)
+        pipes = [multiprocessing.Pipe() for _ in range(nworkers)]
+        self.remotes, worker_remotes = zip(*pipes)
+        self.ps = []
+        for work_remote, remote in zip(worker_remotes, self.remotes):
+            args = (self.sim.model, work_remote, remote, niter, x_eps, u_eps)
+            process = multiprocessing.Process(target=_worker, args=args)
+            process.daemon = True  # if main process crashes, subprocesses should exit
+            process.start()
+            self.ps.append(process)
+        for remote in worker_remotes:
+            remote.close()
 
     @property
     def has_hessians(self):
@@ -310,24 +365,59 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
         self.sim.step()
         return self.get_state()
 
+    def _fd(self, x, u, i):
+        if self.jacobian_for is None:
+            equals = False
+        else:
+            orig_x, orig_u, orig_i = self.jacobian_for
+            equals = (orig_x == x).all() and (orig_u == u).all() and (orig_i == i)
+
+        if not equals:
+            num_workers = len(self.ps)
+            nv = self.sim.model.nv
+            nu = self.sim.model.nu
+            vary_size = {
+                VaryKind.POS: nv,
+                VaryKind.VEL: nv,
+                VaryKind.CTRL: nu,
+            }
+            vary_ranges = {k: _split_indices(v, num_workers) for k, v in vary_size.items()}
+            varys = [
+                [(kind, divpoints[i], divpoints[i+1]) for kind, divpoints in vary_ranges.items()]
+                for i in range(num_workers)
+            ]
+            for remote, vary in zip(self.remotes, varys):
+                remote.send(('finitediff', (x, u, self.warmstart, vary)))
+
+            self.jacobian = {
+                VaryKind.POS: np.zeros((nv, nv)),
+                VaryKind.VEL: np.zeros((nv, nv)),
+                VaryKind.CTRL: np.zeros((nv, nu)),
+            }
+            for remote, vary in zip(self.remotes, varys):
+                part_jacobian = remote.recv()
+                idx = 0
+                for vary_kind, start, end in vary:
+                    chunk_size = end - start
+                    self.jacobian[vary_kind][:, start:end] = part_jacobian[:, idx:idx+chunk_size]
+                    idx += chunk_size
+
+            self.jacobian_for = (x, u, i)
+
     def f_x(self, x, u, i):
         """Partial derivative of dynamics model w.r.t. to x.
            See base class Dynamics.
 
            Assumes that the control input u is mapped into raw control ctrl
            in the simulator by a function that does not depend on x."""
-        with _consistent_solver(self.sim) as sim:
+        with _consistent_solver(self.sim, niter=self.niter) as sim:
             self._set_state_action(x, u)
             self._warmstart()
-            jacob_vel = _finite_diff(sim, self.warmstart,
-                                     [(VaryKind.VEL, list(range(self.sim.model.nv)))],
-                                     self._x_eps)
-            jacob_pos = _finite_diff(sim, self.warmstart,
-                                     [(VaryKind.POS, list(range(self.sim.model.nv)))],
-                                     self._x_eps)
+            self._fd(x, u, i)
 
             # This Jacobian is qacc differentiated w.r.t. (qpos, qvel).
-            acc_jacobian = np.concatenate((jacob_pos, jacob_vel), axis=1)
+            acc_jacobian = np.concatenate((self.jacobian[VaryKind.POS],
+                                           self.jacobian[VaryKind.VEL]), axis=1)
             # But we want (qpos, qvel) differentiated w.r.t. (qpos, qvel).
             # x_{t+1} = x_t + dt * \dot{x}_t
             # \dot{x}_{t+1} = \dot{x}_t + \ddot{x}_t
@@ -346,8 +436,7 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
                 np.hstack([A, B]),
                 np.hstack([C, D]),
             ])
-
-        return state_jacobian
+            return state_jacobian
 
     def f_u(self, x, u, i):
         """Partial derivative of dynamics model w.r.t. to u.
@@ -355,14 +444,14 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
 
            Assumes that the control input u is mapped into raw control ctrl
            in the simulator by a function that does not depend on x."""
-        with _consistent_solver(self.sim) as sim:
+        with _consistent_solver(self.sim, niter=self.niter):
             self._set_state_action(x, u)
             self._warmstart()
+            self._fd(x, u, i)
+
             # Finite difference over control: skip = VEL
             # This Jacobian is qacc differentiated w.r.t. ctrl.
-            jacobian_acc = _finite_diff(sim, self.warmstart,
-                                        [(VaryKind.CTRL, list(range(self.sim.model.nu)))],
-                                        self._u_eps)
+            acc_jacobian = self.jacobian[VaryKind.CTRL]
             # But we want (qpos, qvel) differentiated w.r.t. ctrl.
             # \nabla_{u_t} \ddot{x}_t = acc_jacobian
             # \nabla_{u_t} \dot{x}_t = dt * \nabla_{u_t} \ddot{x}_t
@@ -371,7 +460,7 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
             dt = self.sim.model.opt.timestep
             state_jacobian = np.vstack([
                 np.zeros((self.sim.model.nq, self.sim.model.nu)),
-                dt * jacobian_acc
+                dt * acc_jacobian
             ])
             return state_jacobian
 
@@ -390,3 +479,9 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
     def _set_state_action(self, x, u):
         self.sim.data.ctrl[:] = u
         self.set_state(x)
+
+    def close(self):
+        for remote in self.remotes:
+            remote.send(('close', None))
+        for p in self.ps:
+            p.join()
