@@ -10,7 +10,7 @@ from stable_baselines import PPO2, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
-from modelfree.gym_compete_conversion import GymCompeteToOurs
+from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.policy_loader import load_policy
 from modelfree.utils import make_env
 
@@ -40,7 +40,7 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path):
+          batch_size, load_path, callbacks=None):
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env)
     if load_path is not None:
@@ -55,6 +55,10 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
         model.save(checkpoint_path)
+
+        if callbacks is not None:
+            for f in callbacks:
+                f(locals, globals)
 
     model.learn(total_timesteps=total_timesteps, log_interval=1,
                 seed=_seed, callback=checkpoint)
@@ -99,15 +103,18 @@ def default_ppo_config():
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  num_env, seed):
     out_dir = setup_logger(root_dir, exp_name)
+    callbacks = []
 
     def env_fn(i):
         return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
 
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
+    multi_env = GameOutcomeMonitor(multi_env, logger)
+    callbacks.append(lambda locals, globals: multi_env.log_callback())
     single_env = EmbedVictimWrapper(multi_env=multi_env, env_name=env_name,
                                     victim_path=victim_path, victim_type=victim_type,
                                     victim_index=victim_index)
-    res = train(env=single_env, out_dir=out_dir)
+    res = train(env=single_env, out_dir=out_dir, callbacks=callbacks)
     single_env.close()
 
     return res

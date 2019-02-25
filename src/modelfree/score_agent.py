@@ -6,7 +6,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env
-from modelfree.gym_compete_conversion import GymCompeteToOurs
+from modelfree.gym_compete_conversion import GymCompeteToOurs, game_outcome
 from modelfree.policy_loader import load_policy
 from modelfree.utils import VideoWrapper, make_env, simulate
 
@@ -18,12 +18,7 @@ def announce_winner(sim_stream):
     for _, _, dones, infos in sim_stream:
         for done, info in zip(dones, infos):
             if done:
-                draw = True
-                for i, agent_info in info.items():
-                    if 'winner' in agent_info:
-                        yield i
-                if draw:
-                    yield None
+                yield game_outcome(info)
 
 
 def get_empirical_score(_run, env, agents, episodes, render=False):

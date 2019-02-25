@@ -1,3 +1,4 @@
+from collections import Counter
 import os
 import pickle
 import pkgutil
@@ -8,7 +9,7 @@ import numpy as np
 from stable_baselines.common import BaseRLModel
 import tensorflow as tf
 
-from aprl.envs.multi_agent import MultiAgentEnv
+from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
 from modelfree.utils import make_session
 
 
@@ -29,6 +30,42 @@ class GymCompeteToOurs(Wrapper, MultiAgentEnv):
 
     def reset(self):
         return self.env.reset()
+
+
+def game_outcome(info):
+    draw = True
+    for i, agent_info in info.items():
+        if 'winner' in agent_info:
+            return i
+    if draw:
+        return None
+
+
+class GameOutcomeMonitor(VecMultiWrapper):
+    def __init__(self, venv, logger):
+        super().__init__(venv)
+        self.logger = logger
+        self.outcomes = []
+
+    def reset(self):
+        return self.venv.reset()
+
+    def step_wait(self):
+        obs, rew, dones, infos = self.venv.step_wait()
+        for done, info in zip(dones, infos):
+            if done:
+                self.outcomes.append(game_outcome(info))
+        return obs, rew, dones, infos
+
+    def log_callback(self):
+        c = Counter()
+        c.update(self.outcomes)
+        num_games = len(self.outcomes)
+        for agent in range(self.num_agents):
+            self.logger.logkv(f"game_win{agent}", c.get(agent, 0) / num_games)
+        self.logger.logkv("game_tie", c.get(None, 0) / num_games)
+        self.logger.logkv("game_total", num_games)
+        self.outcomes = []
 
 
 def get_policy_type_for_agent_zoo(env_name):
