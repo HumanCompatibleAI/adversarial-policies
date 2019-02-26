@@ -7,66 +7,52 @@ from stable_baselines import logger
 from stable_baselines.common.base_class import BaseRLModel
 from stable_baselines.common.vec_env import VecEnvWrapper
 
-from modelfree import envs  # noqa - needed to register sumo_auto_contact
 from modelfree.scheduling import LinearAnnealer
 
 
 class RewardShapingVecWrapper(VecEnvWrapper):
-    """A more direct interface for shaping the reward of the attacking agent."""
+    """
+    A more direct interface for shaping the reward of the attacking agent.
+    - shaping_params schema: {'sparse': {k: v}, 'dense': {k: v}, **kwargs}
+    """
     def __init__(self, venv, agent_idx, shaping_params, batch_size, reward_annealer=None):
         super().__init__(venv)
-        # structure: {'sparse': {k: v}, 'dense': {k: v}, **kwargs}
         self.shaping_params = shaping_params
         self.reward_annealer = reward_annealer
-        self.counter = 0
         self.batch_size = batch_size
         self.agent_idx = agent_idx
 
         self.ep_rew_dict = defaultdict(list)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
 
-    @classmethod
-    def get_shaping_params(cls, shaping_params, env_name):
-        path_stem = 'experiments/rew_configs/'
-        default_configs = {
-            'multicomp/SumoHumans-v0': 'default_hsumo.json',
-            'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
-        }
-        assert env_name in default_configs, \
-            "No default reward shaping config found for env_name:{}".format(env_name)
-        fname = os.path.join(path_stem, default_configs[env_name])
-        final_shaping_params = json.load(open(fname))
+    def log_sparse_dense_rewards(self, locals, globals):
+        """Logs various metrics. This is given as a callback to PPO2.learn()"""
+        _ = [locals, globals]
+        del _
 
-        if shaping_params is not None:
-            config = json.load(open(shaping_params))
-            final_shaping_params['sparse'].update(config['sparse'])
-            final_shaping_params['dense'].update(config['dense'])
-            final_shaping_params['rew_shape_anneal_frac'] = config.get('rew_shape_anneal_frac')
-        return final_shaping_params
+        num_episodes = len(self.ep_rew_dict['reward_remaining'])
+        if num_episodes == 0:
+            return
 
-    def _log_sparse_dense_rewards(self):
-        if self.counter == self.batch_size * self.num_envs:
-            num_episodes = len(self.ep_rew_dict['sparse']['reward_remaining'])
-            dense_terms = self.shaping_params['dense'].keys()
-            for term in dense_terms:
-                assert len(self.ep_rew_dict[term]) == num_episodes
-            ep_dense_mean = sum([sum(self.ep_rew_dict[t]) for t in dense_terms]) / num_episodes
-            logger.logkv('epdensemean', ep_dense_mean)
+        dense_terms = self.shaping_params['dense'].keys()
+        for term in dense_terms:
+            assert len(self.ep_rew_dict[term]) == num_episodes
+        ep_dense_mean = sum([sum(self.ep_rew_dict[t]) for t in dense_terms]) / num_episodes
+        logger.logkv('epdensemean', ep_dense_mean)
 
-            sparse_terms = self.shaping_params['sparse'].keys()
-            for term in sparse_terms:
-                assert len(self.ep_rew_dict[term]) == num_episodes
-            ep_sparse_mean = sum([sum(self.ep_rew_dict[t]) for t in sparse_terms]) / num_episodes
-            logger.logkv('epsparsemean', ep_sparse_mean)
+        sparse_terms = self.shaping_params['sparse'].keys()
+        for term in sparse_terms:
+            assert len(self.ep_rew_dict[term]) == num_episodes
+        ep_sparse_mean = sum([sum(self.ep_rew_dict[t]) for t in sparse_terms]) / num_episodes
+        logger.logkv('epsparsemean', ep_sparse_mean)
 
-            c = self.reward_annealer()
-            logger.logkv('rew_anneal', c)
-            ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
-            logger.logkv('eprewmean_true', ep_rew_mean)
+        c = self.reward_annealer()
+        logger.logkv('rew_anneal', c)
+        ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
+        logger.logkv('eprewmean_true', ep_rew_mean)
 
-            for rew_type in self.ep_rew_dict:
-                self.ep_rew_dict[rew_type] = []
-            self.counter = 0
+        for rew_type in self.ep_rew_dict:
+            self.ep_rew_dict[rew_type] = []
 
     def reset(self):
         return self.venv.reset()
@@ -103,8 +89,6 @@ class RewardShapingVecWrapper(VecEnvWrapper):
                 for rew_type in self.step_rew_dict:
                     self.ep_rew_dict[rew_type].append(sum(self.step_rew_dict[rew_type][env_num]))
                     self.step_rew_dict[rew_type][env_num] = []
-            self.counter += 1
-            self._log_sparse_dense_rewards()
             rew[env_num] = shaped_reward
 
         return obs, rew, done, infos
@@ -133,23 +117,6 @@ class NoisyAgentWrapper(BaseRLModel):
         self.sess = agent.sess
         self.noise_annealer = noise_annealer
         self.noise_generator = self._get_noise_generator(noise_type)
-
-    @classmethod
-    def get_noise_params(cls, noise_params, env_name):
-        path_stem = 'experiments/noise_configs/'
-        default_configs = {
-            'multicomp/SumoHumans-v0': 'default_hsumo.json',
-            'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
-        }
-        assert env_name in default_configs, \
-            "No default victim noise config found for env_name:{}".format(env_name)
-        fname = os.path.join(path_stem, default_configs[env_name])
-        final_noise_params = json.load(open(fname))
-
-        if noise_params is not None:
-            config = json.load(open(noise_params))
-            final_noise_params.update(config)
-        return final_noise_params
 
     @staticmethod
     def _get_noise_generator(noise_type):
@@ -186,8 +153,30 @@ class NoisyAgentWrapper(BaseRLModel):
         raise NotImplementedError()
 
 
+def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=False):
+    config_dir = 'rew_configs' if rew_shaping else 'noise_configs'
+    path_stem = os.path.join('experiments', config_dir)
+    default_configs = {
+        'multicomp/SumoHumans-v0': 'default_hsumo.json',
+        'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
+    }
+    fname = os.path.join(path_stem, default_configs[env_name])
+    with open(fname) as default_config_file:
+        final_params = json.load(default_config_file)
+    if params_path != 'default':
+        with open(params_path) as config_file:
+            config = json.load(config_file)
+        if rew_shaping:
+            final_params['sparse'].update(config.get('sparse', {}))
+            final_params['dense'].update(config.get('dense', {}))
+            final_params['rew_shape_anneal_frac'] = config.get('rew_shape_anneal_frac', 0)
+        elif noisy_victim:
+            final_params.update(config)
+    return final_params
+
+
 def apply_env_wrapper(single_env, rew_shape_params, env_name, agent_idx, batch_size, scheduler):
-    shaping_params = RewardShapingVecWrapper.get_shaping_params(rew_shape_params, env_name)
+    shaping_params = load_wrapper_params(rew_shape_params, env_name, rew_shaping=True)
     rew_shape_anneal_frac = shaping_params.get('rew_shape_anneal_frac', 0)
     if rew_shape_anneal_frac > 0:
         rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
@@ -203,7 +192,7 @@ def apply_env_wrapper(single_env, rew_shape_params, env_name, agent_idx, batch_s
 
 
 def apply_victim_wrapper(victim, victim_noise_params, env_name, scheduler):
-    noise_params = NoisyAgentWrapper.get_noise_params(victim_noise_params, env_name)
+    noise_params = load_wrapper_params(victim_noise_params, env_name, noisy_victim=True)
     victim_noise_anneal_frac = noise_params.get('victim_noise_anneal_frac', 0)
     victim_noise_param = noise_params.get('victim_noise_param', 0)
     assert victim_noise_anneal_frac > 0, \
