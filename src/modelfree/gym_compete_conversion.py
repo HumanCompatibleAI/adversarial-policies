@@ -61,9 +61,10 @@ class GameOutcomeMonitor(VecMultiWrapper):
         c = Counter()
         c.update(self.outcomes)
         num_games = len(self.outcomes)
-        for agent in range(self.num_agents):
-            self.logger.logkv(f"game_win{agent}", c.get(agent, 0) / num_games)
-        self.logger.logkv("game_tie", c.get(None, 0) / num_games)
+        if num_games > 0:
+            for agent in range(self.num_agents):
+                self.logger.logkv(f"game_win{agent}", c.get(agent, 0) / num_games)
+            self.logger.logkv("game_tie", c.get(None, 0) / num_games)
         self.logger.logkv("game_total", num_games)
         self.outcomes = []
 
