@@ -7,6 +7,7 @@ import os
 import pytest
 
 from modelfree.score_agent import score_agent_ex
+from modelfree.scheduling import Scheduler, LinearAnnealer
 from modelfree.ppo_and_score import ppo_and_score_ex
 from modelfree.ppo_baseline import ppo_baseline_ex
 
@@ -51,6 +52,14 @@ PPO_BASELINE_CONFIGS = [
     {'num_env': 1},
     {'env_name': 'multicomp/KickAndDefend-v0'},
     {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
+    {
+        'rew_shape_params': 'experiments/rew_configs/densex10_0.1.json',
+        'env_name': 'multicomp/SumoHumans-v0'
+    },
+    {
+        'victim_noise_params': 'experiments/noise_configs/frac0.5_noise0.5.json',
+        'env_name': 'multicomp/SumoHumans-v0'
+    }
 ]
 
 

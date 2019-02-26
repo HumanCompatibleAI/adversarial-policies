@@ -32,7 +32,6 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     _run.result = result
 
     for ep, winner in enumerate(announce_winner(simulate(env, agents, render=render))):
-        print(winner)
         if winner is None:
             result['ties'] += 1
         else:
@@ -45,6 +44,11 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 
 score_agent_ex = Experiment('score_agent')
 score_agent_ex.observers.append(FileStorageObserver.create('data/sacred'))
+
+
+@score_agent_ex.named_config
+def human_score_config():
+    env_name = "multicomp/SumoHumans-v0"  # noqa: F841
 
 
 @score_agent_ex.config

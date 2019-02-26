@@ -1,0 +1,11 @@
+{
+    "dense": {
+        "reward_center": 1,
+        "reward_ctrl": -1,
+        "reward_contact": -1,
+        "reward_survive": 1
+    },
+    "sparse": {
+        "reward_remaining": 1
+    }
+}

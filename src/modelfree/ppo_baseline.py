@@ -12,6 +12,8 @@ from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.policy_loader import load_policy
+from modelfree.scheduling import DEFAULT_ANNEALERS, Scheduler
+from modelfree.shaping_wrappers import apply_env_wrapper, apply_victim_wrapper
 from modelfree.utils import make_env
 
 ppo_baseline_ex = Experiment("ppo_baseline")
@@ -19,9 +21,8 @@ ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
 
 
 class EmbedVictimWrapper(VecEnvWrapper):
-    def __init__(self, multi_env, env_name, victim_path, victim_type, victim_index):
-        self.victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
-                                  env_name=env_name, index=victim_index)
+    def __init__(self, multi_env, victim, victim_index):
+        self.victim = victim
         curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
         single_env = FlattenSingletonVecEnv(curried_env)
 
@@ -40,14 +41,17 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path, callbacks=None):
+          batch_size, load_path, learning_rate, callbacks=None):
     kwargs = dict(env=env,
-                  n_steps=batch_size // num_env)
+                  n_steps=batch_size // num_env,
+                  verbose=1,
+                  tensorboard_log=out_dir,
+                  learning_rate=learning_rate)
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
         model = PPO2.load(load_path, **kwargs)
     else:
-        model = PPO2(policy=policy, verbose=1, tensorboard_log=out_dir, **kwargs)
+        model = PPO2(policy=policy, **kwargs)
 
     def checkpoint(locals, globals):
         update = locals['update']
@@ -74,11 +78,21 @@ ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 
 def setup_logger(out_dir="results", exp_name="test"):
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
-    out_dir = osp.join(out_dir, '{} {}'.format(timestamp, exp_name))
+    out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
-
-    logger.configure(folder=osp.join(out_dir, 'mon'))
+    logger.configure(folder=osp.join(out_dir, 'mon'),
+                     format_strs=['tensorboard', 'stdout'])
     return out_dir
+
+
+@ppo_baseline_ex.named_config
+def human_default():
+    env = "multicomp/SumoHumans-v0"
+    total_timesteps = int(1e8)
+    num_env = 32
+    batch_size = 8192
+    _ = locals()
+    del _
 
 
 @ppo_baseline_ex.config
@@ -95,14 +109,18 @@ def default_ppo_config():
     batch_size = 2048               # batch size
     seed = 0
     load_path = None                # path to load initial policy from
+    rew_shape_params = None         # path to file. 'default' uses default settings for env_name
+    victim_noise_params = None      # path to file. 'default' uses default settings for env_name
+    # then default settings for that environment will be used.
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
-                 num_env, seed):
+                 num_env, seed, rew_shape_params, victim_noise_params, batch_size):
     out_dir = setup_logger(root_dir, exp_name)
+    scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
     callbacks = []
 
     def env_fn(i):
@@ -111,10 +129,25 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
     multi_env = GameOutcomeMonitor(multi_env, logger)
     callbacks.append(lambda locals, globals: multi_env.log_callback())
-    single_env = EmbedVictimWrapper(multi_env=multi_env, env_name=env_name,
-                                    victim_path=victim_path, victim_type=victim_type,
+
+    # Get the correct victim and then wrap it accordingly.
+    victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
+                         env_name=env_name, index=victim_index)
+    if victim_noise_params is not None:
+        victim = apply_victim_wrapper(victim=victim, victim_noise_params=victim_noise_params,
+                                      env_name=env_name, scheduler=scheduler)
+
+    # Get the correct environment and then wrap it accordingly.
+    single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
                                     victim_index=victim_index)
-    res = train(env=single_env, out_dir=out_dir, callbacks=callbacks)
+    if rew_shape_params is not None:
+        single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
+                                       env_name=env_name, agent_idx=1 - victim_index,
+                                       logger=logger, batch_size=batch_size, scheduler=scheduler)
+        callbacks.append(lambda locals, globals: single_env.log_callback())
+
+    res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
+                callbacks=callbacks)
     single_env.close()
 
     return res
