@@ -1,0 +1,8 @@
+{
+    "dense": {
+        "reward_linvel": 0
+    },
+    "sparse": {
+        "reward_remaining": 0
+    }
+}

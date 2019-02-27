@@ -24,7 +24,7 @@ class Scheduler(object):
         :return: None
         """
         assert func_type in self.allowed_func_types
-        assert callable(func)
+        assert callable(func) or func is None
         self.func_dict[func_type] = func
 
     def get_val(self, val_type, frac_remaining=None):
@@ -45,7 +45,10 @@ class Scheduler(object):
         :return: callable which takes one optional argument - frac_remaining
         """
         assert func_type in self.allowed_func_types
-        return functools.partial(self.get_val, func_type)
+        if self.func_dict.get(func_type) is None:
+            return None
+        else:
+            return functools.partial(self.get_val, func_type)
 
 
 # Annealers

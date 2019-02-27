@@ -157,6 +157,7 @@ def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=F
     config_dir = 'rew_configs' if rew_shaping else 'noise_configs'
     path_stem = os.path.join('experiments', config_dir)
     default_configs = {
+        'Humanoid-v1': 'default_hstand.json',
         'multicomp/SumoHumans-v0': 'default_hsumo.json',
         'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
     }

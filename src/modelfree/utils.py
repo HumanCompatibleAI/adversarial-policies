@@ -4,11 +4,37 @@ from os import path as osp
 import gym
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
+from gym.spaces import Tuple
 import numpy as np
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
+from aprl.envs.multi_agent import MultiAgentEnv
+
+
+class SingleGymToOurs(Wrapper, MultiAgentEnv):
+    """Same as GymCompeteToOurs except designed for single agent environments.
+
+    The main difference is that that we instantiate MultiAgentEnv with 1 agent
+    and we perform slightly different post-processing after getting returns."""
+
+    def __init__(self, env):
+        Wrapper.__init__(self, env)
+        self.action_space = Tuple([self.action_space])
+        self.observation_space = Tuple([self.observation_space])
+        MultiAgentEnv.__init__(self, num_agents=1)
+
+    def step(self, action_n):
+        observations, rewards, done, infos = self.env.step(action_n)
+        infos = {0: infos}
+        rewards = (rewards,)
+        observations = (observations,)
+        return observations, rewards, done, infos
+
+    def reset(self):
+        observations = self.env.reset()
+        return (observations,)
 
 
 class VideoWrapper(Wrapper):
@@ -109,6 +135,8 @@ def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None):
     multi_env = gym.make(env_name)
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
+    elif not hasattr(multi_env, 'num_agents'):
+        multi_env = SingleGymToOurs(multi_env)
     multi_env.seed(seed + i)
 
     if out_dir is not None:

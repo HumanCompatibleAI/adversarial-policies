@@ -121,24 +121,30 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     out_dir = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
     callbacks = []
+    pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     def env_fn(i):
-        return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
+        return make_env(env_name, seed, i, root_dir, pre_wrapper=pre_wrapper)
 
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
     multi_env = GameOutcomeMonitor(multi_env, logger)
+    assert bool(victim_type is None) == bool(multi_env.num_agents == 1)
     callbacks.append(lambda locals, globals: multi_env.log_callback())
 
     # Get the correct victim and then wrap it accordingly.
-    victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
-                         env_name=env_name, index=victim_index)
-    if victim_noise_params is not None:
-        victim = apply_victim_wrapper(victim=victim, victim_noise_params=victim_noise_params,
-                                      env_name=env_name, scheduler=scheduler)
+    if multi_env.num_agents > 1:
+        victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
+                             env_name=env_name, index=victim_index)
+        if victim_noise_params is not None:
+            victim = apply_victim_wrapper(victim=victim, victim_noise_params=victim_noise_params,
+                                          env_name=env_name, scheduler=scheduler)
 
-    # Get the correct environment and then wrap it accordingly.
-    single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
-                                    victim_index=victim_index)
+        # Get the correct environment and then wrap it accordingly.
+        single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
+                                        victim_index=victim_index)
+    else:
+        single_env = FlattenSingletonVecEnv(multi_env)
+
     if rew_shape_params is not None:
         single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
                                        env_name=env_name, agent_idx=1 - victim_index,

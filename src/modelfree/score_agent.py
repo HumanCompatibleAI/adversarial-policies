@@ -71,8 +71,10 @@ def default_score_config():
 @score_agent_ex.automain
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 num_env, episodes, render, videos, video_dir):
+    pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
+
     def env_fn(i):
-        env = make_env(env_name, _seed, i, None, pre_wrapper=GymCompeteToOurs)
+        env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
         if videos:
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
@@ -85,9 +87,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]
-    zipped = zip(agent_types, agent_paths)
+    zipped = list(zip(agent_types, agent_paths))
+
     agents = [load_policy(policy_type, policy_path, venv, env_name, i)
-              for i, (policy_type, policy_path) in enumerate(zipped)]
+              for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
     for agent in agents:
         agent.sess.close()
