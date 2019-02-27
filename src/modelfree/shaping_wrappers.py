@@ -27,26 +27,24 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
     def log_callback(self):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
-        num_episodes = len(self.ep_rew_dict['reward_remaining'])
-        if num_episodes == 0:
-            return
+        all_keys = list(self.shaping_params['dense'].keys()) + list(self.shaping_params['sparse'].keys())
+        num_episodes = len(self.ep_rew_dict[all_keys[0]])
+        for k in all_keys:
+            assert len(self.ep_rew_dict[k]) == num_episodes
 
         dense_terms = self.shaping_params['dense'].keys()
-        for term in dense_terms:
-            assert len(self.ep_rew_dict[term]) == num_episodes
         ep_dense_mean = sum([sum(self.ep_rew_dict[t]) for t in dense_terms]) / num_episodes
         self.logger.logkv('epdensemean', ep_dense_mean)
 
         sparse_terms = self.shaping_params['sparse'].keys()
-        for term in sparse_terms:
-            assert len(self.ep_rew_dict[term]) == num_episodes
         ep_sparse_mean = sum([sum(self.ep_rew_dict[t]) for t in sparse_terms]) / num_episodes
         self.logger.logkv('epsparsemean', ep_sparse_mean)
 
-        c = self.reward_annealer()
-        self.logger.logkv('rew_anneal', c)
-        ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
-        self.logger.logkv('eprewmean_true', ep_rew_mean)
+        if self.reward_annealer is not None:
+            c = self.reward_annealer()
+            self.logger.logkv('rew_anneal', c)
+            ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
+            self.logger.logkv('eprewmean_true', ep_rew_mean)
 
         for rew_type in self.ep_rew_dict:
             self.ep_rew_dict[rew_type] = []
