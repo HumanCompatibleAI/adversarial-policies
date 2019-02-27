@@ -89,7 +89,8 @@ def setup_logger(out_dir="results", exp_name="test"):
 def human_default():
     env = "multicomp/SumoHumans-v0"
     total_timesteps = int(1e8)
-    batch_size = 16384
+    num_env = 32
+    batch_size = 8192
     _ = locals()
     del _
 
@@ -148,8 +149,8 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     if rew_shape_params is not None:
         single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
                                        env_name=env_name, agent_idx=1 - victim_index,
-                                       batch_size=batch_size, scheduler=scheduler)
-        callbacks.append(single_env.log_sparse_dense_rewards)
+                                       logger=logger, batch_size=batch_size, scheduler=scheduler)
+        callbacks.append(lambda locals, globals: single_env.log_callback())
 
     res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
                 callbacks=callbacks)
