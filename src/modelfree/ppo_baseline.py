@@ -118,21 +118,17 @@ def default_ppo_config():
 
 
 DEFAULT_CONFIGS = {
-    'multicomp/KickAndDefend-v0': 'default_KickAndDefend.json',
-    'multicomp/SumoHumans-v0': 'default_SumoHumans.json',
-    'multicomp/SumoHumansAutoContact-v0': 'default_SumoHumans.json'
+    'multicomp/SumoHumans-v0': 'SumoHumans.json',
+    'multicomp/SumoHumansAutoContact-v0': 'SumoHumans.json'
 }
 
 
 def load_default(env_name, config_dir):
     path_stem = os.path.join('experiments', config_dir)
-    if env_name in DEFAULT_CONFIGS:
-        default_config = DEFAULT_CONFIGS[env_name]
-        fname = os.path.join(path_stem, default_config)
-        with open(fname) as f:
-            return json.load(f)
-    else:
-        return {}
+    default_config = DEFAULT_CONFIGS.get(env_name, 'default.json')
+    fname = os.path.join(path_stem, default_config)
+    with open(fname) as f:
+        return json.load(f)
 
 
 @ppo_baseline_ex.config

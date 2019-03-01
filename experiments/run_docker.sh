@@ -5,19 +5,25 @@ NAME="adversarial-policies"
 VENV="modelfree"
 TAG="latest"
 RM="--rm"
+FLAGS=""
 
 while [[ $# -gt 0 ]]
 do
 key="$1"
 
 case $key in
+    -c|--cmd)
+    CMD="$2"
+    shift
+    shift
+    ;;
     -n|--name)
     NAME="$2"
     shift
     shift
     ;;
-    -c|--cmd)
-    CMD="$2"
+    -l|--listen)
+    FLAGS="${FLAGS} -p $2"
     shift
     shift
     ;;
@@ -25,13 +31,13 @@ case $key in
     RM=""
     shift
     ;;
-    -v|--venv)
-    VENV="$2"
+    -t|--tag)
+    TAG="$2"
     shift
     shift
     ;;
-    -t|--tag)
-    TAG="$2"
+    -v|--venv)
+    VENV="$2"
     shift
     shift
     ;;
@@ -47,6 +53,7 @@ if [[ ${MUJOCO_KEY} == "" ]]; then
 fi
 
 docker run \
+       ${FLAGS} \
        ${RM} \
        -it \
        --env MUJOCO_KEY=${MUJOCO_KEY} \
