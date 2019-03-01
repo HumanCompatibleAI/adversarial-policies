@@ -46,7 +46,6 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env,
                   verbose=1,
-                  tensorboard_log=out_dir,
                   learning_rate=learning_rate)
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
@@ -79,6 +78,7 @@ ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
 
 def setup_logger(out_dir="results", exp_name="test"):
     timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
+    exp_name = exp_name.replace('/', '_')  # environment names can contain /'s
     out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
     logger.configure(folder=osp.join(out_dir, 'mon'),
