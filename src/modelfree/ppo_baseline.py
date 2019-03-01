@@ -13,7 +13,7 @@ from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.policy_loader import load_policy
-from modelfree.scheduling import DEFAULT_ANNEALERS, Scheduler
+from modelfree.scheduling import ConstantAnnealer, Scheduler
 from modelfree.shaping_wrappers import apply_env_wrapper, apply_victim_wrapper
 from modelfree.utils import make_env
 
@@ -42,18 +42,19 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path, learning_rate, callbacks=None):
+          batch_size, load_path, learning_rate, rl_args, callbacks=None):
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env,
                   verbose=1,
-                  learning_rate=learning_rate)
+                  learning_rate=learning_rate,
+                  **rl_args)
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
         model = PPO2.load(load_path, **kwargs)
     else:
         model = PPO2(policy=policy, **kwargs)
 
-    def checkpoint(locals, globals):
+    def callback(locals, globals):
         update = locals['update']
         checkpoint_dir = osp.join(out_dir, 'checkpoint')
         os.makedirs(checkpoint_dir, exist_ok=True)
@@ -65,7 +66,7 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
                 f(locals, globals)
 
     model.learn(total_timesteps=total_timesteps, log_interval=1,
-                seed=_seed, callback=checkpoint)
+                seed=_seed, callback=callback)
 
     model_path = osp.join(out_dir, 'final_model.pkl')
     model.save(model_path)
@@ -108,6 +109,8 @@ def default_ppo_config():
     total_timesteps = 4096          # total number of timesteps to train for
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
+    learning_rate = 3e-4            # learning rate
+    rl_args = {}                    # extra RL algorithm arguments
     load_path = None  # path to load initial policy from
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
@@ -115,8 +118,9 @@ def default_ppo_config():
 
 
 DEFAULT_CONFIGS = {
-    'multicomp/SumoHumans-v0': 'default_hsumo.json',
-    'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
+    'multicomp/KickAndDefend-v0': 'default_KickAndDefend.json',
+    'multicomp/SumoHumans-v0': 'default_SumoHumans.json',
+    'multicomp/SumoHumansAutoContact-v0': 'default_SumoHumans.json'
 }
 
 
@@ -143,9 +147,10 @@ def rew_shaping(env_name):
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
-                 num_env, seed, rew_shape, rew_shape_params, victim_noise, victim_noise_params):
+                 learning_rate, num_env, seed, rew_shape, rew_shape_params,
+                 victim_noise, victim_noise_params):
     out_dir = setup_logger(root_dir, exp_name)
-    scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
+    scheduler = Scheduler(func_dict={'lr': ConstantAnnealer(learning_rate).get_value})
     callbacks = []
 
     def env_fn(i):

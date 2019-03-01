@@ -41,6 +41,11 @@ case $key in
 esac
 done
 
+if [[ ${MUJOCO_KEY} == "" ]]; then
+    echo "Set MUJOCO_KEY file to a URL with your key"
+    exit 1
+fi
+
 docker run \
        ${RM} \
        -it \

@@ -4,7 +4,7 @@ TEST_SUITES="aprl modelfree"
 
 if [[ ${MUJOCO_KEY} == "" ]]; then
     echo "Set MUJOCO_KEY file to a URL with your key"
-    exit
+    exit 1
 fi
 
 # Run the same CI tests that Travis will run on local machine.

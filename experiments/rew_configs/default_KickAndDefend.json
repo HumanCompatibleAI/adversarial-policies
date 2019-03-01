@@ -1,0 +1,8 @@
+{
+    "dense": {
+        "reward_move": 1
+    },
+    "sparse": {
+        "reward_remaining": 1
+    }
+}

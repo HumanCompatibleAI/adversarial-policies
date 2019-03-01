@@ -81,11 +81,3 @@ class LinearAnnealer(Annealer):
     def get_value(self, frac_remaining):
         anneal_progress = min(1.0, (1 - frac_remaining) / self.end_frac)
         return (1 - anneal_progress) * self.start_val + anneal_progress * self.end_val
-
-
-DEFAULT_ANNEALERS = {
-    # Schedule used in the multiagent competition paper for reward shaping.
-    'default_reward': LinearAnnealer(1, 0, 0.5),
-    # Default baselines.ppo2 learning rate
-    'default_lr': ConstantAnnealer(3e-4),
-}
