@@ -1,6 +1,7 @@
 """Uses PPO to train an attack policy against a fixed victim policy."""
 
 import datetime
+import json
 import os
 import os.path as osp
 
@@ -107,18 +108,42 @@ def default_ppo_config():
     total_timesteps = 4096          # total number of timesteps to train for
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
+    load_path = None  # path to load initial policy from
     seed = 0
-    load_path = None                # path to load initial policy from
-    rew_shape_params = None         # path to file. 'default' uses default settings for env_name
-    victim_noise_params = None      # path to file. 'default' uses default settings for env_name
-    # then default settings for that environment will be used.
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+DEFAULT_CONFIGS = {
+    'multicomp/SumoHumans-v0': 'default_hsumo.json',
+    'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
+}
+
+
+def load_default(env_name, config_dir):
+    path_stem = os.path.join('experiments', config_dir)
+    if env_name in DEFAULT_CONFIGS:
+        default_config = DEFAULT_CONFIGS[env_name]
+        fname = os.path.join(path_stem, default_config)
+        with open(fname) as f:
+            return json.load(f)
+    else:
+        return {}
+
+
+@ppo_baseline_ex.config
+def rew_shaping(env_name):
+    rew_shape = False  # enable reward shaping
+    victim_noise = False  # enable adding noise to victim
+    rew_shape_params = load_default(env_name, 'rew_configs')  # parameters for reward shaping
+    victim_noise_params = load_default(env_name, 'noise_configs')  # parameters for victim noise
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
-                 num_env, seed, rew_shape_params, victim_noise_params, batch_size):
+                 num_env, seed, rew_shape, rew_shape_params, victim_noise, victim_noise_params):
     out_dir = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
     callbacks = []
@@ -133,17 +158,17 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     # Get the correct victim and then wrap it accordingly.
     victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
                          env_name=env_name, index=victim_index)
-    if victim_noise_params is not None:
-        victim = apply_victim_wrapper(victim=victim, victim_noise_params=victim_noise_params,
-                                      env_name=env_name, scheduler=scheduler)
+    if victim_noise:
+        victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
+                                      scheduler=scheduler)
 
     # Get the correct environment and then wrap it accordingly.
     single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
                                     victim_index=victim_index)
-    if rew_shape_params is not None:
-        single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
-                                       env_name=env_name, agent_idx=1 - victim_index,
-                                       logger=logger, batch_size=batch_size, scheduler=scheduler)
+    if rew_shape:
+        agent_idx = 1 - victim_index
+        single_env = apply_env_wrapper(single_env=single_env, shaping_params=rew_shape_params,
+                                       agent_idx=agent_idx, logger=logger, scheduler=scheduler)
         callbacks.append(lambda locals, globals: single_env.log_callback())
 
     res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),

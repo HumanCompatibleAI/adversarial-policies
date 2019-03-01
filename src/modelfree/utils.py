@@ -12,25 +12,19 @@ import tensorflow as tf
 from aprl.common.multi_monitor import MultiMonitor
 
 
-class PolicyToModel(BaseRLModel):
-    """Converts BasePolicy to a BaseRLModel with only predict implemented."""
-    def __init__(self, policy):
-        """Constructs a BaseRLModel using policy for predictions.
+class DummyModel(BaseRLModel):
+    """Abstract class for policies pretending to be RL algorithms (models).
+
+    Provides stub implementations that raise NotImplementedError.
+    The predict method is left as abstract and must be implemented in base class."""
+    def __init__(self, policy, sess):
+        """Constructs a DummyModel with given policy and session.
         :param policy: (BasePolicy) a loaded policy.
+        :param sess: (tf.Session or None) a TensorFlow session.
         :return an instance of BaseRLModel.
         """
         super().__init__(policy=policy, env=None, requires_vec_env=True, policy_base='Dummy')
-        self.sess = policy.sess
-
-    def predict(self, observation, state=None, mask=None, deterministic=False):
-        if state is None:
-            state = self.policy.initial_state
-        if mask is None:
-            mask = [False for _ in range(self.policy.n_env)]
-
-        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
-                                                           deterministic=deterministic)
-        return actions, states
+        self.sess = sess
 
     def setup_model(self):
         raise NotImplementedError()
@@ -46,6 +40,26 @@ class PolicyToModel(BaseRLModel):
 
     def load(self):
         raise NotImplementedError()
+
+
+class PolicyToModel(DummyModel):
+    """Converts BasePolicy to a BaseRLModel with only predict implemented."""
+    def __init__(self, policy):
+        """Constructs a BaseRLModel using policy for predictions.
+        :param policy: (BasePolicy) a loaded policy.
+        :return an instance of BaseRLModel.
+        """
+        super().__init__(policy=policy, sess=policy.sess)
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        if state is None:
+            state = self.policy.initial_state
+        if mask is None:
+            mask = [False for _ in range(self.policy.n_env)]
+
+        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
+                                                           deterministic=deterministic)
+        return actions, states
 
 
 class OpenAIToStablePolicy(BasePolicy):

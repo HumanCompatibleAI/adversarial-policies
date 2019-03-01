@@ -1,12 +1,10 @@
 from collections import defaultdict
-import json
-import os
 
 import numpy as np
-from stable_baselines.common.base_class import BaseRLModel
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 from modelfree.scheduling import LinearAnnealer
+from modelfree.utils import DummyModel
 
 
 class RewardShapingVecWrapper(VecEnvWrapper):
@@ -14,11 +12,10 @@ class RewardShapingVecWrapper(VecEnvWrapper):
     A more direct interface for shaping the reward of the attacking agent.
     - shaping_params schema: {'sparse': {k: v}, 'dense': {k: v}, **kwargs}
     """
-    def __init__(self, venv, agent_idx, logger, shaping_params, batch_size, reward_annealer=None):
+    def __init__(self, venv, agent_idx, logger, shaping_params, reward_annealer=None):
         super().__init__(venv)
         self.shaping_params = shaping_params
         self.reward_annealer = reward_annealer
-        self.batch_size = batch_size
         self.agent_idx = agent_idx
         self.logger = logger
 
@@ -100,18 +97,17 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         return c
 
 
-class NoisyAgentWrapper(BaseRLModel):
+class NoisyAgentWrapper(DummyModel):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
         Wrap an agent and add noise to its actions
-        :param agent: BaseRLModel the agent to wrap
+        :param agent: (BaseRLModel) the agent to wrap
         :param noise_annealer: Annealer.get_value - presumably the noise should be decreased
         over time in order to get the adversarial policy to perform well on a normal victim.
         :param noise_type: str - the type of noise parametrized by noise_annealer's value.
         Current options are [gaussian]
         """
-        self.agent = agent
-        self.sess = agent.sess
+        super().__init__(policy=agent, sess=agent.sess)
         self.noise_annealer = noise_annealer
         self.noise_generator = self._get_noise_generator(noise_type)
 
@@ -123,7 +119,7 @@ class NoisyAgentWrapper(BaseRLModel):
         return noise_generators[noise_type]
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
-        original_actions, states = self.agent.predict(observation, state, mask, deterministic)
+        original_actions, states = self.policy.predict(observation, state, mask, deterministic)
         action_shape = original_actions.shape
         noise_param = self.noise_annealer()
 
@@ -131,56 +127,11 @@ class NoisyAgentWrapper(BaseRLModel):
         noisy_actions = original_actions * (1 + noise)
         return noisy_actions, states
 
-    def reset(self):
-        return self.agent.reset()
 
-    def setup_model(self):
-        pass
-
-    def learn(self):
-        raise NotImplementedError()
-
-    def action_probability(self, observation, state=None, mask=None, actions=None):
-        raise NotImplementedError()
-
-    def save(self, save_path):
-        raise NotImplementedError()
-
-    def load(self):
-        raise NotImplementedError()
-
-
-def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=False):
-    msg = "Exactly one of rew_shaping and noisy_victim must be True"
-    assert bool(rew_shaping) != bool(noisy_victim), msg
-
-    config_dir = 'rew_configs' if rew_shaping else 'noise_configs'
-    path_stem = os.path.join('experiments', config_dir)
-    default_configs = {
-        'multicomp/SumoHumans-v0': 'default_hsumo.json',
-        'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
-    }
-    fname = os.path.join(path_stem, default_configs[env_name])
-    with open(fname) as default_config_file:
-        final_params = json.load(default_config_file)
-    if params_path != 'default':
-        with open(params_path) as config_file:
-            config = json.load(config_file)
-        if rew_shaping:
-            final_params['sparse'].update(config.get('sparse', {}))
-            final_params['dense'].update(config.get('dense', {}))
-            final_params['rew_shape_anneal_frac'] = config.get('rew_shape_anneal_frac', 0)
-        elif noisy_victim:
-            final_params.update(config)
-    return final_params
-
-
-def apply_env_wrapper(single_env, rew_shape_params, env_name, agent_idx,
-                      logger, batch_size, scheduler):
-    shaping_params = load_wrapper_params(rew_shape_params, env_name, rew_shaping=True)
-    rew_shape_anneal_frac = shaping_params.get('rew_shape_anneal_frac', 0)
-    if rew_shape_anneal_frac > 0:
-        rew_shape_func = LinearAnnealer(1, 0, rew_shape_anneal_frac).get_value
+def apply_env_wrapper(single_env, shaping_params, agent_idx, logger, scheduler):
+    anneal_frac = shaping_params.get('anneal_frac')
+    if anneal_frac is not None:
+        rew_shape_func = LinearAnnealer(1, 0, anneal_frac).get_value
     else:
         # In this case, the different reward types are weighted differently
         # but reward is not annealed over time.
@@ -188,12 +139,11 @@ def apply_env_wrapper(single_env, rew_shape_params, env_name, agent_idx,
 
     scheduler.set_func('rew_shape', rew_shape_func)
     return RewardShapingVecWrapper(single_env, agent_idx=agent_idx, logger=logger,
-                                   shaping_params=shaping_params, batch_size=batch_size,
+                                   shaping_params=shaping_params,
                                    reward_annealer=scheduler.get_func('rew_shape'))
 
 
-def apply_victim_wrapper(victim, victim_noise_params, env_name, scheduler):
-    noise_params = load_wrapper_params(victim_noise_params, env_name, noisy_victim=True)
+def apply_victim_wrapper(victim, noise_params, scheduler):
     victim_noise_anneal_frac = noise_params.get('victim_noise_anneal_frac', 0)
     victim_noise_param = noise_params.get('victim_noise_param', 0)
     assert victim_noise_anneal_frac > 0, \
