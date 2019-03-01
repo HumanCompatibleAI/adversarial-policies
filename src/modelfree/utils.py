@@ -5,10 +5,83 @@ import gym
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
 import numpy as np
+from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
+
+
+class PolicyToModel(BaseRLModel):
+    """Converts BasePolicy to a BaseRLModel with only predict implemented."""
+    def __init__(self, policy):
+        """Constructs a BaseRLModel using policy for predictions.
+        :param policy: (BasePolicy) a loaded policy.
+        :return an instance of BaseRLModel.
+        """
+        super().__init__(policy=policy, env=None, requires_vec_env=True, policy_base='Dummy')
+        self.sess = policy.sess
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        if state is None:
+            state = self.policy.initial_state
+        if mask is None:
+            mask = [False for _ in range(self.policy.n_env)]
+
+        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
+                                                           deterministic=deterministic)
+        return actions, states
+
+    def setup_model(self):
+        raise NotImplementedError()
+
+    def learn(self):
+        raise NotImplementedError()
+
+    def action_probability(self, observation, state=None, mask=None, actions=None):
+        raise NotImplementedError()
+
+    def save(self, save_path):
+        raise NotImplementedError()
+
+    def load(self):
+        raise NotImplementedError()
+
+
+class OpenAIToStablePolicy(BasePolicy):
+    """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
+    def __init__(self, old_policy):
+        self.old = old_policy
+        self.initial_state = old_policy.initial_state
+        self.sess = old_policy.sess
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        stochastic = not deterministic
+        return self.old.step(obs, S=state, M=mask, stochastic=stochastic)
+
+
+class ConstantPolicy(BasePolicy):
+    """Policy that returns a constant action."""
+    def __init__(self, env, constant):
+        assert env.action_space.contains(constant)
+        super().__init__(sess=None,
+                         ob_space=env.observation_space,
+                         ac_space=env.action_space,
+                         n_env=env.num_envs,
+                         n_steps=1,
+                         n_batch=1)
+        self.constant = constant
+        self.initial_state = None
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        actions = np.array([self.constant] * self.n_env)
+        return actions, None, None, None
+
+
+class ZeroPolicy(ConstantPolicy):
+    """Policy that returns a zero action."""
+    def __init__(self, env):
+        super().__init__(env, np.zeros(env.action_space.shape))
 
 
 class VideoWrapper(Wrapper):
@@ -50,30 +123,6 @@ def make_session(graph=None):
     tf_config.gpu_options.allow_growth = True
     sess = tf.Session(graph=graph, config=tf_config)
     return sess
-
-
-class ConstantPolicy(BasePolicy):
-    def __init__(self, constant):
-        self.constant_action = constant
-        self.initial_state = None
-
-    def step(self, obs, state=None, mask=None):
-        actions = np.array([self.constant_action] * self.batch_size)
-        return actions, None, None, None
-
-
-class ZeroPolicy(ConstantPolicy):
-    def __init__(self, shape):
-        super().__init__(np.zeros(shape))
-
-
-class OldToStable(BasePolicy):
-    def __init__(self, old_model):
-        self.old = old_model
-        self.initial_state = old_model.initial_state
-
-    def step(self, obs, state=None, mask=None):
-        return self.old.step(obs, S=state, M=mask)
 
 
 def simulate(venv, policies, render=False):

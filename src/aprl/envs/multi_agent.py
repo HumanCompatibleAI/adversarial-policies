@@ -69,7 +69,9 @@ class FakeSingleSpacesVec(VecEnv):
         super().__init__(venv.num_envs, observation_space, action_space)
 
     def reset(self):
-        raise NotImplementedError()
+        # Don't raise an error as some policy loading procedures require an initial observation.
+        # Returning None guarantees things will break if the observation is ever actually used.
+        return None
 
     def step_async(self, actions):
         raise NotImplementedError()

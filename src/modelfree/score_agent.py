@@ -90,7 +90,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
               for i, (policy_type, policy_path) in enumerate(zipped)]
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
     for agent in agents:
-        agent.sess.close()
+        if agent.sess is not None:
+            agent.sess.close()
     venv.close()
 
     return score

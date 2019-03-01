@@ -6,11 +6,10 @@ import pkgutil
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
-from stable_baselines.common import BaseRLModel
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
-from modelfree.utils import make_session
+from modelfree.utils import PolicyToModel, make_session
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -101,37 +100,6 @@ def set_from_flat(var_list, flat_params, sess):
         start += size
     op = tf.group(*assigns)
     sess.run(op, {theta: flat_params})
-
-
-class PolicyToModel(BaseRLModel):
-    def __init__(self, policy):
-        self.policy = policy
-        self.sess = policy.sess
-
-    def predict(self, observation, state=None, mask=None, deterministic=False):
-        if state is None:
-            state = self.policy.initial_state
-        if mask is None:
-            mask = [False for _ in range(self.policy.n_env)]
-
-        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
-                                                           deterministic=deterministic)
-        return actions, states
-
-    def setup_model(self):
-        pass
-
-    def learn(self):
-        raise NotImplementedError()
-
-    def action_probability(self, observation, state=None, mask=None, actions=None):
-        raise NotImplementedError()
-
-    def save(self, save_path):
-        raise NotImplementedError()
-
-    def load(self):
-        raise NotImplementedError()
 
 
 def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
