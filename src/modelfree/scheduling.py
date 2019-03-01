@@ -79,5 +79,8 @@ class LinearAnnealer(Annealer):
         self.end_frac = end_frac
 
     def get_value(self, frac_remaining):
-        anneal_progress = min(1.0, (1 - frac_remaining) / self.end_frac)
+        if self.end_frac == 0:
+            anneal_progress = 1.0
+        else:
+            anneal_progress = min(1.0, (1 - frac_remaining) / self.end_frac)
         return (1 - anneal_progress) * self.start_val + anneal_progress * self.end_val
