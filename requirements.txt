@@ -8,5 +8,5 @@ flake8>=3.7
 isort>=4.3
 sacred>=0.7.4
 GitPython>=2.1
-git+git://github.com/HumanCompatibleAI/baselines.git@6b43a9#egg=stable-baselines
+git+git://github.com/HumanCompatibleAI/baselines.git@b3a086#egg=stable-baselines
 git+git://github.com/HumanCompatibleAI/ilqr.git#egg=ilqr
