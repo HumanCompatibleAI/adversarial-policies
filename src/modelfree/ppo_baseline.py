@@ -1,17 +1,17 @@
 """Uses PPO to train an attack policy against a fixed victim policy."""
 
-import datetime
 import json
 import os
 import os.path as osp
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import PPO2, logger
+from stable_baselines import PPO2
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
+from modelfree.logger import setup_logger
 from modelfree.policy_loader import load_policy
 from modelfree.scheduling import ConstantAnnealer, Scheduler
 from modelfree.shaping_wrappers import apply_env_wrapper, apply_victim_wrapper
@@ -74,19 +74,6 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
     return model_path
 
 
-ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
-
-
-def setup_logger(out_dir="results", exp_name="test"):
-    timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
-    exp_name = exp_name.replace('/', '_')  # environment names can contain /'s
-    out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
-    os.makedirs(out_dir, exist_ok=True)
-    logger.configure(folder=osp.join(out_dir, 'mon'),
-                     format_strs=['tensorboard', 'stdout'])
-    return out_dir
-
-
 @ppo_baseline_ex.named_config
 def human_default():
     env = "multicomp/SumoHumans-v0"
@@ -145,7 +132,7 @@ def rew_shaping(env_name):
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  learning_rate, num_env, seed, rew_shape, rew_shape_params,
                  victim_noise, victim_noise_params):
-    out_dir = setup_logger(root_dir, exp_name)
+    out_dir, logger = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': ConstantAnnealer(learning_rate).get_value})
     callbacks = []
 
