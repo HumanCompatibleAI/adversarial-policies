@@ -186,10 +186,10 @@ def simulate(venv, policies, render=False):
 
 def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None):
     multi_env = gym.make(env_name)
-    if not isinstance(multi_env, MultiAgentEnv):
-        multi_env = SingleToMulti(multi_env)
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
+    if not isinstance(multi_env, MultiAgentEnv):
+        multi_env = SingleToMulti(multi_env)
     multi_env.seed(seed + i)
 
     if out_dir is not None:

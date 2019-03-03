@@ -106,8 +106,8 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
     g = tf.Graph()
     sess = make_session(g)
 
-    with sess.as_default():
-        with g.as_default():
+    with g.as_default():
+        with sess.as_default():
             # Construct graph
             kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
                           ac_space=env.action_space.spaces[index], n_env=env.num_envs,

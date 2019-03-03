@@ -5,7 +5,7 @@ import os.path as osp
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
-from aprl.envs.multi_agent import make_subproc_vec_multi_env
+from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import GymCompeteToOurs, game_outcome
 from modelfree.policy_loader import load_policy
 from modelfree.utils import VideoWrapper, make_env, simulate
@@ -77,7 +77,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
     env_fns = [lambda: env_fn(i) for i in range(num_env)]
-    venv = make_subproc_vec_multi_env(env_fns)
+    if num_env > 1:
+        venv = make_subproc_vec_multi_env(env_fns)
+    else:
+        venv = make_dummy_vec_multi_env(env_fns)
 
     agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]

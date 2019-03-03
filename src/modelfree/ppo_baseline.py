@@ -7,9 +7,9 @@ import os.path as osp
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import PPO2
-from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
-from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
+from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, VecMultiWrapper,
+                                   make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.logger import setup_logger
 from modelfree.policy_loader import load_policy
@@ -21,7 +21,7 @@ ppo_baseline_ex = Experiment("ppo_baseline")
 ppo_baseline_ex.observers.append(FileStorageObserver.create("data/sacred"))
 
 
-class EmbedVictimWrapper(VecEnvWrapper):
+class EmbedVictimWrapper(VecMultiWrapper):
     def __init__(self, multi_env, victim, victim_index):
         self.victim = victim
         curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
@@ -41,14 +41,14 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path, learning_rate, rl_args, callbacks=None):
+          batch_size, load_path, learning_rate, rl_args, debug, callbacks=None):
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env,
-                  verbose=1,
+                  verbose=1 if not debug else 2,
                   learning_rate=learning_rate,
                   **rl_args)
     if load_path is not None:
-        # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
+        # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
         model = PPO2.load(load_path, **kwargs)
     else:
         model = PPO2(policy=policy, **kwargs)
@@ -97,7 +97,8 @@ def default_ppo_config():
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
     rl_args = {}                    # extra RL algorithm arguments
-    load_path = None  # path to load initial policy from
+    load_path = None                # path to load initial policy from
+    debug = False                   # debug mode; may run more slowly
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -130,7 +131,7 @@ def rew_shaping(env_name):
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  learning_rate, num_env, seed, rew_shape, rew_shape_params,
-                 victim_noise, victim_noise_params):
+                 victim_noise, victim_noise_params, debug):
     out_dir, logger = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': ConstantAnnealer(learning_rate).get_value})
     callbacks = []
@@ -139,9 +140,14 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     def env_fn(i):
         return make_env(env_name, seed, i, root_dir, pre_wrapper=pre_wrapper)
 
-    multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
-    multi_env = GameOutcomeMonitor(multi_env, logger)
-    callbacks.append(lambda locals, globals: multi_env.log_callback())
+    make_vec_env = make_subproc_vec_multi_env if not debug else make_dummy_vec_multi_env
+    multi_env = make_vec_env([lambda: env_fn(i) for i in range(num_env)])
+
+    if env_name.startswith('multicomp/'):
+        game_outcome = GameOutcomeMonitor(multi_env, logger)
+        # Need game_outcome as separate variable as Python closures bind late
+        callbacks.append(lambda locals, globals: game_outcome.log_callback())
+        multi_env = game_outcome
 
     if victim_type == 'none':
         if multi_env.num_agents > 1:

@@ -80,7 +80,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
             # log the results of an episode into buffers and then pass on the shaped reward
             if done[env_num]:
-                for rew_term in self.step_rew_dict:
+                for rew_term in self.shaping_params.keys():
                     self.ep_rew_dict[rew_term].append(sum(self.step_rew_dict[rew_term][env_num]))
                     self.step_rew_dict[rew_term][env_num] = []
             rew[env_num] = shaped_reward
