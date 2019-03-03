@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import FakeSingleSpacesVec
 from modelfree.gym_compete_conversion import load_zoo_agent
-from modelfree.utils import OpenAIToStablePolicy, PolicyToModel, ZeroPolicy
+from modelfree.utils import OpenAIToStablePolicy, PolicyToModel, RandomPolicy, ZeroPolicy
 
 
 def load_stable_baselines(cls):
@@ -41,11 +41,18 @@ def load_zero(path, env, env_name, index):
     return PolicyToModel(policy)
 
 
+def load_random(path, env, env_name, index):
+    denv = FakeSingleSpacesVec(env, agent_id=index)
+    policy = RandomPolicy(denv)
+    return PolicyToModel(policy)
+
+
 AGENT_LOADERS = {
     'zoo': load_zoo_agent,
     'ppo2': load_stable_baselines(PPO2),
     'old_ppo2': load_old_ppo2,
     'zero': load_zero,
+    'random': load_random,
 }
 
 

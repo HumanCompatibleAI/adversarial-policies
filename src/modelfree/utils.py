@@ -99,6 +99,21 @@ class ZeroPolicy(ConstantPolicy):
         super().__init__(env, np.zeros(env.action_space.shape))
 
 
+class RandomPolicy(BasePolicy):
+    def __init__(self, env):
+        super().__init__(sess=None,
+                         ob_space=env.observation_space,
+                         ac_space=env.action_space,
+                         n_env=env.num_envs,
+                         n_steps=1,
+                         n_batch=1)
+        self.initial_state = None
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        actions = np.array([self.ac_space.sample() for _ in range(self.n_env)])
+        return actions, None, None, None
+
+
 class VideoWrapper(Wrapper):
     def __init__(self, env, directory):
         super(VideoWrapper, self).__init__(env)
