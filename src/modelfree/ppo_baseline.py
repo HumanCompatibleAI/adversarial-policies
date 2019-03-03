@@ -25,9 +25,8 @@ class EmbedVictimWrapper(VecEnvWrapper):
     def __init__(self, multi_env, victim, victim_index):
         self.victim = victim
         curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        single_env = FlattenSingletonVecEnv(curried_env)
 
-        super().__init__(single_env)
+        super().__init__(curried_env)
 
     def reset(self):
         return self.venv.reset()
@@ -135,26 +134,36 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     out_dir, logger = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': ConstantAnnealer(learning_rate).get_value})
     callbacks = []
+    pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
 
     def env_fn(i):
-        return make_env(env_name, seed, i, root_dir, pre_wrapper=GymCompeteToOurs)
+        return make_env(env_name, seed, i, root_dir, pre_wrapper=pre_wrapper)
 
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
     multi_env = GameOutcomeMonitor(multi_env, logger)
     callbacks.append(lambda locals, globals: multi_env.log_callback())
 
-    # Get the correct victim and then wrap it accordingly.
-    victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
-                         env_name=env_name, index=victim_index)
-    if victim_noise:
-        victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
-                                      scheduler=scheduler)
-
-    # Get the correct environment and then wrap it accordingly.
-    single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
-                                    victim_index=victim_index)
-    if rew_shape:
+    if victim_type == 'none':
+        if multi_env.num_agents > 1:
+            raise ValueError("Victim needed for multi-agent environments")
+        agent_idx = 0
+    else:
+        assert multi_env.num_agents == 2
         agent_idx = 1 - victim_index
+
+        # Load the victim and then wrap it if appropriate.
+        victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_env,
+                             env_name=env_name, index=victim_index)
+        if victim_noise:
+            victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
+                                          scheduler=scheduler)
+
+        # Curry the victim
+        multi_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
+                                       victim_index=victim_index)
+    single_env = FlattenSingletonVecEnv(multi_env)
+
+    if rew_shape:
         single_env = apply_env_wrapper(single_env=single_env, shaping_params=rew_shape_params,
                                        agent_idx=agent_idx, logger=logger, scheduler=scheduler)
         callbacks.append(lambda locals, globals: single_env.log_callback())

@@ -166,6 +166,30 @@ class FlattenMultiEnv(Wrapper):
         return self.env.reset()[0]
 
 
+class SingleToMulti(Wrapper, MultiAgentEnv):
+    """Converts an Env into a MultiAgentEnv with num_agents = 1.
+
+    Consequently observations, actions and rewards are singleton tuples.
+    The observation action spaces are singleton Tuple spaces.
+    The info dict is nested inside an outer with key 0."""
+    def __init__(self, env):
+        Wrapper.__init__(self, env)
+        self.action_space = gym.spaces.Tuple((self.action_space, ))
+        self.observation_space = gym.spaces.Tuple((self.observation_space, ))
+        MultiAgentEnv.__init__(self, num_agents=1)
+
+    def step(self, action_n):
+        observations, rewards, done, infos = self.env.step(action_n)
+        rewards = (rewards,)
+        observations = (observations,)
+        infos = {0: infos}
+        return observations, rewards, done, infos
+
+    def reset(self):
+        observations = self.env.reset()
+        return (observations,)
+
+
 class VecMultiEnv(VecEnv):
     """Like a VecEnv, but each environment is a MultiEnv. Adds extra attribute, num_agents.
 

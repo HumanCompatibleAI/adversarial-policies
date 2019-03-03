@@ -10,6 +10,7 @@ from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
+from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti
 
 
 class DummyModel(BaseRLModel):
@@ -170,6 +171,8 @@ def simulate(venv, policies, render=False):
 
 def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None):
     multi_env = gym.make(env_name)
+    if not isinstance(multi_env, MultiAgentEnv):
+        multi_env = SingleToMulti(multi_env)
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
     multi_env.seed(seed + i)
