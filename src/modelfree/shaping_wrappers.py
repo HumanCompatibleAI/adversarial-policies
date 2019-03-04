@@ -6,7 +6,7 @@ import numpy as np
 from stable_baselines.common.base_class import BaseRLModel
 from stable_baselines.common.vec_env import VecEnvWrapper
 
-from modelfree.scheduling import LinearAnnealer
+from modelfree.scheduling import ConditionalAnnealer, LinearAnnealer
 
 
 class RewardShapingVecWrapper(VecEnvWrapper):
@@ -21,6 +21,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         self.batch_size = batch_size
         self.agent_idx = agent_idx
         self.logger = logger
+        self.log_cache = {}
 
         self.ep_rew_dict = defaultdict(list)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
@@ -29,22 +30,25 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
         all_keys = list(self.shaping_params['dense'].keys()) + list(self.shaping_params['sparse'].keys())
         num_episodes = len(self.ep_rew_dict[all_keys[0]])
+        if num_episodes == 0:
+            return
+
         for k in all_keys:
             assert len(self.ep_rew_dict[k]) == num_episodes
 
         dense_terms = self.shaping_params['dense'].keys()
         ep_dense_mean = sum([sum(self.ep_rew_dict[t]) for t in dense_terms]) / num_episodes
-        self.logger.logkv('epdensemean', ep_dense_mean)
+        self.logger.logkv('z-epdensemean', ep_dense_mean)
 
         sparse_terms = self.shaping_params['sparse'].keys()
         ep_sparse_mean = sum([sum(self.ep_rew_dict[t]) for t in sparse_terms]) / num_episodes
-        self.logger.logkv('epsparsemean', ep_sparse_mean)
+        self.logger.logkv('z-epsparsemean', ep_sparse_mean)
 
         if self.reward_annealer is not None:
             c = self.reward_annealer()
-            self.logger.logkv('rew_anneal', c)
+            self.logger.logkv('z-rew_anneal', c)
             ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
-            self.logger.logkv('eprewmean_true', ep_rew_mean)
+            self.logger.logkv('z-eprewmean_true', ep_rew_mean)
 
         for rew_type in self.ep_rew_dict:
             self.ep_rew_dict[rew_type] = []
@@ -99,7 +103,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
 
 class NoisyAgentWrapper(BaseRLModel):
-    def __init__(self, agent, noise_annealer, noise_type='gaussian'):
+    def __init__(self, agent, logger, noise_annealer, noise_type='gaussian'):
         """
         Wrap an agent and add noise to its actions
         :param agent: BaseRLModel the agent to wrap
@@ -110,6 +114,7 @@ class NoisyAgentWrapper(BaseRLModel):
         """
         self.agent = agent
         self.sess = agent.sess
+        self.logger = logger
         self.noise_annealer = noise_annealer
         self.noise_generator = self._get_noise_generator(noise_type)
 
@@ -119,6 +124,10 @@ class NoisyAgentWrapper(BaseRLModel):
             'gaussian': lambda x, size: np.random.normal(scale=x, size=size)
         }
         return noise_generators[noise_type]
+
+    def log_callback(self):
+        current_noise_param = self.noise_annealer()
+        self.logger.logkv('victim_noise', current_noise_param)
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         original_actions, states = self.agent.predict(observation, state, mask, deterministic)
@@ -155,7 +164,7 @@ def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=F
     config_dir = 'rew_configs' if rew_shaping else 'noise_configs'
     path_stem = os.path.join('experiments', config_dir)
     default_configs = {
-        'Humanoid-v1': 'default_hstand.json',
+        'Humanoid-v1': 'default_hwalk.json',
         'multicomp/SumoHumans-v0': 'default_hsumo.json',
         'multicomp/SumoHumansAutoContact-v0': 'default_hsumo.json'
     }
@@ -191,14 +200,18 @@ def apply_env_wrapper(single_env, rew_shape_params, env_name, agent_idx,
                                    reward_annealer=scheduler.get_func('rew_shape'))
 
 
-def apply_victim_wrapper(victim, victim_noise_params, env_name, scheduler):
+def apply_victim_wrapper(victim, victim_noise_params, env_name, scheduler, logger):
     noise_params = load_wrapper_params(victim_noise_params, env_name, noisy_victim=True)
-    victim_noise_anneal_frac = noise_params.get('victim_noise_anneal_frac', 0)
-    victim_noise_param = noise_params.get('victim_noise_param', 0)
-    assert victim_noise_anneal_frac > 0, \
-        "victim_noise_anneal_frac must be greater than 0 if using a NoisyAgentWrapper."
+    if 'metric' in noise_params:
+        noise_anneal_func = ConditionalAnnealer.from_dict(noise_params, logger).get_value
+    else:
+        victim_noise_anneal_frac = noise_params.get('victim_noise_anneal_frac', 0)
+        victim_noise_param = noise_params.get('victim_noise_param', 0)
 
-    noise_anneal_func = LinearAnnealer(victim_noise_param, 0,
-                                       victim_noise_anneal_frac).get_value
+        if victim_noise_anneal_frac <= 0:
+            msg = "victim_noise_anneal_frac must be greater than 0 if using a NoisyAgentWrapper."
+            raise ValueError(msg)
+        noise_anneal_func = LinearAnnealer(victim_noise_param, 0,
+                                           victim_noise_anneal_frac).get_value
     scheduler.set_func('noise', noise_anneal_func)
-    return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_func('noise'))
+    return NoisyAgentWrapper(victim, logger=logger, noise_annealer=scheduler.get_func('noise'))

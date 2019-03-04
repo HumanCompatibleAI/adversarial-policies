@@ -6,7 +6,7 @@ import os.path as osp
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import PPO2, logger
+from stable_baselines import PPO1, PPO2, SAC, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
 from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
@@ -41,30 +41,57 @@ class EmbedVictimWrapper(VecEnvWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path, learning_rate, callbacks=None):
-    kwargs = dict(env=env,
-                  n_steps=batch_size // num_env,
-                  verbose=1,
-                  tensorboard_log=out_dir,
-                  learning_rate=learning_rate)
+          batch_size, load_path, learning_rate, model_type, callbacks=None):
+    ppo2_kwargs = dict(
+        env=env,
+        n_steps=batch_size // num_env,
+        verbose=1,
+        tensorboard_log=out_dir,
+        learning_rate=learning_rate)
+
+    ppo1_kwargs = dict(
+        env=env,
+        timesteps_per_actorbatch=batch_size // num_env,
+        verbose=1,
+        tensorboard_log=out_dir,
+        entcoeff=0.0,
+        optim_epochs=10,
+        optim_stepsize=3e-4,
+        optim_batchsize=64,
+    )
+    sac_kwargs = dict(
+        env=env,
+        buffer_size=100000,
+        batch_size=batch_size // num_env,  # should be 256
+        verbose=1,
+        tensorboard_log=out_dir,
+        learning_rate=learning_rate
+    )
+
+    model_dict = {
+        'ppo1': [PPO1, ppo1_kwargs, 'iters_so_far', 1],
+        'ppo2': [PPO2, ppo2_kwargs, 'update', 1],
+        'sac': [SAC, sac_kwargs, 'n_updates', 20]
+    }
+    selected_model, model_kwargs, update_str, log_interval = model_dict[model_type]
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
-        model = PPO2.load(load_path, **kwargs)
+        model = selected_model.load(load_path, **model_kwargs)
     else:
-        model = PPO2(policy=policy, **kwargs)
+        model = selected_model(policy=policy, **model_kwargs)
 
     def checkpoint(locals, globals):
-        update = locals['update']
-        checkpoint_dir = osp.join(out_dir, 'checkpoint')
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
-        model.save(checkpoint_path)
+        update = locals[update_str]
+        if update % (log_interval * 500) == 0:
+            checkpoint_dir = osp.join(out_dir, 'checkpoint')
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
+            model.save(checkpoint_path)
 
-        if callbacks is not None:
+        if callbacks is not None and update % log_interval == 0:
             for f in callbacks:
                 f(locals, globals)
-
-    model.learn(total_timesteps=total_timesteps, log_interval=1,
+    model.learn(total_timesteps=total_timesteps, log_interval=log_interval,
                 seed=_seed, callback=checkpoint)
 
     model_path = osp.join(out_dir, 'final_model.pkl')
@@ -94,6 +121,16 @@ def human_default():
     _ = locals()
     del _
 
+@ppo_baseline_ex.named_config
+def humanoid():
+    env_name = 'Humanoid-v1'
+    victim_index = 1
+    victim_type = None
+    rew_shape_params = 'default'
+    root_dir = 'data/hwalk'
+    total_timesteps = int(1e9)
+    _ = locals()
+    del _
 
 @ppo_baseline_ex.config
 def default_ppo_config():
@@ -111,6 +148,7 @@ def default_ppo_config():
     load_path = None                # path to load initial policy from
     rew_shape_params = None         # path to file. 'default' uses default settings for env_name
     victim_noise_params = None      # path to file. 'default' uses default settings for env_name
+    model_type = 'ppo2'
     # then default settings for that environment will be used.
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -138,7 +176,8 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
                              env_name=env_name, index=victim_index)
         if victim_noise_params is not None:
             victim = apply_victim_wrapper(victim=victim, victim_noise_params=victim_noise_params,
-                                          env_name=env_name, scheduler=scheduler)
+                                          env_name=env_name, scheduler=scheduler, logger=logger)
+            callbacks.append(lambda locals, globals: victim.log_callback())
 
         # Get the correct environment and then wrap it accordingly.
         single_env = EmbedVictimWrapper(multi_env=multi_env, victim=victim,
