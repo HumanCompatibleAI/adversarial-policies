@@ -6,6 +6,19 @@ from stable_baselines.common.vec_env import VecEnvWrapper
 from modelfree.scheduling import LinearAnnealer
 from modelfree.utils import DummyModel
 
+REW_TYPES = set(('sparse', 'dense'))
+
+
+def _anneal(reward_dict, reward_annealer):
+    sparse_weight, dense_weight = 1, 1
+    if reward_annealer is not None:
+        c = reward_annealer()
+        assert 0 <= c <= 1
+        sparse_weight = 1 - c
+        dense_weight = c
+    return (reward_dict['sparse'] * sparse_weight
+            + reward_dict['dense'] * dense_weight)
+
 
 class RewardShapingVecWrapper(VecEnvWrapper):
     """
@@ -14,7 +27,12 @@ class RewardShapingVecWrapper(VecEnvWrapper):
     """
     def __init__(self, venv, agent_idx, logger, shaping_params, reward_annealer=None):
         super().__init__(venv)
-        self.shaping_params = shaping_params
+        assert shaping_params.keys() == REW_TYPES
+        self.shaping_params = {}
+        for rew_type, params in shaping_params.items():
+            for rew_term, weight in params.items():
+                self.shaping_params[rew_term] = (rew_type, weight)
+
         self.reward_annealer = reward_annealer
         self.agent_idx = agent_idx
         self.logger = logger
@@ -24,26 +42,18 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
     def log_callback(self):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
-        num_episodes = len(self.ep_rew_dict['reward_remaining'])
+        num_episodes = len(self.ep_rew_dict['sparse'])
         if num_episodes == 0:
             return
 
-        dense_terms = self.shaping_params['dense'].keys()
-        for term in dense_terms:
-            assert len(self.ep_rew_dict[term]) == num_episodes
-        ep_dense_mean = sum([sum(self.ep_rew_dict[t]) for t in dense_terms]) / num_episodes
-        self.logger.logkv('epdensemean', ep_dense_mean)
+        means = {}
+        for rew_type, rews in self.ep_rew_dict.items():
+            assert len(rews) == num_episodes
+            means[rew_type] = sum(rews) / num_episodes
+            self.logger.logkv(f'ep{rew_type}mean', means[rew_type])
 
-        sparse_terms = self.shaping_params['sparse'].keys()
-        for term in sparse_terms:
-            assert len(self.ep_rew_dict[term]) == num_episodes
-        ep_sparse_mean = sum([sum(self.ep_rew_dict[t]) for t in sparse_terms]) / num_episodes
-        self.logger.logkv('epsparsemean', ep_sparse_mean)
-
-        c = self.reward_annealer()
-        self.logger.logkv('rew_anneal', c)
-        ep_rew_mean = c * ep_dense_mean + (1 - c) * ep_sparse_mean
-        self.logger.logkv('eprewmean_true', ep_rew_mean)
+        overall_mean = _anneal(means, self.reward_annealer)
+        self.logger.logkv('eprewmean_true', overall_mean)
 
         for rew_type in self.ep_rew_dict:
             self.ep_rew_dict[rew_type] = []
@@ -54,47 +64,27 @@ class RewardShapingVecWrapper(VecEnvWrapper):
     def step_wait(self):
         obs, rew, done, infos = self.venv.step_wait()
         for env_num in range(self.num_envs):
-            shaped_reward = 0
+            # Compute shaped_reward for each rew_type
+            shaped_reward = {k: 0 for k in REW_TYPES}
             for rew_term, rew_value in infos[env_num][self.agent_idx].items():
-                # our shaping_params dictionary is hierarchically separated the rew_terms
-                # into two rew_types, 'dense' and 'sparse'
-                if rew_term in self.shaping_params['sparse']:
-                    rew_type = 'sparse'
-                elif rew_term in self.shaping_params['dense']:
-                    rew_type = 'dense'
-                else:
+                if rew_term not in self.shaping_params:
                     continue
+                rew_type, weight = self.shaping_params[rew_term]
+                shaped_reward[rew_type] += weight * rew_value
 
-                # weighted_reward := our weight for that term * value of that term
-                weighted_reward = self.shaping_params[rew_type][rew_term] * rew_value
-                self.step_rew_dict[rew_term][env_num].append(weighted_reward)
+            # Compute total shaped reward, optionally annealing
+            rew[env_num] = _anneal(shaped_reward, self.reward_annealer)
 
-                # perform annealing if necessary and then accumulate total shaped_reward
-                if self.reward_annealer is not None:
-                    c = self.get_annealed_exploration_reward()
-                    if rew_type == 'sparse':
-                        weighted_reward *= (1 - c)
-                    else:
-                        weighted_reward *= c
-                shaped_reward += weighted_reward
+            # Log the results of an episode into buffers and then pass on the shaped reward
+            for rew_type, val in shaped_reward.items():
+                self.step_rew_dict[rew_type][env_num].append(val)
 
-            # log the results of an episode into buffers and then pass on the shaped reward
             if done[env_num]:
-                for rew_term in self.shaping_params.keys():
-                    self.ep_rew_dict[rew_term].append(sum(self.step_rew_dict[rew_term][env_num]))
-                    self.step_rew_dict[rew_term][env_num] = []
-            rew[env_num] = shaped_reward
+                for rew_type in REW_TYPES:
+                    self.ep_rew_dict[rew_type].append(sum(self.step_rew_dict[rew_type][env_num]))
+                    self.step_rew_dict[rew_type][env_num] = []
 
         return obs, rew, done, infos
-
-    def get_annealed_exploration_reward(self):
-        """
-        Returns c (which will be annealed to zero) s.t. the total reward equals
-        c * reward_move + (1 - c) * reward_remaining
-        """
-        c = self.reward_annealer()
-        assert 0 <= c <= 1
-        return c
 
 
 class NoisyAgentWrapper(DummyModel):
@@ -131,16 +121,17 @@ class NoisyAgentWrapper(DummyModel):
 def apply_env_wrapper(single_env, shaping_params, agent_idx, logger, scheduler):
     anneal_frac = shaping_params.get('anneal_frac')
     if anneal_frac is not None:
-        rew_shape_func = LinearAnnealer(1, 0, anneal_frac).get_value
+        annealer = LinearAnnealer(1, 0, anneal_frac).get_value
+        scheduler.set_func('rew_shape', annealer)
+        rew_shape_func = scheduler.get_func('rew_shape')
     else:
         # In this case, the different reward types are weighted differently
         # but reward is not annealed over time.
         rew_shape_func = None
 
-    scheduler.set_func('rew_shape', rew_shape_func)
     return RewardShapingVecWrapper(single_env, agent_idx=agent_idx, logger=logger,
-                                   shaping_params=shaping_params,
-                                   reward_annealer=scheduler.get_func('rew_shape'))
+                                   shaping_params=shaping_params['weights'],
+                                   reward_annealer=rew_shape_func)
 
 
 def apply_victim_wrapper(victim, noise_params, scheduler):
