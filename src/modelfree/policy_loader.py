@@ -1,17 +1,43 @@
 """Load serialized policies of different types."""
 
+import os
+
 from stable_baselines import PPO2
+from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
 from aprl.envs.multi_agent import FakeSingleSpacesVec
 from modelfree.gym_compete_conversion import load_zoo_agent
-from modelfree.utils import OpenAIToStablePolicy, PolicyToModel, RandomPolicy, ZeroPolicy
+from modelfree.utils import (DummyModel, OpenAIToStablePolicy, PolicyToModel, RandomPolicy,
+                             ZeroPolicy)
+
+
+class NormalizeModel(DummyModel):
+    def __init__(self, policy, vec_normalize):
+        super().__init__(policy, policy.sess)
+        self.vec_normalize = vec_normalize
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        norm_obs = self.vec_normalize._normalize_observation(observation)
+        return self.policy.predict(norm_obs, state, mask, deterministic)
 
 
 def load_stable_baselines(cls):
-    def f(path, env, env_name, index):
+    def f(root_dir, env, env_name, index):
         denv = FakeSingleSpacesVec(env, agent_id=index)
-        return cls.load(path, env=denv)
+        model_path = os.path.join(root_dir, 'model.pkl')
+        model = cls.load(model_path, env=denv)
+
+        try:
+            vec_normalize = VecNormalize(denv, training=False)
+            vec_normalize.load_running_average(root_dir)
+            model = NormalizeModel(model, vec_normalize)
+        except FileNotFoundError:
+            # We did not use VecNormalize during training, skip
+            pass
+
+        return model
+
     return f
 
 

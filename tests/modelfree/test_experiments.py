@@ -28,7 +28,7 @@ SCORE_AGENT_CONFIGS = [
     {'env_name': 'multicomp/KickAndDefend-v0'},
     {
         'agent_b_type': 'ppo2',
-        'agent_b_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl'),
+        'agent_b_path': os.path.join(BASE_DIR, 'dummy_sumo_ants'),
         'episodes': 5,
     },
 ]
@@ -56,7 +56,8 @@ def load_json(fname):
 PPO_BASELINE_CONFIGS = [
     {'num_env': 1},
     {'env_name': 'multicomp/KickAndDefend-v0'},
-    {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants.pkl')},
+    {'normalize': False},
+    {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants')},
     {
         'env_name': 'multicomp/SumoHumans-v0',
         'rew_shape': True,
@@ -74,4 +75,6 @@ def test_ppo_baseline(config):
     config = dict(config)
     config['total_timesteps'] = 4096  # small number of steps to keep things quick
     run = ppo_baseline_ex.run(config_updates=config)
-    assert os.path.isfile(run.result), "model weights not saved"
+    final_dir = run.result
+    assert os.path.isdir(final_dir), "final result not saved"
+    assert os.path.isfile(os.path.join(final_dir, 'model.pkl')), "model weights not saved"

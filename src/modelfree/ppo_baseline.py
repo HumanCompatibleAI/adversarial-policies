@@ -7,6 +7,7 @@ import os.path as osp
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import PPO2
+from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, VecMultiWrapper,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
@@ -41,7 +42,8 @@ class EmbedVictimWrapper(VecMultiWrapper):
 
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
-          batch_size, load_path, learning_rate, rl_args, debug, callbacks=None):
+          batch_size, load_path, learning_rate, rl_args, debug,
+          log_callbacks=None, save_callbacks=None):
     kwargs = dict(env=env,
                   n_steps=batch_size // num_env,
                   verbose=1 if not debug else 2,
@@ -53,24 +55,29 @@ def train(_seed, env, out_dir, total_timesteps, num_env, policy,
     else:
         model = PPO2(policy=policy, **kwargs)
 
+    def save(root_dir):
+        os.makedirs(root_dir, exist_ok=True)
+        model_path = osp.join(root_dir, 'model.pkl')
+        model.save(model_path)
+        if save_callbacks is not None:
+            for f in save_callbacks:
+                f(root_dir)
+
     def callback(locals, globals):
         update = locals['update']
-        checkpoint_dir = osp.join(out_dir, 'checkpoint')
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        checkpoint_path = osp.join(checkpoint_dir, f'{update:05}')
-        model.save(checkpoint_path)
+        checkpoint_dir = osp.join(out_dir, 'checkpoint', f'{update:05}')
+        save(checkpoint_dir)
 
-        if callbacks is not None:
-            for f in callbacks:
+        if log_callbacks is not None:
+            for f in log_callbacks:
                 f(locals, globals)
 
     model.learn(total_timesteps=total_timesteps, log_interval=1,
                 seed=_seed, callback=callback)
-
-    model_path = osp.join(out_dir, 'final_model.pkl')
-    model.save(model_path)
+    final_path = osp.join(out_dir, 'final_model')
+    save(final_path)
     model.sess.close()
-    return model_path
+    return final_path
 
 
 @ppo_baseline_ex.named_config
@@ -96,6 +103,7 @@ def default_ppo_config():
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
+    normalize = True                # normalize environment observations and reward
     rl_args = {}                    # extra RL algorithm arguments
     load_path = None                # path to load initial policy from
     debug = False                   # debug mode; may run more slowly
@@ -130,11 +138,11 @@ def rew_shaping(env_name):
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
-                 learning_rate, num_env, seed, rew_shape, rew_shape_params,
+                 learning_rate, normalize, num_env, seed, rew_shape, rew_shape_params,
                  victim_noise, victim_noise_params, debug):
     out_dir, logger = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(func_dict={'lr': ConstantAnnealer(learning_rate).get_value})
-    callbacks = []
+    log_callbacks, save_callbacks = [], []
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
 
     def env_fn(i):
@@ -146,7 +154,7 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     if env_name.startswith('multicomp/'):
         game_outcome = GameOutcomeMonitor(multi_env, logger)
         # Need game_outcome as separate variable as Python closures bind late
-        callbacks.append(lambda locals, globals: game_outcome.log_callback())
+        log_callbacks.append(lambda locals, globals: game_outcome.log_callback())
         multi_env = game_outcome
 
     if victim_type == 'none':
@@ -170,12 +178,18 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     single_env = FlattenSingletonVecEnv(multi_env)
 
     if rew_shape:
-        single_env = apply_env_wrapper(single_env=single_env, shaping_params=rew_shape_params,
-                                       agent_idx=agent_idx, logger=logger, scheduler=scheduler)
-        callbacks.append(lambda locals, globals: single_env.log_callback())
+        rew_shape_env = apply_env_wrapper(single_env=single_env, shaping_params=rew_shape_params,
+                                          agent_idx=agent_idx, logger=logger, scheduler=scheduler)
+        log_callbacks.append(lambda locals, globals: rew_shape_env.log_callback())
+        single_env = rew_shape_env
+
+    if normalize:
+        vec_normalize = VecNormalize(single_env)
+        save_callbacks.append(lambda root_dir: vec_normalize.save_running_average(root_dir))
+        single_env = vec_normalize
 
     res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
-                callbacks=callbacks)
+                log_callbacks=log_callbacks, save_callbacks=save_callbacks)
     single_env.close()
 
     return res
