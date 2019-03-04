@@ -42,38 +42,40 @@ class EmbedVictimWrapper(VecEnvWrapper):
 @ppo_baseline_ex.capture
 def train(_seed, env, out_dir, total_timesteps, num_env, policy,
           batch_size, load_path, learning_rate, model_type, callbacks=None):
+    model_kwargs = dict(
+        env=env,
+        verbose=1,
+        tensorboard_log=out_dir
+    )
     ppo2_kwargs = dict(
-        env=env,
         n_steps=batch_size // num_env,
-        verbose=1,
-        tensorboard_log=out_dir,
-        learning_rate=learning_rate)
+        learning_rate=learning_rate
+    )
 
+    # these should be run with mpirun -np 16, batch_size=2048
     ppo1_kwargs = dict(
-        env=env,
         timesteps_per_actorbatch=batch_size // num_env,
-        verbose=1,
-        tensorboard_log=out_dir,
+        clip_param=0.1,
         entcoeff=0.0,
         optim_epochs=10,
-        optim_stepsize=3e-4,
+        optim_stepsize=1e-4,
         optim_batchsize=64,
+        schedule='constant'
     )
     sac_kwargs = dict(
-        env=env,
         buffer_size=100000,
         batch_size=batch_size // num_env,  # should be 256
-        verbose=1,
-        tensorboard_log=out_dir,
         learning_rate=learning_rate
     )
 
     model_dict = {
         'ppo1': [PPO1, ppo1_kwargs, 'iters_so_far', 1],
         'ppo2': [PPO2, ppo2_kwargs, 'update', 1],
-        'sac': [SAC, sac_kwargs, 'n_updates', 20]
+        'sac': [SAC, sac_kwargs, 'n_updates', 500]
     }
-    selected_model, model_kwargs, update_str, log_interval = model_dict[model_type]
+    selected_model, selected_model_kwargs, update_str, log_interval = model_dict[model_type]
+    model_kwargs.update(selected_model_kwargs)
+
     if load_path is not None:
         # SOMEDAY: Counterintuitively this will inherit any extra arguments saved in the policy
         model = selected_model.load(load_path, **model_kwargs)
