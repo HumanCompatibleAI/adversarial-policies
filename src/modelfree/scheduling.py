@@ -147,7 +147,7 @@ class ConditionalAnnealer(Annealer):
             'window_size': 1,
             'min_wait': 1,
             'operator': operator.lt,
-            'metric': 'epsparsemean',
+            'metric': 'ep_sparse_reward',  # ep_dense_reward, ep_length
         }
         if 'operator' in cond_config:
             cond_config['operator'] = getattr(operator, cond_config['operator'])

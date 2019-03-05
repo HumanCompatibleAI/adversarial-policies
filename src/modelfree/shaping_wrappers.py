@@ -25,12 +25,15 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         self.num_episodes = 0
 
         self.ep_rew_dict = defaultdict(list)
+        self.ep_len_dict = defaultdict(int)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
 
     def log_callback(self):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
-        all_keys = list(self.shaping_params['dense'].keys()) + \
-            list(self.shaping_params['sparse'].keys())
+        dense_keys = list(self.shaping_params['dense'].keys())
+        sparse_keys = list(self.shaping_params['sparse'].keys())
+        all_keys = dense_keys + sparse_keys
+
         num_episodes = len(self.ep_rew_dict[all_keys[0]])
         if num_episodes == 0:
             return
@@ -39,11 +42,11 @@ class RewardShapingVecWrapper(VecEnvWrapper):
             assert len(self.ep_rew_dict[k]) == num_episodes
 
         ep_dense_mean = self.get_aggregate_data(buffer=self.ep_rew_dict, episode_avg=True,
-                                                terms=self.shaping_params['dense'].keys())
+                                                terms=dense_keys)
         self.logger.logkv('shaping/epdensemean', ep_dense_mean)
 
         ep_sparse_mean = self.get_aggregate_data(buffer=self.ep_rew_dict, episode_avg=True,
-                                                 terms=self.shaping_params['sparse'].keys())
+                                                 terms=sparse_keys)
         self.logger.logkv('shaping/epsparsemean', ep_sparse_mean)
 
         if self.reward_annealer is not None:
@@ -56,25 +59,30 @@ class RewardShapingVecWrapper(VecEnvWrapper):
             self.ep_rew_dict[rew_type] = []
 
     def get_log_buffer_data(self):
-        self.log_buffers['epdensereward'] = self.get_aggregate_data(
+        self.log_buffers['ep_dense_reward'] = self.get_aggregate_data(
             buffer=self.log_buffers, episode_avg=False,
             terms=self.shaping_params['dense'].keys())
-        self.log_buffers['epsparsereward'] = self.get_aggregate_data(
+        self.log_buffers['ep_sparse_reward'] = self.get_aggregate_data(
             buffer=self.log_buffers, episode_avg=False,
             terms=self.shaping_params['sparse'].keys())
         self.log_buffers['num_episodes'] = self.num_episodes
+        # self.log_buffers also contains list of episode lengths (ep_length)
         if self.num_episodes == 0:
             return None
         return self.log_buffers
 
     @staticmethod
     def get_aggregate_data(buffer, episode_avg, terms):
+        if len(terms) == 0:
+            return 0
         term_buffers = [buffer[t] for t in terms]
         aggregated = [sum(x) for x in zip(*term_buffers)]
 
         if episode_avg is True:
             num_episodes = len(buffer[list(terms)[0]])
             return sum(aggregated) / num_episodes
+        else:
+            return aggregated
 
     def reset(self):
         return self.venv.reset()
@@ -82,6 +90,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
     def step_wait(self):
         obs, rew, done, infos = self.venv.step_wait()
         for env_num in range(self.num_envs):
+            self.ep_len_dict[env_num] += 1
             shaped_reward = 0
             for rew_term, rew_value in infos[env_num][self.agent_idx].items():
                 # our shaping_params dictionary is hierarchically separated the rew_terms
@@ -114,6 +123,9 @@ class RewardShapingVecWrapper(VecEnvWrapper):
                     self.log_buffers[rew_term].appendleft(rew_term_total)
                     self.step_rew_dict[rew_term][env_num] = []
                     self.num_episodes += 1
+                # manually curate episode length because ConditionalAnnealers may want it
+                self.log_buffers['ep_length'].appendleft(self.ep_len_dict[env_num])
+                self.ep_len_dict[env_num] = 0
             rew[env_num] = shaped_reward
 
         return obs, rew, done, infos
