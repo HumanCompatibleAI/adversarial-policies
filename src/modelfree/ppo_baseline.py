@@ -123,6 +123,7 @@ def human_default():
     _ = locals()
     del _
 
+
 @ppo_baseline_ex.named_config
 def humanoid():
     env_name = 'Humanoid-v1'
@@ -133,6 +134,7 @@ def humanoid():
     total_timesteps = int(1e9)
     _ = locals()
     del _
+
 
 @ppo_baseline_ex.config
 def default_ppo_config():

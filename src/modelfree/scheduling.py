@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import collections
 import functools
+import itertools
 import operator
-from stable_baselines import logger
 
 
 class Scheduler(object):
@@ -12,8 +12,8 @@ class Scheduler(object):
             annealer_dict = {}
         self.annealer_dict = annealer_dict
         self.func_dict = {}
-        for a in annealer_dict:
-            self.func_dict[a] = a.get_value
+        for k, v in annealer_dict.items():
+            self.func_dict[k] = v.get_value
 
         self.conditionals = collections.defaultdict(lambda: False)
         self.frac_remaining = 1  # frac_remaining goes from 1 to 0
@@ -49,7 +49,7 @@ class Scheduler(object):
         if not isinstance(annealer, Annealer) and annealer is not None:
             raise TypeError('set_func requires an Annealer as input')
         self.annealer_dict[func_type] = annealer
-        self.func_dict[func_type] = annealer.get_value
+        self.func_dict[func_type] = None if annealer is None else annealer.get_value
 
     def get_val(self, val_type, frac_remaining=None):
         """
@@ -161,7 +161,10 @@ class ConditionalAnnealer(Annealer):
             raise ValueError("ConditionalAnnealer requires a RewardShapingVecWrapper to be set")
 
         current_data = self.shaping_env.get_log_buffer_data()
-        current_metric_data = current_data[self.metric][-self.window_size:]
+        if current_data is None:  # if we have zero episodes thus far
+            return self.current_param_val
+        # this is fine since we are doing deque.appendleft to put together these values
+        current_metric_data = itertools.islice(current_data[self.metric], self.window_size)
         current_wait = self.last_num_episodes - current_data['num_episodes']
         if current_wait < self.min_wait:
             return self.current_param_val

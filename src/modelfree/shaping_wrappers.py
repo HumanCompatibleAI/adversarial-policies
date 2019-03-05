@@ -29,7 +29,8 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
     def log_callback(self):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
-        all_keys = list(self.shaping_params['dense'].keys()) + list(self.shaping_params['sparse'].keys())
+        all_keys = list(self.shaping_params['dense'].keys()) + \
+            list(self.shaping_params['sparse'].keys())
         num_episodes = len(self.ep_rew_dict[all_keys[0]])
         if num_episodes == 0:
             return
@@ -62,6 +63,8 @@ class RewardShapingVecWrapper(VecEnvWrapper):
             buffer=self.log_buffers, episode_avg=False,
             terms=self.shaping_params['sparse'].keys())
         self.log_buffers['num_episodes'] = self.num_episodes
+        if self.num_episodes == 0:
+            return None
         return self.log_buffers
 
     @staticmethod
@@ -70,7 +73,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         aggregated = [sum(x) for x in zip(*term_buffers)]
 
         if episode_avg is True:
-            num_episodes = len(buffer[terms[0]])
+            num_episodes = len(buffer[list(terms)[0]])
             return sum(aggregated) / num_episodes
 
     def reset(self):
@@ -108,7 +111,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
                 for rew_term in self.step_rew_dict:
                     rew_term_total = sum(self.step_rew_dict[rew_term][env_num])
                     self.ep_rew_dict[rew_term].append(rew_term_total)
-                    self.log_buffers[rew_term].append(rew_term_total)
+                    self.log_buffers[rew_term].appendleft(rew_term_total)
                     self.step_rew_dict[rew_term][env_num] = []
                     self.num_episodes += 1
             rew[env_num] = shaped_reward
