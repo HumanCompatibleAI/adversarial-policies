@@ -212,13 +212,17 @@ def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=F
 def apply_env_wrapper(single_env, rew_shape_params, env_name, agent_idx,
                       logger, batch_size, scheduler):
     shaping_params = load_wrapper_params(rew_shape_params, env_name, rew_shaping=True)
-    rew_shape_anneal_frac = shaping_params.get('rew_shape_anneal_frac', 0)
-    if rew_shape_anneal_frac > 0:
-        rew_shape_annealer = LinearAnnealer(1, 0, rew_shape_anneal_frac)
+    if 'metric' in shaping_params:
+        rew_shape_annealer = ConditionalAnnealer.from_dict(shaping_params, shaping_env=None)
+        scheduler.set_conditional('rew_shape')
     else:
-        # In this case, the different reward types are weighted differently
-        # but reward is not annealed over time.
-        rew_shape_annealer = None
+        rew_shape_anneal_frac = shaping_params.get('rew_shape_anneal_frac', 0)
+        if rew_shape_anneal_frac > 0:
+            rew_shape_annealer = LinearAnnealer(1, 0, rew_shape_anneal_frac)
+        else:
+            # In this case, the different reward types are weighted differently
+            # but reward is not annealed over time.
+            rew_shape_annealer = None
 
     scheduler.set_annealer_and_func('rew_shape', rew_shape_annealer)
     return RewardShapingVecWrapper(single_env, agent_idx=agent_idx, logger=logger,

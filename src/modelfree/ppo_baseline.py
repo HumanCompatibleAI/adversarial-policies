@@ -195,8 +195,11 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
         single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
                                        env_name=env_name, agent_idx=1 - victim_index,
                                        logger=logger, batch_size=batch_size, scheduler=scheduler)
+        # give the Annealers their environment if they are ConditionalAnnealers
         if scheduler.get_conditional('noise'):
             scheduler.set_annealer_shaping_env('noise', single_env)
+        if scheduler.get_conditional('rew_shape'):
+            scheduler.set_annealer_shaping_env('rew_shape', single_env)
         callbacks.append(lambda locals, globals: single_env.log_callback())
 
     res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
