@@ -160,7 +160,7 @@ def default_ppo_config():
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
                  num_env, seed, rew_shape_params, victim_noise_params, batch_size):
     out_dir = setup_logger(root_dir, exp_name)
-    scheduler = Scheduler(func_dict={'lr': DEFAULT_ANNEALERS['default_lr'].get_value})
+    scheduler = Scheduler(annealer_dict={'lr': DEFAULT_ANNEALERS['default_lr']})
     callbacks = []
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
@@ -169,7 +169,9 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
 
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
     multi_env = GameOutcomeMonitor(multi_env, logger)
-    assert bool(victim_type is None) == bool(multi_env.num_agents == 1)
+
+    if not (bool(victim_type is None) == bool(multi_env.num_agents == 1)):
+        raise ValueError("victim_type must be None xor multi_env.num_agents must be 1")
     callbacks.append(lambda locals, globals: multi_env.log_callback())
 
     # Get the correct victim and then wrap it accordingly.
@@ -191,6 +193,8 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
         single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
                                        env_name=env_name, agent_idx=1 - victim_index,
                                        logger=logger, batch_size=batch_size, scheduler=scheduler)
+        if scheduler.get_conditional('noise'):
+            scheduler.set_annealer_shaping_env('noise', single_env)
         callbacks.append(lambda locals, globals: single_env.log_callback())
 
     res = train(env=single_env, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
