@@ -1,4 +1,5 @@
 from collections import Counter
+import logging
 import os
 import pickle
 import pkgutil
@@ -10,6 +11,8 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
 from modelfree.utils import PolicyToModel, make_session
+
+pylog = logging.getLogger('modelfree.gym_compete_conversion')
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -125,9 +128,12 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
             asymmetric_fname = f'agent{index+1}_parameters-v{tag}.pkl'
             symmetric_fname = f'agent_parameters-v{tag}.pkl'
             try:  # asymmetric version, parameters tagged with agent id
-                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
+                path = os.path.join(dir, asymmetric_fname)
+                params_pkl = pkgutil.get_data('gym_compete', path)
             except OSError:  # symmetric version, parameters not associated with a specific agent
-                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
+                path = os.path.join(dir, symmetric_fname)
+                params_pkl = pkgutil.get_data('gym_compete', path)
+            pylog.info(f"Loaded zoo policy from '{path}'")
 
             # Restore parameters
             params = pickle.loads(params_pkl)
