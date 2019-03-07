@@ -146,7 +146,7 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
 
     def env_fn(i):
-        return make_env(env_name, seed, i, root_dir, pre_wrapper=pre_wrapper)
+        return make_env(env_name, seed, i, out_dir, pre_wrapper=pre_wrapper)
 
     make_vec_env = make_subproc_vec_multi_env if not debug else make_dummy_vec_multi_env
     multi_env = make_vec_env([lambda: env_fn(i) for i in range(num_env)])

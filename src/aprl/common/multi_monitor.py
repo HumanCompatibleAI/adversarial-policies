@@ -29,12 +29,11 @@ class MultiMonitor(Monitor):
         self.rewards.append(reward)
         if done:
             self.needs_reset = True
-            ep_rew = np.asarray(self.rewards).sum(axis=0).round(6)
-            joint_eprew = np.mean(ep_rew)
             eplen = len(self.rewards)
-            ep_info = {"r": joint_eprew,
+            ep_info = {"r": float('nan'),
                        "l": eplen,
                        "t": round(time.time() - self.t_start, 6)}
+            ep_rew = np.asarray(self.rewards).sum(axis=0).round(6)
             for i, rew in enumerate(ep_rew):
                 ep_info["r{:d}".format(i)] = rew
             for key in self.info_keywords:
