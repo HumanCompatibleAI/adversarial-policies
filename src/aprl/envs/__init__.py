@@ -2,10 +2,10 @@
 
 from gym.envs.registration import register
 
+from aprl.envs.crowded_line import CrowdedLineEnv
+from aprl.envs.matrix_game import IteratedMatchingPenniesEnv, MatrixGameEnv, RockPaperScissorsEnv
 from aprl.envs.multi_agent import (FakeSingleSpaces, FakeSingleSpacesVec, MultiAgentEnv,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
-from aprl.envs.crowded_line import CrowdedLineEnv
-from aprl.envs.matrix_game import MatrixGameEnv, IteratedMatchingPenniesEnv, RockPaperScissorsEnv
 
 register(
     id='aprl/CrowdedLine-v0',

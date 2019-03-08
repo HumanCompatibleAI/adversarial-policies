@@ -66,7 +66,11 @@ RUN    curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
     && parallel ci/build_venv.sh {} ::: aprl modelfree \
     && rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
 
-# Delay moving in the entire code until the very end.
+# Delay copyng (and installing) the code until the very end
+COPY . /adversarial_policies
+RUN parallel ". {}venv/bin/activate && pip install ." ::: aprl modelfree
+
+# Default entrypoints
 ENTRYPOINT ["/adversarial_policies/vendor/Xdummy-entrypoint"]
 CMD ["ci/run_tests.sh"]
-COPY . /adversarial_policies
+

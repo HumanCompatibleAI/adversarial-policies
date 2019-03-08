@@ -4,7 +4,7 @@ from gym.spaces.box import Box
 from gym.spaces.tuple_space import Tuple
 import numpy as np
 
-from aprl.envs import MultiAgentEnv
+from aprl.envs.multi_agent import MultiAgentEnv
 
 
 class CrowdedLineEnv(MultiAgentEnv):

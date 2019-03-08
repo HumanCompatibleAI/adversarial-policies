@@ -1,0 +1,10 @@
+{
+    "weights": {
+        "dense": {
+            "reward_move": 10
+        },
+        "sparse": {
+            "reward_remaining": 1
+        }
+    }
+}

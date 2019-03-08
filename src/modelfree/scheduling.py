@@ -33,7 +33,7 @@ class Scheduler(object):
         self._validate_func_type(func_type)
         self.conditionals[func_type] = True
 
-    def get_conditional(self, func_type):
+    def is_conditional(self, func_type):
         """Interface with the dictionary self.conditionals"""
         self._validate_func_type(func_type)
         return self.conditionals[func_type]
@@ -113,19 +113,23 @@ class LinearAnnealer(Annealer):
         self.shaping_env = shaping_env
 
     def get_value(self, frac_remaining):
-        anneal_progress = min(1.0, (1 - frac_remaining) / self.end_frac)
+        if self.end_frac == 0:
+            anneal_progress = 1.0
+        else:
+            anneal_progress = min(1.0, (1 - frac_remaining) / self.end_frac)
         return (1 - anneal_progress) * self.start_val + anneal_progress * self.end_val
 
 
 class ConditionalAnnealer(Annealer):
     """Anneal the value depending on some condition."""
     def __init__(self, start_val, end_val, decay_factor, thresh, window_size,
-                 min_wait, operator, metric, shaping_env):
+                 min_wait, max_wait, operator, metric, shaping_env):
         super().__init__(start_val, end_val)
         self.decay_factor = decay_factor
         self.thresh = thresh
         self.window_size = window_size
         self.min_wait = min_wait
+        self.max_wait = max_wait
         self.operator = operator
         self.metric = metric
         self.shaping_env = shaping_env
@@ -139,6 +143,7 @@ class ConditionalAnnealer(Annealer):
 
     @classmethod
     def from_dict(cls, cond_config, shaping_env=None):
+        # provided to help keep track of arguments
         constructor_config = {
             'decay_factor': 0.98,
             'thresh': 0,
@@ -146,9 +151,9 @@ class ConditionalAnnealer(Annealer):
             'end_val': 0,
             'window_size': 1,
             'min_wait': 1,
-            'max_wait': 5000,
+            'max_wait': 10000,
             'operator': operator.gt,
-            'metric': 'ep_sparse_reward',  # ep_dense_reward, ep_length
+            'metric': 'sparse',  # dense, length
         }
         if 'operator' in cond_config:
             cond_config['operator'] = getattr(operator, cond_config['operator'])
@@ -173,15 +178,7 @@ class ConditionalAnnealer(Annealer):
             return self.current_param_val
 
         avg_metric_val = float(sum(current_metric_data)) / self.window_size
-        if self.operator(avg_metric_val, self.thresh):
+        if self.operator(avg_metric_val, self.thresh) or current_wait > self.max_wait:
             self.current_param_val *= self.decay_factor
             self.last_num_episodes = current_data['num_episodes']
         return self.current_param_val
-
-
-DEFAULT_ANNEALERS = {
-    # Schedule used in the multiagent competition paper for reward shaping.
-    'default_reward': LinearAnnealer(1, 0, 0.5),
-    # Default baselines.ppo2 learning rate
-    'default_lr': ConstantAnnealer(3e-4),
-}

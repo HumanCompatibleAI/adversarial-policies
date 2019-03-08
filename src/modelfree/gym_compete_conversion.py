@@ -1,4 +1,5 @@
 from collections import Counter
+import logging
 import os
 import pickle
 import pkgutil
@@ -6,11 +7,12 @@ import pkgutil
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
-from stable_baselines.common import BaseRLModel
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
-from modelfree.utils import make_session
+from modelfree.utils import PolicyToModel, make_session
+
+pylog = logging.getLogger('modelfree.gym_compete_conversion')
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -103,43 +105,12 @@ def set_from_flat(var_list, flat_params, sess):
     sess.run(op, {theta: flat_params})
 
 
-class PolicyToModel(BaseRLModel):
-    def __init__(self, policy):
-        self.policy = policy
-        self.sess = policy.sess
-
-    def predict(self, observation, state=None, mask=None, deterministic=False):
-        if state is None:
-            state = self.policy.initial_state
-        if mask is None:
-            mask = [False for _ in range(self.policy.n_env)]
-
-        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
-                                                           deterministic=deterministic)
-        return actions, states
-
-    def setup_model(self):
-        pass
-
-    def learn(self):
-        raise NotImplementedError()
-
-    def action_probability(self, observation, state=None, mask=None, actions=None):
-        raise NotImplementedError()
-
-    def save(self, save_path):
-        raise NotImplementedError()
-
-    def load(self):
-        raise NotImplementedError()
-
-
 def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
     g = tf.Graph()
     sess = make_session(g)
 
-    with sess.as_default():
-        with g.as_default():
+    with g.as_default():
+        with sess.as_default():
             # Construct graph
             kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
                           ac_space=env.action_space.spaces[index], n_env=env.num_envs,
@@ -157,9 +128,12 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
             asymmetric_fname = f'agent{index+1}_parameters-v{tag}.pkl'
             symmetric_fname = f'agent_parameters-v{tag}.pkl'
             try:  # asymmetric version, parameters tagged with agent id
-                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, asymmetric_fname))
+                path = os.path.join(dir, asymmetric_fname)
+                params_pkl = pkgutil.get_data('gym_compete', path)
             except OSError:  # symmetric version, parameters not associated with a specific agent
-                params_pkl = pkgutil.get_data('gym_compete', os.path.join(dir, symmetric_fname))
+                path = os.path.join(dir, symmetric_fname)
+                params_pkl = pkgutil.get_data('gym_compete', path)
+            pylog.info(f"Loaded zoo policy from '{path}'")
 
             # Restore parameters
             params = pickle.loads(params_pkl)

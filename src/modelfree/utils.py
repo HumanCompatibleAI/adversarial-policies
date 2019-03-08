@@ -4,37 +4,114 @@ from os import path as osp
 import gym
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
-from gym.spaces import Tuple
 import numpy as np
+from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
-from aprl.envs.multi_agent import MultiAgentEnv
+from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti
 
 
-class SingleGymToOurs(Wrapper, MultiAgentEnv):
-    """Same as GymCompeteToOurs except designed for single agent environments.
+class DummyModel(BaseRLModel):
+    """Abstract class for policies pretending to be RL algorithms (models).
 
-    The main difference is that that we instantiate MultiAgentEnv with 1 agent
-    and we perform slightly different post-processing after getting returns."""
+    Provides stub implementations that raise NotImplementedError.
+    The predict method is left as abstract and must be implemented in base class."""
+    def __init__(self, policy, sess):
+        """Constructs a DummyModel with given policy and session.
+        :param policy: (BasePolicy) a loaded policy.
+        :param sess: (tf.Session or None) a TensorFlow session.
+        :return an instance of BaseRLModel.
+        """
+        super().__init__(policy=policy, env=None, requires_vec_env=True, policy_base='Dummy')
+        self.sess = sess
 
+    def setup_model(self):
+        raise NotImplementedError()
+
+    def learn(self):
+        raise NotImplementedError()
+
+    def action_probability(self, observation, state=None, mask=None, actions=None):
+        raise NotImplementedError()
+
+    def save(self, save_path):
+        raise NotImplementedError()
+
+    def load(self):
+        raise NotImplementedError()
+
+
+class PolicyToModel(DummyModel):
+    """Converts BasePolicy to a BaseRLModel with only predict implemented."""
+    def __init__(self, policy):
+        """Constructs a BaseRLModel using policy for predictions.
+        :param policy: (BasePolicy) a loaded policy.
+        :return an instance of BaseRLModel.
+        """
+        super().__init__(policy=policy, sess=policy.sess)
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        if state is None:
+            state = self.policy.initial_state
+        if mask is None:
+            mask = [False for _ in range(self.policy.n_env)]
+
+        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
+                                                           deterministic=deterministic)
+        return actions, states
+
+
+class OpenAIToStablePolicy(BasePolicy):
+    """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
+    def __init__(self, old_policy):
+        self.old = old_policy
+        self.initial_state = old_policy.initial_state
+        self.sess = old_policy.sess
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        stochastic = not deterministic
+        return self.old.step(obs, S=state, M=mask, stochastic=stochastic)
+
+
+class ConstantPolicy(BasePolicy):
+    """Policy that returns a constant action."""
+    def __init__(self, env, constant):
+        assert env.action_space.contains(constant)
+        super().__init__(sess=None,
+                         ob_space=env.observation_space,
+                         ac_space=env.action_space,
+                         n_env=env.num_envs,
+                         n_steps=1,
+                         n_batch=1)
+        self.constant = constant
+        self.initial_state = None
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        actions = np.array([self.constant] * self.n_env)
+        return actions, None, None, None
+
+
+class ZeroPolicy(ConstantPolicy):
+    """Policy that returns a zero action."""
     def __init__(self, env):
-        Wrapper.__init__(self, env)
-        self.action_space = Tuple([self.action_space])
-        self.observation_space = Tuple([self.observation_space])
-        MultiAgentEnv.__init__(self, num_agents=1)
+        super().__init__(env, np.zeros(env.action_space.shape))
 
-    def step(self, action_n):
-        observations, rewards, done, infos = self.env.step(action_n)
-        infos = {0: infos}
-        rewards = (rewards,)
-        observations = (observations,)
-        return observations, rewards, done, infos
 
-    def reset(self):
-        observations = self.env.reset()
-        return (observations,)
+class RandomPolicy(BasePolicy):
+    def __init__(self, env):
+        super().__init__(sess=None,
+                         ob_space=env.observation_space,
+                         ac_space=env.action_space,
+                         n_env=env.num_envs,
+                         n_steps=1,
+                         n_batch=1)
+        self.initial_state = None
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        actions = np.array([self.ac_space.sample() for _ in range(self.n_env)])
+        return actions, None, None, None
 
 
 class VideoWrapper(Wrapper):
@@ -78,30 +155,6 @@ def make_session(graph=None):
     return sess
 
 
-class ConstantPolicy(BasePolicy):
-    def __init__(self, constant):
-        self.constant_action = constant
-        self.initial_state = None
-
-    def step(self, obs, state=None, mask=None):
-        actions = np.array([self.constant_action] * self.batch_size)
-        return actions, None, None, None
-
-
-class ZeroPolicy(ConstantPolicy):
-    def __init__(self, shape):
-        super().__init__(np.zeros(shape))
-
-
-class OldToStable(BasePolicy):
-    def __init__(self, old_model):
-        self.old = old_model
-        self.initial_state = old_model.initial_state
-
-    def step(self, obs, state=None, mask=None):
-        return self.old.step(obs, S=state, M=mask)
-
-
 def simulate(venv, policies, render=False):
     """
     Run Environment env with the agents in agents
@@ -135,8 +188,8 @@ def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None):
     multi_env = gym.make(env_name)
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
-    elif not hasattr(multi_env, 'num_agents'):
-        multi_env = SingleGymToOurs(multi_env)
+    if not isinstance(multi_env, MultiAgentEnv):
+        multi_env = SingleToMulti(multi_env)
     multi_env.seed(seed + i)
 
     if out_dir is not None:
