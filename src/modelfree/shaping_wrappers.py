@@ -1,4 +1,4 @@
-from collections import defaultdict, deque, Mapping
+from collections import Mapping, defaultdict, deque
 import json
 import os
 

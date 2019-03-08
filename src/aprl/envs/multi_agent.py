@@ -294,7 +294,8 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
         assert venv.num_agents >= 1  # allow currying the last agent
         self.num_agents = venv.num_agents
-        self.action_space = _tuple_space_replace(self.action_space, merge_agent_idx, replace_action_space)
+        self.action_space = _tuple_space_replace(self.action_space, merge_agent_idx,
+                                                 replace_action_space)
 
         self._agent_to_merge = merge_agent_idx
         self._policy = policy

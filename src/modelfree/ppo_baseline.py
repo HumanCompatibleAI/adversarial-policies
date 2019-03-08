@@ -10,7 +10,8 @@ from sacred.observers import FileStorageObserver
 from stable_baselines import PPO1, PPO2, SAC, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
-from aprl.envs.multi_agent import CurryVecEnv, MergeAgentVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
+from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
+                                   make_subproc_vec_multi_env)
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.policy_loader import load_policy
 from modelfree.scheduling import DEFAULT_ANNEALERS, Scheduler
@@ -184,7 +185,9 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
                                   env=multi_env, env_name=env_name, index=1-victim_index)
         act_space_shape = multi_env.action_space.spaces[0].shape
         adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, act_space_shape)
-        multi_env = MergeAgentVecEnv(g_multi_env, base_policy, adv_noise_action_space, 1-victim_index)
+        multi_env = MergeAgentVecEnv(venv=g_multi_env, policy=base_policy,
+                                     replace_action_space=adv_noise_action_space,
+                                     merge_agent_idx=1-victim_index)
     else:
         multi_env = g_multi_env
 
@@ -205,7 +208,7 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
 
     if rew_shape_params is not None:
         single_env = apply_env_wrapper(single_env=single_env, rew_shape_params=rew_shape_params,
-                                       env_name=env_name, agent_idx=1 - victim_index,
+                                       env_name=env_name, agent_idx=1-victim_index,
                                        logger=logger, batch_size=batch_size, scheduler=scheduler)
         # give the Annealers their environment if they are ConditionalAnnealers
         if scheduler.get_conditional('noise'):
