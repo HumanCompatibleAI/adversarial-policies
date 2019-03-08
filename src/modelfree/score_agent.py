@@ -48,7 +48,8 @@ score_agent_ex.observers.append(FileStorageObserver.create('data/sacred'))
 
 @score_agent_ex.named_config
 def human_score_config():
-    env_name = "multicomp/SumoHumans-v0"  # noqa: F841
+    env_name = "multicomp/SumoHumansAutoContact-v0"  # noqa: F841
+    episodes = 20
 
 
 @score_agent_ex.config

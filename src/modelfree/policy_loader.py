@@ -1,6 +1,6 @@
 """Load serialized policies of different types."""
 
-from stable_baselines import PPO2
+from stable_baselines import PPO1, PPO2
 
 from aprl.envs.multi_agent import FakeSingleSpacesVec
 from modelfree.gym_compete_conversion import load_zoo_agent
@@ -16,6 +16,7 @@ def load_stable_baselines(cls):
 AGENT_LOADERS = {
     'zoo': load_zoo_agent,
     'ppo2': load_stable_baselines(PPO2),
+    'ppo1': load_stable_baselines(PPO1),
 }
 
 

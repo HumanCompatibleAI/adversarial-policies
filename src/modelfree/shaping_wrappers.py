@@ -1,4 +1,4 @@
-from collections import defaultdict, deque
+from collections import defaultdict, deque, Mapping
 import json
 import os
 
@@ -195,6 +195,16 @@ class NoisyAgentWrapper(BaseRLModel):
         raise NotImplementedError()
 
 
+# https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+def recursive_dict_update(original, new):
+    for k, v in new.items():
+        if isinstance(v, Mapping):
+            original[k] = recursive_dict_update(original.get(k, {}), v)
+        else:
+            original[k] = v
+    return original
+
+
 def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=False):
     msg = "Exactly one of rew_shaping and noisy_victim must be True"
     assert bool(rew_shaping) != bool(noisy_victim), msg
@@ -212,12 +222,7 @@ def load_wrapper_params(params_path, env_name, rew_shaping=False, noisy_victim=F
     if params_path != 'default':
         with open(params_path) as config_file:
             config = json.load(config_file)
-        if rew_shaping:
-            final_params['sparse'].update(config.get('sparse', {}))
-            final_params['dense'].update(config.get('dense', {}))
-            final_params['rew_shape_anneal_frac'] = config.get('rew_shape_anneal_frac', 0)
-        elif noisy_victim:
-            final_params.update(config)
+        final_params = recursive_dict_update(final_params, config)
     return final_params
 
 
