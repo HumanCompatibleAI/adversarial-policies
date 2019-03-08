@@ -262,9 +262,60 @@ def _tuple_pop(input, i):
     return tuple(output), elt
 
 
+def _tuple_replace(input, i, obj):
+    output = list(input)
+    output.pop(i)
+    output.insert(i, obj)
+    return tuple(output)
+
+
 def _tuple_space_filter(tuple_space, filter_idx):
     filtered_spaces = (space for i, space in enumerate(tuple_space.spaces) if i != filter_idx)
     return gym.spaces.Tuple(tuple(filtered_spaces))
+
+
+def _tuple_space_replace(tuple_space, replace_idx, replace_space):
+    current_spaces = tuple_space.spaces
+    current_spaces.pop(replace_idx)
+    current_spaces.insert(replace_idx, replace_space)
+    return gym.spaces.Tuple(tuple(current_spaces))
+
+
+class MergeAgentVecEnv(VecMultiWrapper):
+    """Allows merging of two agents into a pseudo-agent by merging their actions"""
+    def __init__(self, venv, policy, replace_action_space, merge_agent_idx):
+        """Expands one of the players in a VecMultiEnv.
+        :param env(VecMultiEnv): the environments.
+        :param action_space(): the action space of the agent to expand
+        :param agent_idx(int): the index of the agent that should be expanded into two
+        :return: a new VecMultiEnv with the same number of agents. It behaves like env but
+                 with all actions at index agent_idx set to those returned by agent."""
+        super().__init__(venv)
+
+        assert venv.num_agents >= 1  # allow currying the last agent
+        self.num_agents = venv.num_agents
+        self.action_space = _tuple_space_replace(self.action_space, merge_agent_idx, replace_action_space)
+
+        self._agent_to_merge = merge_agent_idx
+        self._policy = policy
+        self._state = None
+        self._obs = None
+        self._dones = [False] * venv.num_envs
+
+    def step_async(self, actions):
+        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones)
+        actions[self._agent_to_merge] += action
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        observations, rewards, self._dones, infos = self.venv.step_wait()
+        _, self._obs = _tuple_pop(observations, self._agent_to_merge)
+        return observations, rewards, self._dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        _, self._obs = _tuple_pop(observations, self._agent_to_merge)
+        return observations
 
 
 class CurryVecEnv(VecMultiWrapper):

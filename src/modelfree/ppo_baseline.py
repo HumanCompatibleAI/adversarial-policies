@@ -4,12 +4,13 @@ import datetime
 import os
 import os.path as osp
 
+from gym.spaces import Box
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import PPO1, PPO2, SAC, logger
 from stable_baselines.common.vec_env.vec_normalize import VecEnvWrapper
 
-from aprl.envs.multi_agent import CurryVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
+from aprl.envs.multi_agent import CurryVecEnv, MergeAgentVecEnv, FlattenSingletonVecEnv, make_subproc_vec_multi_env
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.policy_loader import load_policy
 from modelfree.scheduling import DEFAULT_ANNEALERS, Scheduler
@@ -116,10 +117,10 @@ def setup_logger(out_dir="results", exp_name="test"):
 
 @ppo_baseline_ex.named_config
 def human_default():
-    env = "multicomp/SumoHumans-v0"
-    total_timesteps = int(1e8)
-    num_env = 32
-    batch_size = 8192
+    env_name = "multicomp/SumoHumansAutoContact-v0"
+    total_timesteps = int(1e9)
+    model_type = 'ppo1'
+    num_env = 1
     _ = locals()
     del _
 
@@ -152,6 +153,7 @@ def default_ppo_config():
     load_path = None                # path to load initial policy from
     rew_shape_params = None         # path to file. 'default' uses default settings for env_name
     victim_noise_params = None      # path to file. 'default' uses default settings for env_name
+    adv_noise_agent_val = None
     model_type = 'ppo2'
     # then default settings for that environment will be used.
     _ = locals()  # quieten flake8 unused variable warning
@@ -160,7 +162,8 @@ def default_ppo_config():
 
 @ppo_baseline_ex.automain
 def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_dir, exp_name,
-                 num_env, seed, rew_shape_params, victim_noise_params, batch_size):
+                 num_env, seed, rew_shape_params, victim_noise_params, adv_noise_agent_val,
+                 batch_size):
     out_dir = setup_logger(root_dir, exp_name)
     scheduler = Scheduler(annealer_dict={'lr': DEFAULT_ANNEALERS['default_lr']})
     callbacks = []
@@ -170,11 +173,20 @@ def ppo_baseline(_run, env_name, victim_path, victim_type, victim_index, root_di
         return make_env(env_name, seed, i, root_dir, pre_wrapper=pre_wrapper)
 
     multi_env = make_subproc_vec_multi_env([lambda: env_fn(i) for i in range(num_env)])
-    multi_env = GameOutcomeMonitor(multi_env, logger)
+    g_multi_env = GameOutcomeMonitor(multi_env, logger)
 
     if not (bool(victim_type is None) == bool(multi_env.num_agents == 1)):
         raise ValueError("victim_type must be None xor multi_env.num_agents must be 1")
-    callbacks.append(lambda locals, globals: multi_env.log_callback())
+    callbacks.append(lambda locals, globals: g_multi_env.log_callback())
+
+    if adv_noise_agent_val is not None:
+        base_policy = load_policy(policy_path=victim_path, policy_type=victim_type,
+                                  env=multi_env, env_name=env_name, index=1-victim_index)
+        act_space_shape = multi_env.action_space.spaces[0].shape
+        adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, act_space_shape)
+        multi_env = MergeAgentVecEnv(g_multi_env, base_policy, adv_noise_action_space, 1-victim_index)
+    else:
+        multi_env = g_multi_env
 
     # Get the correct victim and then wrap it accordingly.
     if multi_env.num_agents > 1:
