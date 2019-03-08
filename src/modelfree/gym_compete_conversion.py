@@ -44,9 +44,8 @@ def game_outcome(info):
 
 
 class GameOutcomeMonitor(VecMultiWrapper):
-    def __init__(self, venv, logger):
+    def __init__(self, venv):
         super().__init__(venv)
-        self.logger = logger
         self.outcomes = []
 
     def reset(self):
@@ -59,15 +58,15 @@ class GameOutcomeMonitor(VecMultiWrapper):
                 self.outcomes.append(game_outcome(info))
         return obs, rew, dones, infos
 
-    def log_callback(self):
+    def log_callback(self, logger):
         c = Counter()
         c.update(self.outcomes)
         num_games = len(self.outcomes)
         if num_games > 0:
             for agent in range(self.num_agents):
-                self.logger.logkv(f"game_win{agent}", c.get(agent, 0) / num_games)
-            self.logger.logkv("game_tie", c.get(None, 0) / num_games)
-        self.logger.logkv("game_total", num_games)
+                logger.logkv(f"game_win{agent}", c.get(agent, 0) / num_games)
+            logger.logkv("game_tie", c.get(None, 0) / num_games)
+        logger.logkv("game_total", num_games)
         self.outcomes = []
 
 

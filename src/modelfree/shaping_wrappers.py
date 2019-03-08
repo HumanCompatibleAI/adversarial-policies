@@ -25,7 +25,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
     A more direct interface for shaping the reward of the attacking agent.
     - shaping_params schema: {'sparse': {k: v}, 'dense': {k: v}, **kwargs}
     """
-    def __init__(self, venv, agent_idx, logger, shaping_params, reward_annealer=None):
+    def __init__(self, venv, agent_idx, shaping_params, reward_annealer=None):
         super().__init__(venv)
         assert shaping_params.keys() == REW_TYPES
         self.shaping_params = {}
@@ -35,12 +35,11 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
         self.reward_annealer = reward_annealer
         self.agent_idx = agent_idx
-        self.logger = logger
 
         self.ep_rew_dict = defaultdict(list)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
 
-    def log_callback(self):
+    def log_callback(self, logger):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
         num_episodes = len(self.ep_rew_dict['sparse'])
         if num_episodes == 0:
@@ -50,10 +49,10 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         for rew_type, rews in self.ep_rew_dict.items():
             assert len(rews) == num_episodes
             means[rew_type] = sum(rews) / num_episodes
-            self.logger.logkv(f'ep{rew_type}mean', means[rew_type])
+            logger.logkv(f'ep{rew_type}mean', means[rew_type])
 
         overall_mean = _anneal(means, self.reward_annealer)
-        self.logger.logkv('eprewmean_true', overall_mean)
+        logger.logkv('eprewmean_true', overall_mean)
 
         for rew_type in self.ep_rew_dict:
             self.ep_rew_dict[rew_type] = []
@@ -118,7 +117,7 @@ class NoisyAgentWrapper(DummyModel):
         return noisy_actions, states
 
 
-def apply_env_wrapper(single_env, shaping_params, agent_idx, logger, scheduler):
+def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
     anneal_frac = shaping_params.get('anneal_frac')
     if anneal_frac is not None:
         annealer = LinearAnnealer(1, 0, anneal_frac).get_value
@@ -129,7 +128,7 @@ def apply_env_wrapper(single_env, shaping_params, agent_idx, logger, scheduler):
         # but reward is not annealed over time.
         rew_shape_func = None
 
-    return RewardShapingVecWrapper(single_env, agent_idx=agent_idx, logger=logger,
+    return RewardShapingVecWrapper(single_env, agent_idx=agent_idx,
                                    shaping_params=shaping_params['weights'],
                                    reward_annealer=rew_shape_func)
 
