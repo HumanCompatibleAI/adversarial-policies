@@ -141,6 +141,11 @@ class ConditionalAnnealer(Annealer):
         """Set the environment attribute since passing into constructor may not be possible"""
         self.shaping_env = shaping_env
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['shaping_env'] = None
+        return state
+
     @classmethod
     def from_dict(cls, cond_config, shaping_env=None):
         # provided to help keep track of arguments

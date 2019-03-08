@@ -66,6 +66,24 @@ PPO_BASELINE_CONFIGS = [
     {
         'env_name': 'multicomp/SumoHumans-v0',
         'victim_noise': True,
+    },
+    {
+        'env_name': 'Humanoid-v1',
+        'victim_type': 'none',
+    },
+    {
+        'env_name': 'multicomp/SumoHumansAutoContact-v0',
+        'rew_shape': True,
+        'rew_shape_params': {'metric': 'length', 'min_wait': 100, 'window_size': 100},
+    },
+    {
+        'env_name': 'multicomp/SumoHumans-v0',
+        'victim_noise': True,
+        'victim_noise_params': {'metric': 'sparse', 'min_wait': 100, 'window_size': 100},
+    },
+    {
+        'env_name': 'multicomp/SumoHumansAutoContact-v0',
+        'adv_noise_agent_val': 0.1
     }
 ]
 
