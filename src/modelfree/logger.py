@@ -82,7 +82,7 @@ def setup_logger(out_dir='results', exp_name='test'):
     out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
 
-    logger.configure(folder=osp.join(out_dir, 'mon'),
+    logger.configure(folder=osp.join(out_dir, 'rl'),
                      format_strs=['tensorboard', 'stdout'])
     logger_instance = logger.Logger.CURRENT
 

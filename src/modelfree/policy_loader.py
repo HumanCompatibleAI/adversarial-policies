@@ -4,7 +4,7 @@ import logging
 import os
 import pickle
 
-from stable_baselines import PPO2
+from stable_baselines import PPO1, PPO2, SAC
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
@@ -55,7 +55,15 @@ def load_old_ppo2(root_dir, env, env_name, index):
         raise ImportError(msg)
 
     denv = FakeSingleSpacesVec(env, agent_id=index)
-    model_path = os.path.join(root_dir, 'model.pkl')
+    possible_fnames = ['model.pkl', 'final_model.pkl']
+    model_path = None
+    for fname in possible_fnames:
+        candidate_path = os.path.join(root_dir, fname)
+        if os.path.exists(candidate_path):
+            model_path = candidate_path
+    if model_path is None:
+        raise FileNotFoundError(f"Could not find model at '{root_dir}' "
+                                f"under any filename '{possible_fnames}'")
 
     graph = tf.Graph()
     sess = tf.Session(graph=graph)
@@ -99,7 +107,9 @@ def load_random(path, env, env_name, index):
 
 AGENT_LOADERS = {
     'zoo': load_zoo_agent,
+    'ppo1': load_stable_baselines(PPO1),
     'ppo2': load_stable_baselines(PPO2),
+    'sac': load_stable_baselines(SAC),
     'old_ppo2': load_old_ppo2,
     'zero': load_zero,
     'random': load_random,
