@@ -142,18 +142,21 @@ class ConditionalAnnealer(Annealer):
         constructor_config = {
             'decay_factor': 0.98,
             'thresh': 0,
-            'start_val': 2,
+            'start_val': 1,
             'end_val': 0,
             'window_size': 1,
             'min_wait': 1,
-            'operator': operator.lt,
+            'max_wait': 5000,
+            'operator': operator.gt,
             'metric': 'ep_sparse_reward',  # ep_dense_reward, ep_length
         }
         if 'operator' in cond_config:
             cond_config['operator'] = getattr(operator, cond_config['operator'])
-        cond_config.pop('victim_noise_anneal_frac')
-        cond_config.pop('victim_noise_param')
-        constructor_config.update(cond_config)
+        trimmed_config = {}
+        for k, v in cond_config.items():
+            if k in constructor_config:
+                trimmed_config[k] = v
+        constructor_config.update(trimmed_config)
         return cls(**constructor_config, shaping_env=shaping_env)
 
     def get_value(self, frac_remaining):
@@ -165,7 +168,7 @@ class ConditionalAnnealer(Annealer):
             return self.current_param_val
         # this is fine since we are doing deque.appendleft to put together these values
         current_metric_data = itertools.islice(current_data[self.metric], self.window_size)
-        current_wait = self.last_num_episodes - current_data['num_episodes']
+        current_wait = current_data['num_episodes'] - self.last_num_episodes
         if current_wait < self.min_wait:
             return self.current_param_val
 
