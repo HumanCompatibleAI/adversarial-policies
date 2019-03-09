@@ -1,3 +1,6 @@
+DOCKER_REPO="humancompatibleai/adversarial_policies"
+GIT_REPO="https://github.com/HumanCompatibleAI/adversarial-policies.git"
+
 call_parallel() {
     PARALLEL_FLAGS=$1
     shift
