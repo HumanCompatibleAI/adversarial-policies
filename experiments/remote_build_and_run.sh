@@ -72,4 +72,5 @@ ssh -t -L ${TB_PORT}:localhost:${TB_PORT} ${REMOTE_HOST} \
           --no-copy -w ${REMOTE_WORK_DIR} -n ${NAME} -l ${TB_PORT} -c \"${CMD}\" ${EXTRA_ARGS}"
 
 echo "Experiment completed, copying data"
-rsync ${REMOTE_HOST}:${REMOTE_WORK_DIR}/${NAME}/data ${LOCAL_DATA}
+rsync -rlptv --exclude=sacred ${REMOTE_HOST}:${REMOTE_WORK_DIR}/${NAME}/data/ ${LOCAL_DATA}/
+rsync -rlptv ${REMOTE_HOST}:${REMOTE_WORK_DIR}/${NAME}/data/sacred/ ${LOCAL_DATA}/sacred/${REMOTE_HOST}

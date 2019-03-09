@@ -12,7 +12,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 OUT_DIR=data/mf-dec2018rep
 
 # Train PPO against victims
-call_train_parallel "$*" ${OUT_DIR}/adversarial modelfree.train \
+call_train_parallel "$*" ${OUT_DIR}/adversarial \
          env_name={env_name} seed={seed} victim_path={victim_path} \
          exp_name="victim{victim_path}-seed{seed}-anneal{anneal_frac}-{env_name}" \
          rew_shape=True rew_shape_params.anneal_frac={anneal_frac} \
