@@ -7,15 +7,14 @@ PRETRAINED="1 2 3"
 SEEDS="0 1 2"
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-. ${DIR}/common.sh
+. ${DIR}/../common.sh
 
 OUT_DIR=data/mf-bestguess
 
 # Train PPO against victims
-call_parallel "$*" ${OUT_DIR}/parallel modelfree.train with \
-         env_name={env_name} seed={seed} victim_path={victim_path} \
-         normalize={normalize} \
-         root_dir=${OUT_DIR}/baselines \
+call_train_parallel "$*" ${OUT_DIR} modelfree.train \
+         env_name={env_name} seed={seed} \
+         victim_path={victim_path} normalize={normalize} \
          exp_name="victim{victim_path}-seed{seed}-norm{normalize}-{env_name}" \
          rew_shape=True rew_shape_params.anneal_frac=0 \
          total_timesteps=5000000 batch_size=16384 normalize=True \

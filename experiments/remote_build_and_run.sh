@@ -14,6 +14,11 @@ while [[ $# -gt 0 ]]
 do
 key="$1"
 case $key in
+    -c|--cmd)
+    CMD="$2"
+    shift
+    shift
+    ;;
     -h|--host)
     REMOTE_HOST="$2"
     shift
@@ -62,9 +67,9 @@ set -e  # exit immediately on any error
 echo "Starting experiment"
 ssh -t -L ${TB_PORT}:localhost:${TB_PORT} ${REMOTE_HOST} \
      "export MUJOCO_KEY='${MUJOCO_KEY}' && \
-      git clone ${GIT_REPO} ${REMOTE_WORK_DIR}/${NAME} && \
+      git clone ${GIT_REPO} ${REMOTE_WORK_DIR}/${NAME} || (cd ${REMOTE_WORK_DIR}/${NAME} && git fetch) && \
       ${REMOTE_WORK_DIR}/${NAME}/experiments/build_and_run.sh \
-          --no-copy -w ${REMOTE_WORK_DIR} -n ${NAME} -l ${TB_PORT} ${EXTRA_ARGS}"
+          --no-copy -w ${REMOTE_WORK_DIR} -n ${NAME} -l ${TB_PORT} -c \"${CMD}\" ${EXTRA_ARGS}"
 
 echo "Experiment completed, copying data"
 rsync ${REMOTE_HOST}:${REMOTE_WORK_DIR}/${NAME}/data ${LOCAL_DATA}

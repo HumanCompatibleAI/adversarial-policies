@@ -81,7 +81,7 @@ mkdir -p data
 tmux new-session -d -s ${NAME} \
      "export MUJOCO_KEY=${MUJOCO_KEY} &&
      ./experiments/run_docker.sh -t ${NAME} -l ${TB_PORT}:6006 \
-                                 -n ${NAME} -c ${CMD} ${RUN_DOCKER_ARGS}; \
+                                 -n ${NAME} -c \"${CMD}\" ${RUN_DOCKER_ARGS}; \
      echo 'Finished; press Ctrl-D to exit'; cat /dev/stdin"
 ATTEMPTS=0
 while [[ `docker inspect -f {{.State.Running}} ${NAME}` != "true" ]]; do
