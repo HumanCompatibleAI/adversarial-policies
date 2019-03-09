@@ -3,14 +3,14 @@
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
-from modelfree.ppo_baseline import ppo_baseline, ppo_baseline_ex
 from modelfree.score_agent import score_agent, score_agent_ex
+from modelfree.train import train, train_ex
 
-ppo_and_score_ex = Experiment("ppo_and_score", ingredients=[ppo_baseline_ex, score_agent_ex])
-ppo_and_score_ex.observers.append(FileStorageObserver.create("data/sacred"))
+train_and_score = Experiment("train_and_score", ingredients=[train_ex, score_agent_ex])
+train_and_score.observers.append(FileStorageObserver.create("data/sacred"))
 
 
-@ppo_and_score_ex.automain
+@train_and_score.automain
 def ppo_and_score():
-    model_path = ppo_baseline()
+    model_path = train()
     return score_agent(agent_b_type='ppo2', agent_b_path=model_path)
