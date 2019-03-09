@@ -264,8 +264,8 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
         if adv_noise_agent_val is not None:
             base_policy = load_policy(policy_path=victim_path, policy_type=victim_type,
                                       env=multi_venv, env_name=env_name, index=our_idx)
-            act_space_shape = multi_venv.action_space.spaces[0].shape
-            adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, act_space_shape)
+            space_shape = multi_venv.action_space.spaces[0].shape
+            adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
             multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
                                           replace_action_space=adv_noise_action_space,
                                           merge_agent_idx=1-victim_index)
