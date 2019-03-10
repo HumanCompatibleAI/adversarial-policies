@@ -4,16 +4,18 @@ Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
 import json
 import os
+from ray.tune.trial import Trial
 
 import pytest
 
-from modelfree.score_agent import score_agent_ex
+from modelfree.hyperparams import hyper_ex
+from modelfree.score_agent import score_ex
 from modelfree.policy_loader import AGENT_LOADERS
 from modelfree.train_and_score import train_and_score
 from modelfree.train import NO_VECENV, RL_ALGOS, train_ex
 
 
-EXPERIMENTS = [score_agent_ex, train_and_score, train_ex]
+EXPERIMENTS = [score_ex, train_and_score, train_ex]
 
 
 @pytest.mark.parametrize('experiment', EXPERIMENTS)
@@ -44,7 +46,7 @@ def test_score_agent(config):
     config = dict(config)
     config['render'] = False  # faster without, test_experiment already tests with render
 
-    run = score_agent_ex.run(config_updates=config)
+    run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
 
     ties = run.result['ties']
@@ -86,3 +88,17 @@ def test_train(config):
     final_dir = run.result
     assert os.path.isdir(final_dir), "final result not saved"
     assert os.path.isfile(os.path.join(final_dir, 'model.pkl')), "model weights not saved"
+
+
+def test_hyper():
+    """Smoke test for hyperparameter search."""
+    config = {
+        'spec': {
+            'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
+        },
+        'platform': 'pytest',  # prevent from uploading results
+    }
+    run = hyper_ex.run(config_updates=config)
+    trials = run.result
+    for trial in trials:
+        assert isinstance(trial, Trial)

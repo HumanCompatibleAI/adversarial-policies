@@ -1,0 +1,44 @@
+cluster_name: adversarial-policies
+min_workers: 0
+max_workers: 0
+initial_workers: 0
+target_utilization_fraction: 0.8
+idle_timeout_minutes: 5
+
+docker:
+  image: humancompatibleai/adversarial_policies:latest
+  container_name: ray
+  run_options:
+    - "--env MUJOCO_KEY=${MUJOCO_KEY}"  # this must be set in environment
+
+provider:
+    type: local
+    head_ip: YOUR HOSTNAME
+    worker_ips:
+        - HOSTNAME 1
+        - HOSTNAME 2
+
+auth:
+    ssh_user: YOUR USERNAME
+    ssh_private_key: ~/.ssh/id_rsa
+
+head_node: {}
+worker_nodes: {}
+
+# List of shell commands to run to set up nodes.
+initialization_commands: []  # before entering Docker
+setup_commands: []
+head_setup_commands: []
+worker_setup_commands: []
+head_start_ray_commands:
+    - >
+      env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+      ray stop &&
+      ulimit -n 65536 &&
+      ray start --head --redis-port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml
+worker_start_ray_commands:
+    - >
+      env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+      ray stop &&
+      ulimit -n 65536 &&
+      ray start --redis-address=$RAY_HEAD_IP:6379 --object-manager-port=8076
