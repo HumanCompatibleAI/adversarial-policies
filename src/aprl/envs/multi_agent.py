@@ -307,6 +307,14 @@ def _tuple_space_replace(tuple_space, replace_idx, replace_space):
     return gym.spaces.Tuple(tuple(current_spaces))
 
 
+def _tuple_space_augment(tuple_space, augment_idx, augment_space):
+    current_space = tuple_space.spaces[augment_idx]
+    new_low, new_high = [np.concatenate([getattr(current_space, s),
+                                         getattr(augment_space, s)]) for s in ['low', 'high']]
+    new_space = gym.spaces.Box(low=new_low, high=new_high)
+    return _tuple_space_replace(tuple_space, augment_idx, new_space)
+
+
 class MergeAgentVecEnv(VecMultiWrapper):
     """Allows merging of two agents into a pseudo-agent by merging their actions"""
     def __init__(self, venv, policy, replace_action_space, merge_agent_idx):
@@ -320,28 +328,40 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
         assert venv.num_agents >= 1  # allow currying the last agent
         self.num_agents = venv.num_agents
+        self.observation_space = _tuple_space_augment(self.observation_space, merge_agent_idx,
+                                                      self.action_space.spaces[merge_agent_idx])
         self.action_space = _tuple_space_replace(self.action_space, merge_agent_idx,
                                                  replace_action_space)
 
         self._agent_to_merge = merge_agent_idx
         self._policy = policy
+        self._action = None
         self._state = None
         self._obs = None
         self._dones = [False] * venv.num_envs
 
     def step_async(self, actions):
-        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones)
-        actions[self._agent_to_merge] += action
+        actions[self._agent_to_merge] += self._action
         self.venv.step_async(actions)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
-        _, self._obs = _tuple_pop(observations, self._agent_to_merge)
+        self._obs = observations[self._agent_to_merge]
+        self._action, self._state = self._policy.predict(self._obs, state=self._state,
+                                                         mask=self._dones)
+
+        new_obs = np.concatenate([self._obs, self._action], axis=1)
+        observations = _tuple_replace(observations, self._agent_to_merge, new_obs)
         return observations, rewards, self._dones, infos
 
     def reset(self):
         observations = self.venv.reset()
-        _, self._obs = _tuple_pop(observations, self._agent_to_merge)
+        action_dim = self.action_space.spaces[0].shape[0]
+        self._action = np.zeros((self.venv.num_envs, action_dim))
+
+        self._obs = observations[self._agent_to_merge]
+        new_obs = np.concatenate([self._obs, self._action], axis=1)
+        observations = _tuple_replace(observations, self._agent_to_merge, new_obs)
         return observations
 
 
