@@ -116,8 +116,11 @@ AGENT_LOADERS = {
 }
 
 
-def load_policy(policy_type, policy_path, env, env_name, index):
+def load_policy(policy_type, policy_path, env, env_name, index, internal_noise_kwargs=None):
     agent_loader = AGENT_LOADERS.get(policy_type)
     if agent_loader is None:
         raise ValueError(f"Unrecognized agent type '{policy_type}'")
-    return agent_loader(policy_path, env, env_name, index)
+    if policy_type is 'zoo':
+        return agent_loader(policy_path, env, env_name, index, internal_noise_kwargs)
+    else:
+        return agent_loader(policy_path, env, env_name, index)

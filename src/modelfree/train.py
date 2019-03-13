@@ -95,15 +95,22 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 @train_ex.capture
 def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timesteps, policy,
-            load_path, rl_args, debug, logger, log_callbacks, save_callbacks,
+            load_path, load_zoo_train, rl_args, debug, logger, log_callbacks, save_callbacks,
             checkpoint_interval, log_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
                   **rl_args)
-    if load_path is not None:
+    if load_path is not None and not load_zoo_train:
         # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
         model = cls.load(load_path, **kwargs)
+    elif load_path and load_zoo_train:
+        from gym_compete.policy import LSTMPolicy
+        kwargs['policy_kwargs'] = dict(hiddens=[128, 128])
+        kwargs['n_steps'] = 1
+        model = cls(policy=LSTMPolicy, **kwargs)
+        model.train_model.load_weights_from_file(load_path, model.sess)
+        model.act_model.load_weights_from_file(load_path, model.sess)
     else:
         model = cls(policy=policy, **kwargs)
 
@@ -176,6 +183,8 @@ def train_config():
     victim_type = "zoo"             # type supported by policy_loader.py
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
+    victim_internal_noise = []
+    victim_internal_noise_scale = 0
 
     # RL Algorithm Hyperparameters
     rl_algo = "ppo2"                # RL algorithm to use
@@ -185,6 +194,7 @@ def train_config():
     normalize = True                # normalize environment observations and reward
     rl_args = {}                    # algorithm-specific arguments
     load_path = None                # path to load initial policy from
+    load_zoo_train = False
     adv_noise_agent_val = None      # epsilon-ball noise policy added to existing zoo policy
 
     # General
@@ -251,7 +261,8 @@ def multi_wrappers(multi_venv, log_callbacks, save_callbacks, env_name):
 
 @train_ex.capture
 def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
-                       victim_index, victim_noise, victim_noise_params, adv_noise_agent_val):
+                       victim_index, victim_noise, victim_noise_params, adv_noise_agent_val,
+                       victim_internal_noise, victim_internal_noise_scale):
     if victim_type == 'none':
         if multi_venv.num_agents > 1:
             raise ValueError("Victim needed for multi-agent environments")
@@ -271,8 +282,10 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
                                           merge_agent_idx=1-victim_index)
 
         # Load the victim and then wrap it if appropriate.
+        internal_noise_kwargs = {'internal_noise' : victim_internal_noise,
+                                 'internal_noise_scale': victim_internal_noise_scale}
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                             env_name=env_name, index=victim_index)
+                             env_name=env_name, index=victim_index, internal_noise_kwargs=internal_noise_kwargs)
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
                                           scheduler=scheduler)
