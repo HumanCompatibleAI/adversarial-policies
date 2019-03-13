@@ -282,7 +282,7 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
                                           merge_agent_idx=1-victim_index)
 
         # Load the victim and then wrap it if appropriate.
-        internal_noise_kwargs = {'internal_noise' : victim_internal_noise,
+        internal_noise_kwargs = {'internal_noise_locations': victim_internal_noise,
                                  'internal_noise_scale': victim_internal_noise_scale}
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
                              env_name=env_name, index=victim_index, internal_noise_kwargs=internal_noise_kwargs)
