@@ -183,8 +183,6 @@ def train_config():
     victim_type = "zoo"             # type supported by policy_loader.py
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
-    victim_internal_noise = []
-    victim_internal_noise_scale = 0
 
     # RL Algorithm Hyperparameters
     rl_algo = "ppo2"                # RL algorithm to use
@@ -222,11 +220,11 @@ def load_default(env_name, config_dir):
 
 @train_ex.config
 def wrappers_config(env_name):
-    victim_noise = False  # enable adding noise to victim
-    victim_noise_params = load_default(env_name, 'noise_configs')  # parameters for victim noise
-
     rew_shape = False  # enable reward shaping
     rew_shape_params = load_default(env_name, 'rew_configs')  # parameters for reward shaping
+
+    victim_noise = False  # enable adding noise to victim
+    victim_noise_params = load_default(env_name, 'noise_configs')  # parameters for victim noise
 
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -261,8 +259,7 @@ def multi_wrappers(multi_venv, log_callbacks, save_callbacks, env_name):
 
 @train_ex.capture
 def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
-                       victim_index, victim_noise, victim_noise_params, adv_noise_agent_val,
-                       victim_internal_noise, victim_internal_noise_scale):
+                       victim_index, victim_noise, victim_noise_params, adv_noise_agent_val):
     if victim_type == 'none':
         if multi_venv.num_agents > 1:
             raise ValueError("Victim needed for multi-agent environments")
@@ -282,10 +279,8 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
                                           merge_agent_idx=1-victim_index)
 
         # Load the victim and then wrap it if appropriate.
-        internal_noise_kwargs = {'internal_noise_locations': victim_internal_noise,
-                                 'internal_noise_scale': victim_internal_noise_scale}
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                             env_name=env_name, index=victim_index, internal_noise_kwargs=internal_noise_kwargs)
+                             env_name=env_name, index=victim_index)
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
                                           scheduler=scheduler)
@@ -307,9 +302,9 @@ def single_wrappers(single_venv, scheduler, our_idx, log_callbacks, save_callbac
         log_callbacks.append(lambda logger, locals, globals: rew_shape_venv.log_callback(logger))
         single_venv = rew_shape_venv
 
-    for anneal_type in ['noise', 'rew_shape']:
-        if scheduler.is_conditional(anneal_type):
-            scheduler.set_annealer_shaping_env(anneal_type, single_venv)
+        for anneal_type in ['noise', 'rew_shape']:
+            if scheduler.is_conditional(anneal_type):
+                scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
     if normalize:
         normalized_venv = VecNormalize(single_venv)

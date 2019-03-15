@@ -1,21 +1,20 @@
 from collections import defaultdict, deque
+from itertools import islice
 
 import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
-from modelfree.scheduling import ConditionalAnnealer, LinearAnnealer
+from modelfree.scheduling import ConditionalAnnealer, ConstantAnnealer, LinearAnnealer
 from modelfree.utils import DummyModel
 
 REW_TYPES = set(('sparse', 'dense'))
 
 
 def _anneal(reward_dict, reward_annealer):
-    sparse_weight, dense_weight = 1, 1
-    if reward_annealer is not None:
-        c = reward_annealer()
-        assert 0 <= c <= 1
-        sparse_weight = 1 - c
-        dense_weight = c
+    c = reward_annealer()
+    assert 0 <= c <= 1
+    sparse_weight = 1 - c
+    dense_weight = c
     return (reward_dict['sparse'] * sparse_weight
             + reward_dict['dense'] * dense_weight)
 
@@ -35,39 +34,38 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
         self.reward_annealer = reward_annealer
         self.agent_idx = agent_idx
-        self.log_buffers = defaultdict(lambda: deque([], maxlen=10000))
-        self.log_buffers['num_episodes'] = 0
-        self.ep_rew_dict = defaultdict(list)
+        self.ep_logs = defaultdict(lambda: deque([], maxlen=10000))
+        self.ep_logs['total_episodes'] = 0
+        self.ep_logs['last_callback_episode'] = 0
         self.ep_len_dict = defaultdict(int)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
 
     def log_callback(self, logger):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
-        num_episodes = len(self.ep_rew_dict['sparse'])
+        num_episodes = self.ep_logs['total_episodes'] - self.ep_logs['last_callback_episode']
         if num_episodes == 0:
             return
 
         means = {}
-        for rew_type, rews in self.ep_rew_dict.items():
-            assert len(rews) == num_episodes
+        for rew_type in REW_TYPES:
+            if len(self.ep_logs[rew_type]) < num_episodes:
+                raise AssertionError(f'Data missing in ep_logs for {rew_type}')
+            rews = islice(self.ep_logs[rew_type], num_episodes)
             means[rew_type] = sum(rews) / num_episodes
             logger.logkv(f'shaping/ep{rew_type}mean', means[rew_type])
 
         overall_mean = _anneal(means, self.reward_annealer)
         logger.logkv('shaping/eprewmean_true', overall_mean)
-        if self.reward_annealer is not None:
-            c = self.reward_annealer()
-            logger.logkv('shaping/rew_anneal_c', c)
+        c = self.reward_annealer()
+        logger.logkv('shaping/rew_anneal_c', c)
+        self.ep_logs['last_callback_episode'] = self.ep_logs['total_episodes']
 
-        for rew_type in self.ep_rew_dict:
-            self.ep_rew_dict[rew_type] = []
-
-    def get_log_buffer_data(self):
-        """Return data to be analyzed by a ConditionalAnnealer"""
-        if self.log_buffers['num_episodes'] == 0:
+    def get_logs(self):
+        """Interface to access self.ep_logs which contains data about episodes"""
+        if self.ep_logs['total_episodes'] == 0:
             return None
-        # keys: 'dense', 'sparse', 'length', 'num_episodes'
-        return self.log_buffers
+        # keys: 'dense', 'sparse', 'length', 'total_episodes'
+        return self.ep_logs
 
     def reset(self):
         return self.venv.reset()
@@ -94,13 +92,12 @@ class RewardShapingVecWrapper(VecEnvWrapper):
             if done[env_num]:
                 for rew_type in REW_TYPES:
                     rew_type_total = sum(self.step_rew_dict[rew_type][env_num])
-                    self.ep_rew_dict[rew_type].append(rew_type_total)
-                    self.log_buffers[rew_type].appendleft(rew_type_total)
+                    self.ep_logs[rew_type].appendleft(rew_type_total)
                     self.step_rew_dict[rew_type][env_num] = []
                 # manually curate episode length because ConditionalAnnealers may want it
-                self.log_buffers['length'].appendleft(self.ep_len_dict[env_num])
+                self.ep_logs['length'].appendleft(self.ep_len_dict[env_num])
                 self.ep_len_dict[env_num] = 0
-                self.log_buffers['num_episodes'] += 1
+                self.ep_logs['total_episodes'] += 1
 
         return obs, rew, done, infos
 
@@ -109,7 +106,7 @@ class NoisyAgentWrapper(DummyModel):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
         Wrap an agent and add noise to its actions
-        :param agent: (BaseRLModel) the agent to wrap
+        :param agent: (DummyModel) the agent to wrap
         :param noise_annealer: Annealer.get_value - presumably the noise should be decreased
         over time in order to get the adversarial policy to perform well on a normal victim.
         :param noise_type: str - the type of noise parametrized by noise_annealer's value.
@@ -142,7 +139,7 @@ class NoisyAgentWrapper(DummyModel):
 
 def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
     if 'metric' in shaping_params:
-        rew_shape_annealer = ConditionalAnnealer.from_dict(shaping_params, shaping_env=None)
+        rew_shape_annealer = ConditionalAnnealer.from_dict(shaping_params, get_logs=None)
         scheduler.set_conditional('rew_shape')
     else:
         anneal_frac = shaping_params.get('anneal_frac')
@@ -150,8 +147,8 @@ def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
             rew_shape_annealer = LinearAnnealer(1, 0, anneal_frac)
         else:
             # In this case, the different reward types are weighted differently
-            # but reward is not annealed over time.
-            rew_shape_annealer = None
+            # but reward is not annealed.
+            rew_shape_annealer = ConstantAnnealer(0.5)
 
     scheduler.set_annealer_and_func('rew_shape', rew_shape_annealer)
     return RewardShapingVecWrapper(single_env, agent_idx=agent_idx,
@@ -161,7 +158,7 @@ def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
 
 def apply_victim_wrapper(victim, noise_params, scheduler):
     if 'metric' in noise_params:
-        noise_annealer = ConditionalAnnealer.from_dict(noise_params, shaping_env=None)
+        noise_annealer = ConditionalAnnealer.from_dict(noise_params, get_logs=None)
         scheduler.set_conditional('noise')
     else:
         victim_noise_anneal_frac = noise_params.get('victim_noise_anneal_frac', 0)

@@ -104,7 +104,7 @@ def set_from_flat(var_list, flat_params, sess):
     sess.run(op, {theta: flat_params})
 
 
-def load_zoo_policy(tag, policy_type, scope, env, env_name, index, internal_noise_kwargs):
+def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
     g = tf.Graph()
     sess = make_session(g)
 
@@ -116,7 +116,7 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index, internal_nois
                           n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False,
                           normalize=True)
             if policy_type == 'lstm':
-                policy = LSTMPolicy(hiddens=[128, 128], internal_noise_kwargs=internal_noise_kwargs, **kwargs)
+                policy = LSTMPolicy(hiddens=[128, 128], **kwargs)
             elif policy_type == 'mlp':
                 policy = MlpPolicyValue(hiddens=[64, 64], **kwargs)
             else:
@@ -136,12 +136,12 @@ def load_zoo_policy(tag, policy_type, scope, env, env_name, index, internal_nois
 
             # Restore parameters
             params = pickle.loads(params_pkl)
-            policy.set_from_flat(params, sess)
+            set_from_flat(policy.get_variables(), params, sess)
 
             return PolicyToModel(policy)
 
 
-def load_zoo_agent(path, env, env_name, index, internal_noise_kwargs):
+def load_zoo_agent(path, env, env_name, index):
     env_aliases = {
         'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
     }
@@ -151,4 +151,4 @@ def load_zoo_agent(path, env, env_name, index, internal_noise_kwargs):
     assert env_prefix == 'multicomp'
     policy_type = get_policy_type_for_agent_zoo(env_suffix)
     return load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
-                           env, env_suffix, index, internal_noise_kwargs)
+                           env, env_suffix, index)

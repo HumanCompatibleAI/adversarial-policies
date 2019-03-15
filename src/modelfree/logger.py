@@ -28,12 +28,13 @@ def tb_layout():
     episode_rewards = layout_pb2.Category(
         title='Episode Reward',
         chart=gen_multiline_charts([
-            ("Shaped Reward", [r'eprewmean_true']),
-            ("Episode Length", [r'eplenmean']),
-            ("Sparse Reward", [r'epsparsemean']),
-            ("Dense Reward", [r'epdensemean']),
-            ("Dense Reward Annealing", [r'rew_anneal']),
-            ("Unshaped Reward", [r'ep_rewmean']),
+            ("Shaped Reward", [r'shaping/eprewmean_true']),
+            ("Episode Length", [r'shaping/eplenmean']),
+            ("Sparse Reward", [r'shaping/epsparsemean']),
+            ("Dense Reward", [r'shaping/epdensemean']),
+            ("Dense Reward Annealing", [r'shaping/rew_anneal_c']),
+            ("Unshaped Reward", [r'shaping/ep_rewmean']),
+            ("Victim Action Noise", [r'shaping/victim_noise'])
         ]),
     )
 
