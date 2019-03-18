@@ -21,7 +21,7 @@ def announce_winner(sim_stream):
                 yield game_outcome(info)
 
 
-def get_empirical_score(_run, env, agents, episodes, render=False):
+def get_empirical_score(_run, env, agents, episodes, render=False, record_trajectories=False):
     result = {
         'ties': 0,
         'wincounts': [0] * len(agents)
@@ -30,8 +30,9 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     # This tells sacred about the intermediate computation so it
     # updates the result as the experiment is running
     _run.result = result
-
-    for ep, winner in enumerate(announce_winner(simulate(env, agents, render=render))):
+    sim_stream = simulate(env, agents, render=render, record_trajectories=record_trajectories,
+                          num_trajectories_to_save=episodes)
+    for ep, winner in enumerate(announce_winner(sim_stream)):
         if winner is None:
             result['ties'] += 1
         else:
@@ -53,6 +54,7 @@ def default_score_config():
     agent_a_path = '1'     # path or other unique identifier
     agent_b_type = 'zoo'   # type supported by policy_loader.py
     agent_b_path = '2'     # path or other unique identifier
+    record_trajectories = False  # record trajectories in stable_baselines.GAIL format
     num_env = 1            # number of environments to run in parallel
     episodes = 20           # number of episodes to evaluate
     render = True          # display on screen (warning: slow)
@@ -65,7 +67,7 @@ def default_score_config():
 
 @score_agent_ex.automain
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                num_env, episodes, render, videos, video_dir):
+                record_trajectories, num_env, episodes, render, videos, video_dir):
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     def env_fn(i):
@@ -88,7 +90,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agents = [load_policy(policy_type, policy_path, venv, env_name, i)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
-    score = get_empirical_score(_run, venv, agents, episodes, render=render)
+    score = get_empirical_score(_run, venv, agents, episodes, render=render,
+                                record_trajectories=record_trajectories)
     for agent in agents:
         if agent.sess is not None:
             agent.sess.close()
