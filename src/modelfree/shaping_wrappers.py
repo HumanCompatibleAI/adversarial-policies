@@ -37,7 +37,6 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         self.ep_logs = defaultdict(lambda: deque([], maxlen=10000))
         self.ep_logs['total_episodes'] = 0
         self.ep_logs['last_callback_episode'] = 0
-        self.ep_len_dict = defaultdict(int)
         self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
 
     def log_callback(self, logger):
@@ -73,7 +72,6 @@ class RewardShapingVecWrapper(VecEnvWrapper):
     def step_wait(self):
         obs, rew, done, infos = self.venv.step_wait()
         for env_num in range(self.num_envs):
-            self.ep_len_dict[env_num] += 1
             # Compute shaped_reward for each rew_type
             shaped_reward = {k: 0 for k in REW_TYPES}
             for rew_term, rew_value in infos[env_num][self.agent_idx].items():
@@ -90,15 +88,13 @@ class RewardShapingVecWrapper(VecEnvWrapper):
                 self.step_rew_dict[rew_type][env_num].append(val)
 
             if done[env_num]:
+                ep_length = max(len(self.step_rew_dict[k]) for k in self.step_rew_dict.keys())
+                self.ep_logs['length'].appendleft(ep_length)
                 for rew_type in REW_TYPES:
                     rew_type_total = sum(self.step_rew_dict[rew_type][env_num])
                     self.ep_logs[rew_type].appendleft(rew_type_total)
                     self.step_rew_dict[rew_type][env_num] = []
-                # manually curate episode length because ConditionalAnnealers may want it
-                self.ep_logs['length'].appendleft(self.ep_len_dict[env_num])
-                self.ep_len_dict[env_num] = 0
                 self.ep_logs['total_episodes'] += 1
-
         return obs, rew, done, infos
 
 
@@ -106,7 +102,7 @@ class NoisyAgentWrapper(DummyModel):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
         Wrap an agent and add noise to its actions
-        :param agent: (DummyModel) the agent to wrap
+        :param agent: (BaseRLModel) the agent to wrap
         :param noise_annealer: Annealer.get_value - presumably the noise should be decreased
         over time in order to get the adversarial policy to perform well on a normal victim.
         :param noise_type: str - the type of noise parametrized by noise_annealer's value.
@@ -146,14 +142,14 @@ def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
         if anneal_frac is not None:
             rew_shape_annealer = LinearAnnealer(1, 0, anneal_frac)
         else:
-            # In this case, the different reward types are weighted differently
-            # but reward is not annealed.
+            # In this case, we weight the reward terms as per shaping_params
+            # but the ratio of sparse to dense reward remains constant.
             rew_shape_annealer = ConstantAnnealer(0.5)
 
-    scheduler.set_annealer_and_func('rew_shape', rew_shape_annealer)
+    scheduler.set_annealer('rew_shape', rew_shape_annealer)
     return RewardShapingVecWrapper(single_env, agent_idx=agent_idx,
                                    shaping_params=shaping_params['weights'],
-                                   reward_annealer=scheduler.get_func('rew_shape'))
+                                   reward_annealer=scheduler.get_annealer('rew_shape'))
 
 
 def apply_victim_wrapper(victim, noise_params, scheduler):
@@ -168,5 +164,5 @@ def apply_victim_wrapper(victim, noise_params, scheduler):
             msg = "victim_noise_anneal_frac must be greater than 0 if using a NoisyAgentWrapper."
             raise ValueError(msg)
         noise_annealer = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac)
-    scheduler.set_annealer_and_func('noise', noise_annealer)
-    return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_func('noise'))
+    scheduler.set_annealer('noise', noise_annealer)
+    return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_annealer('noise'))
