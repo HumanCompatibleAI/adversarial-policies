@@ -3,6 +3,10 @@
 import numpy as np
 from ray import tune
 
+TARGET_VICTIMS = {
+    'multicomp/KickAndDefend-v0': 2,
+}
+
 
 def make_configs(hyper_ex):
     @hyper_ex.named_config
@@ -13,6 +17,9 @@ def make_configs(hyper_ex):
             'config': {
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
+                ),
+                'victim_path': tune.sample_from(
+                    lambda spec: TARGET_VICTIMS.get(spec.config.env_name, 1)
                 ),
                 'seed': tune.sample_from(
                     lambda spec: np.random.randint(1000)

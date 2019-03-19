@@ -11,6 +11,8 @@ docker:
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
     - "--env MUJOCO_KEY=${MUJOCO_KEY}"
+    # Open port 6006 for TensorBoard
+    - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
     - "--env LOGNAME=ubuntu"

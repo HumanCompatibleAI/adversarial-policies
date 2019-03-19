@@ -95,8 +95,9 @@ def test_hyper():
     config = {
         'spec': {
             'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
+            'upload_dir': None,  # do not upload test results anywhere
+            'sync_function': None,  # as above
         },
-        'platform': 'pytest',  # prevent from uploading results
     }
     run = hyper_ex.run(config_updates=config)
     trials = run.result

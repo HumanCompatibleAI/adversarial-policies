@@ -9,7 +9,10 @@ docker:
   image: humancompatibleai/adversarial_policies:latest
   container_name: ray
   run_options:
-    - "--env MUJOCO_KEY=${MUJOCO_KEY}"  # this must be set in environment
+    # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
+    - "--env MUJOCO_KEY=${MUJOCO_KEY}"
+    # Open port 6006 for TensorBoard
+    - "-p 6006:6006"
 
 provider:
     type: local

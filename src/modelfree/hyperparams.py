@@ -68,7 +68,7 @@ def _detect_ec2():
 
 
 @hyper_ex.config
-def ec2_config(platform, s3_bucket, exp_name, spec):
+def ec2_config(platform, s3_bucket, spec):
     """When running on AWS EC2 cloud.
 
     If you are not the authors of this project, you will need to override s3_bucket."""
@@ -80,7 +80,7 @@ def ec2_config(platform, s3_bucket, exp_name, spec):
         # We're running on EC2
         if s3_bucket is None:
             s3_bucket = 'adversarial-policies'
-        spec['upload_dir'] = f's3://{s3_bucket}/hyper/{exp_name}/{make_timestamp()}'
+        spec['upload_dir'] = f's3://{s3_bucket}/hyper'
 
 
 def _rsync_func(local_dir, remote_uri):
@@ -101,7 +101,7 @@ def _rsync_func(local_dir, remote_uri):
 
 
 @hyper_ex.config
-def baremetal_config(platform, baremetal, exp_name, spec):
+def baremetal_config(platform, baremetal, spec):
     """When running on bare-metal hardware (i.e. not in cloud).
 
     The workers must have permission to rsync to local_out."""
@@ -113,14 +113,13 @@ def baremetal_config(platform, baremetal, exp_name, spec):
         baremetal = dict(baremetal)
         if 'ssh_key' not in baremetal:
             baremetal['ssh_key'] = '~/.ssh/adversarial-policies'
-        if 'local_host' not in baremetal:
-            baremetal['local_host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
-        if 'local_dir' not in baremetal:
-            baremetal['local_dir'] = osp.abspath(osp.join(os.getcwd(), 'data', 'hyper'))
+        if 'host' not in baremetal:
+            baremetal['host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
+        if 'dir' not in baremetal:
+            baremetal['dir'] = osp.abspath(osp.join(os.getcwd(), 'data', 'hyper'))
 
         spec = dict(spec)
-        spec['upload_dir'] = (baremetal['local_host'] + ':' + baremetal['ssh_key'] + ':' +
-                              osp.join(baremetal['local_dir'], exp_name, make_timestamp()))
+        spec['upload_dir'] = ':'.join([baremetal['host'], baremetal['ssh_key'], baremetal['dir']])
         spec['sync_function'] = tune.function(_rsync_func)
 
 
@@ -129,10 +128,11 @@ make_configs(hyper_ex)
 
 
 @hyper_ex.main
-def hyperparameter_search(ray_server, train, spec):
+def hyperparameter_search(ray_server, exp_name, train, spec):
     ray.init(redis_address=ray_server)
     tune.register_trainable('train_rl', functools.partial(train_rl, train))
-    return tune.run_experiments({'tune_rl': spec})
+    exp_id = f'{exp_name}/{make_timestamp()}'
+    return tune.run_experiments({exp_id: spec})
 
 
 def main():
