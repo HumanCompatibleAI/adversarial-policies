@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import os.path as osp
+import sys
 
 from gym.spaces import Box
 from sacred import Experiment
@@ -180,12 +181,12 @@ def sac(batch_size, learning_rate, **kwargs):
 def gail(batch_size, expert_dataset_path, **kwargs):
     import matplotlib
     matplotlib.use('pdf')  # MujocoDset needs this and we don't have tkinter
-    from stable_baselines.gail.dataset.mujocodset import MujocoDset
+    from stable_baselines.gail.dataset.dataset import ExpertDataset
 
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("Need to set expert_dataset_path if training GAIL")
-    expert_dataset = MujocoDset(expert_dataset_path)
+    expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
     return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
                    callback_mul=batch_size, timesteps_per_batch=batch_size // num_proc, **kwargs)

@@ -44,6 +44,9 @@ class DummyModel(BaseRLModel):
     def load(self):
         raise NotImplementedError()
 
+    def _get_pretrain_placeholders(self):
+        raise NotImplementedError()
+
 
 class PolicyToModel(DummyModel):
     """Converts BasePolicy to a BaseRLModel with only predict implemented."""
@@ -177,7 +180,7 @@ def simulate(venv, policies, render=False, record_trajectories=False,
             msg = "Must set number of trajectories to save in order to save them."
             raise ValueError(msg)
         traj_dicts = [[defaultdict(list) for env in range(venv.num_envs)] for policy in policies]
-        completed_traj_dicts = [defaultdict(list) for policy in policies]
+        full_traj_dicts = [defaultdict(list) for policy in policies]
         num_completed = 0
 
     while True:
@@ -196,30 +199,34 @@ def simulate(venv, policies, render=False, record_trajectories=False,
 
         observations, rewards, dones, infos = venv.step(actions)
         if record_trajectories:
-            keys = ('rews', 'acs', 'obs')
-            datas = (rewards, actions, prev_observations)
+            data_keys = ('rewards', 'actions', 'obs')
+            data_vals = (rewards, actions, prev_observations)
             iter_space = itertools.product(enumerate(traj_dicts), range(venv.num_envs))
             for (agent_idx, agent_dicts), env_idx in iter_space:
-                for key, data in zip(keys, datas):
-                    agent_dicts[env_idx][key].append(data[agent_idx][env_idx])
+                for key, val in zip(data_keys, data_vals):
+                    agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
                 if dones[env_idx]:
-                    ep_ret = sum(agent_dicts[env_idx]['rews'])
-                    completed_traj_dicts[agent_idx]['ep_rets'].append(np.array([ep_ret]))
-                    for key in keys:
+                    ep_starts = [True] + agent_dicts[env_idx]['episode_starts']
+                    full_traj_dicts[agent_idx]['episode_starts'].append(np.array(ep_starts))
+
+                    ep_ret = sum(agent_dicts[env_idx]['rewards'])
+                    full_traj_dicts[agent_idx]['episode_returns'].append(np.array([ep_ret]))
+
+                    for key in data_keys:
                         episode_key_data = np.array(agent_dicts[env_idx][key])
-                        completed_traj_dicts[agent_idx][key].append(episode_key_data)
+                        full_traj_dicts[agent_idx][key].append(episode_key_data)
                     agent_dicts[env_idx] = defaultdict(list)
                     num_completed += int(agent_idx == 0)
 
                     if num_completed >= num_trajectories_to_save:
-                        completed_traj_dicts[agent_idx] = {
-                            k: np.expand_dims(np.concatenate(v, axis=0), axis=0)
-                            for k, v in completed_traj_dicts[agent_idx].items()}
-                        completed_traj_dicts[agent_idx]['ep_rets'] = np.squeeze(
-                            completed_traj_dicts[agent_idx]['ep_rets'])
+                        full_traj_dicts[agent_idx] = {
+                            k: np.concatenate(v, axis=0)
+                            for k, v in full_traj_dicts[agent_idx].items()}
 
                         np.savez(f'data/agent_{agent_idx}_traj.npz',
-                                 **completed_traj_dicts[agent_idx])
+                                 **full_traj_dicts[agent_idx])
+                else:
+                    agent_dicts[env_idx]['episode_starts'].append(False)
 
         yield observations, rewards, dones, infos
 
