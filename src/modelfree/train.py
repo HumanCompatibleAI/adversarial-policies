@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import os.path as osp
-import sys
 
 from gym.spaces import Box
 from sacred import Experiment
