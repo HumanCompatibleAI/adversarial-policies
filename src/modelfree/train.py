@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import os.path as osp
-import sys
 
 from gym.spaces import Box
 from sacred import Experiment
@@ -180,7 +179,7 @@ def sac(batch_size, learning_rate, **kwargs):
 @train_ex.capture
 def gail(batch_size, expert_dataset_path, **kwargs):
     import matplotlib
-    matplotlib.use('pdf')  # MujocoDset needs this and we don't have tkinter
+    matplotlib.use('pdf')  # ExpertDataset needs this and we don't have tkinter
     from stable_baselines.gail.dataset.dataset import ExpertDataset
 
     num_proc = _get_mpi_num_proc()
