@@ -1,13 +1,12 @@
 import gym
 from gym import Env, Wrapper
-from gym_compete.policy import TransparentPolicy as TP_gc
 import numpy as np
-from stable_baselines.common.policies import TransparentPolicy as TP_sb
 from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
 from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 from aprl.utils import getattr_unwrapped
+from modelfree.transparent import TransparentPolicy
 
 
 class MultiAgentEnv(Env):
@@ -414,7 +413,7 @@ class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, agent_idx)
-        if not isinstance(policy, TP_gc) and not isinstance(policy, TP_sb):
+        if not isinstance(policy, TransparentPolicy):
             raise TypeError("Error: policy must be transparent")
         self._action = None
 
