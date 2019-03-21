@@ -352,20 +352,19 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
-        observations = self._get_augmented_obs(observations)
+        observations = self._get_updated_obs(observations)
         return observations, rewards, self._dones, infos
 
     def reset(self):
-        observations = self._get_augmented_obs(self.venv.reset())
+        observations = self._get_updated_obs(self.venv.reset())
         return observations
 
-    def _get_augmented_obs(self, observations):
+    def _get_updated_obs(self, observations):
         """Augments observations[self._agent_to_merge] with action that self._policy would take
         given its observations. Keeps track of these variables to use in next timestep."""
         self._obs = observations[self._agent_to_merge]
         self._action, self._state = self._policy.predict(self._obs, state=self._state,
                                                          mask=self._dones)
-
         new_obs = np.concatenate([self._obs, self._action], axis=1)
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
 
@@ -406,6 +405,41 @@ class CurryVecEnv(VecMultiWrapper):
     def reset(self):
         observations = self.venv.reset()
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
+        return observations
+
+
+class TransparentCurryVecEnv(CurryVecEnv):
+    """CurryVecEnv that gives out much more info about its policy."""
+    def __init__(self, venv, policy, agent_idx=0):
+        super().__init__(venv, agent_idx)
+        if not isinstance(policy, int):
+            raise TypeError("Error: policy must be transparent")
+        self._action = None
+
+        obs_aug_amount = policy.get_aug_data()
+        if obs_aug_amount is not None:
+            obs_aug_space = gym.spaces.Box(-np.inf, np.inf, obs_aug_amount)
+            self.observation_space = _tuple_space_augment(self.observation_space, agent_idx,
+                                                          augment_space=obs_aug_space)
+
+    def step_async(self, actions):
+        actions.insert(self._agent_to_fix, self._action)
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        observations, rewards, self._dones, infos = self.venv.step_wait()
+        observations = self._get_updated_obs(observations)
+        infos.update(self._data)
+        return observations, rewards, self._dones, infos
+
+    def reset(self):
+        observations = self._get_updated_obs(self.venv.reset())
+        return observations
+
+    def _get_updated_obs(self, observations):
+        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
+        self._action, self._state, self._data = self._policy.predict(self._obs, state=self.state,
+                                                                     mask=self._dones)
         return observations
 
 
