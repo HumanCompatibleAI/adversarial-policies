@@ -5,6 +5,7 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 from modelfree.scheduling import ConditionalAnnealer, ConstantAnnealer, LinearAnnealer
+from modelfree.transparent import TransparentPolicy, TRANSPARENCY_KEYS
 from modelfree.utils import DummyModel
 
 REW_TYPES = set(('sparse', 'dense'))
@@ -63,7 +64,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         """Interface to access self.ep_logs which contains data about episodes"""
         if self.ep_logs['total_episodes'] == 0:
             return None
-        # keys: 'dense', 'sparse', 'length', 'total_episodes'
+        # keys: 'dense', 'sparse', 'length', 'total_episodes', 'last_callback_episode'
         return self.ep_logs
 
     def reset(self):
@@ -96,6 +97,14 @@ class RewardShapingVecWrapper(VecEnvWrapper):
                     self.step_rew_dict[rew_type][env_num] = []
                 self.ep_logs['total_episodes'] += 1
         return obs, rew, done, infos
+
+
+class TransparentRewardShapingVecWrapper(RewardShapingVecWrapper):
+    def __init__(self, venv, agent_idx, shaping_params, transparent_params, reward_annealer=None):
+        super().__init__(venv, agent_idx, shaping_params, reward_annealer)
+        self.transparent_params = transparent_params
+
+
 
 
 class NoisyAgentWrapper(DummyModel):
