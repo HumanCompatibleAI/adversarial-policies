@@ -16,9 +16,17 @@ class TransparentPolicy(ABC):
 
 
 class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
+    """FeedForwardPolicy which is also transparent."""
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  reuse=False, layers=None, net_arch=None, act_fun=tf.tanh,
                  cnn_extractor=nature_cnn, feature_extraction="cnn", **kwargs):
+        """
+        :param transparent_params: dict with potential keys 'obs', 'fc', 'hid'.
+        If key is not present, then we don't provide this data as part of the data dict in step.
+        If key is present, value (bool) corresponds to whether we augment the observation space with it.
+        This is because TransparentCurryVecEnv needs this information to modify its observation space,
+        and we would like to keep all of the transparency-related parameters in one dictionary.
+        """
         FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
                                    layers, net_arch, act_fun, cnn_extractor, feature_extraction,
                                    **kwargs)
@@ -40,6 +48,14 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
         transparency_dict = {k: v for k, v in zip(TRANSPARENCY_KEYS, transparent_objs)
                              if k in self.transparent_params}
         return action, value, self.initial_state, neglogp, transparency_dict
+
+
+class TransparentMlpPolicy(TransparentFeedForwardPolicy):
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 reuse=False, **_kwargs):
+        super(TransparentMlpPolicy, self).__init__(sess, ob_space, ac_space, n_env, n_steps,
+                                                   n_batch, transparent_params, reuse,
+                                                   feature_extraction="mlp", **_kwargs)
 
 
 class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
