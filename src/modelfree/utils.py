@@ -6,9 +6,11 @@ from os import path as osp
 import gym
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
+from gym_compete.policy import TransparentPolicy as TP_gc
 import numpy as np
 from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
+from stable_baselines.common.policies import TransparentPolicy as TP_sb
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
@@ -63,9 +65,14 @@ class PolicyToModel(DummyModel):
         if mask is None:
             mask = [False for _ in range(self.policy.n_env)]
 
-        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
-                                                           deterministic=deterministic)
-        return actions, states
+        if isinstance(self.policy, TP_gc) or isinstance(self.policy, TP_sb):
+            actions, _val, states, _neglogp, data = self.policy.step(observation, state, mask,
+                                                                    deterministic=deterministic)
+            return actions, states, data
+        else:
+            actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
+                                                               deterministic=deterministic)
+            return actions, states
 
 
 class OpenAIToStablePolicy(BasePolicy):
