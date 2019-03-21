@@ -1,6 +1,8 @@
 import gym
 from gym import Env, Wrapper
+from gym_compete.policy import TransparentPolicy as TP_gc
 import numpy as np
+from stable_baselines.common.policies import TransparentPolicy as TP_sb
 from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
 from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
@@ -412,12 +414,12 @@ class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, agent_idx)
-        if not isinstance(policy, int):
+        if not isinstance(policy, TP_gc) and not isinstance(policy, TP_sb):
             raise TypeError("Error: policy must be transparent")
         self._action = None
 
-        obs_aug_amount = policy.get_aug_data()
-        if obs_aug_amount is not None:
+        obs_aug_amount = policy.get_obs_aug_amount()
+        if obs_aug_amount > 0:
             obs_aug_space = gym.spaces.Box(-np.inf, np.inf, obs_aug_amount)
             self.observation_space = _tuple_space_augment(self.observation_space, agent_idx,
                                                           augment_space=obs_aug_space)
@@ -438,7 +440,7 @@ class TransparentCurryVecEnv(CurryVecEnv):
 
     def _get_updated_obs(self, observations):
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
-        self._action, self._state, self._data = self._policy.predict(self._obs, state=self.state,
+        self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
                                                                      mask=self._dones)
         return observations
 
