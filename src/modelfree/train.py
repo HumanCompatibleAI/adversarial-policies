@@ -8,9 +8,8 @@ import os.path as osp
 from gym.spaces import Box
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import PPO1, PPO2, SAC, GAIL
+from stable_baselines import PPO1, PPO2, SAC
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
-from stable_baselines.gail.dataset.mujocodset import MujocoDset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -140,18 +139,14 @@ def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timestep
     return final_path
 
 
-def _get_mpi_num_proc():
+@train_ex.capture
+def ppo1(batch_size, learning_rate, **kwargs):
     # SOMEDAY: If we end up using MPI-based algorithms regularly, come up with a cleaner solution.
     from mpi4py import MPI
     if MPI is None:
         num_proc = 1
     else:
         num_proc = MPI.COMM_WORLD.Get_size()
-    return num_proc
-
-@train_ex.capture
-def ppo1(batch_size, learning_rate, **kwargs):
-    num_proc = _get_mpi_num_proc()
     pylog.warning('Assuming constant learning rate schedule for PPO1')
     optim_stepsize = learning_rate(1)  # PPO1 does not support a callable learning_rate
     return _stable(PPO1, callback_key='timesteps_so_far', callback_mul=batch_size,
@@ -171,16 +166,6 @@ def sac(batch_size, learning_rate, **kwargs):
     return _stable(SAC, callback_key='step', callback_mul=1,
                    batch_size=batch_size,
                    learning_rate=learning_rate, **kwargs)
-
-
-@train_ex.capture
-def gail(batch_size, expert_dataset_path, **kwargs):
-    num_proc = _get_mpi_num_proc()
-    if expert_dataset_path is None:
-        raise ValueError("Need to set expert_dataset_path if training GAIL")
-    expert_dataset = MujocoDset(expert_dataset_path)
-    return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
-                   callback_mul=batch_size, timesteps_per_batch=batch_size // num_proc, **kwargs)
 
 
 @train_ex.config
@@ -209,7 +194,6 @@ def train_config():
     load_path = None                # path to load initial policy from
     load_zoo_train = False
     adv_noise_agent_val = None      # epsilon-ball noise policy added to existing zoo policy
-    expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
     checkpoint_interval = 16834     # save weights to disk after this many timesteps
@@ -335,12 +319,11 @@ RL_ALGOS = {
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
     'sac': sac,
-    'gail': gail,
 }
 
 
 # True for Stable Baselines as of 2019-03
-NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac', 'gail']
+NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac']
 
 
 @train_ex.automain
