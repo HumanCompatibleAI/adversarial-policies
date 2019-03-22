@@ -81,8 +81,8 @@ def make_configs(hyper_ex):
                     lambda spec: 2 ** np.random.randint(9, 15)
                 ),
                 'num_env': 1,
+                'expert_dataset_path': 'default',
                 'rl_args': {
-                    'expert_dataset': 'default',
                     # default is 100
                     'hidden_size_adversary': tune.sample_from(
                         lambda spec: 50 * np.random.randint(1, 6)

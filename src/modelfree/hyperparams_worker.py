@@ -19,6 +19,31 @@ class ReporterOutputFormat(KVWriter):
         self.reporter(**kvs)
 
 
+def short_str(d):
+    final_str_list = []
+    d_copy = d.copy()
+    abbrev_dict = {
+        'adversary_entcoeff': 'adv_ent',
+        'expert_dataset_path': 'exp_data',
+        'hidden_size_adversary': 'hid_adv',
+        'timesteps_per_batch': 'tsteps/batch',
+        'victim_index': 'vic_idx',
+        'victim_path': 'vic_path',
+        'd_stepsize': 'd_step',
+        'vf_stepsize': 'vf_step'
+    }
+    for k, v in d_copy.items():
+        k_str = abbrev_dict.get(k, str(k))
+        if isinstance(v, dict):
+            v_str = "{" + f"{short_str(v)}" + "}"
+        elif isinstance(v, float):
+            v_str = "{:.6f}".format(v)
+        else:
+            v_str = str(v)
+        final_str_list.append(f"{k_str}={v_str}")
+    return '-'.join(final_str_list)
+
+
 def train_rl(base_config, tune_config, reporter):
     """Run a modelfree.train experiment with specified config, logging to reporter.
 
@@ -31,7 +56,8 @@ def train_rl(base_config, tune_config, reporter):
 
     config = dict(base_config)
     config.update(tune_config)
-    tune_kv_str = '-'.join([f'{k}={v}' for k, v in tune_config.items()])
+    # tune_kv_str = '-'.join([f'{k}={v}' if not isinstance(v, dict) else f'{k}={short_str(v)}'])
+    tune_kv_str = short_str(config)
     config['exp_name'] = config['exp_name'] + '-' + tune_kv_str
 
     output_format = ReporterOutputFormat(reporter)

@@ -6,7 +6,7 @@ target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:latest
+  image: humancompatibleai/adversarial_policies:gail-tune
   container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
@@ -39,7 +39,7 @@ head_node:
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: c5.18xlarge
+  InstanceType: m5d.24xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
