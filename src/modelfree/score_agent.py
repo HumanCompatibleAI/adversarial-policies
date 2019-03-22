@@ -10,6 +10,8 @@ from modelfree.gym_compete_conversion import GymCompeteToOurs, game_outcome
 from modelfree.policy_loader import load_policy
 from modelfree.utils import VideoWrapper, make_env, simulate
 
+score_ex = Experiment('score')
+
 
 def announce_winner(sim_stream):
     """This function determines the winner of a match in one of the gym_compete environments.
@@ -42,11 +44,7 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     return result
 
 
-score_agent_ex = Experiment('score_agent')
-score_agent_ex.observers.append(FileStorageObserver.create('data/sacred'))
-
-
-@score_agent_ex.config
+@score_ex.config
 def default_score_config():
     env_name = 'multicomp/SumoAnts-v0'  # Gym env ID
     agent_a_type = 'zoo'   # type supported by policy_loader.py
@@ -63,7 +61,7 @@ def default_score_config():
     del _
 
 
-@score_agent_ex.automain
+@score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 num_env, episodes, render, videos, video_dir):
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
@@ -95,3 +93,13 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     venv.close()
 
     return score
+
+
+def main():
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
+    score_ex.observers.append(observer)
+    score_ex.run_commandline()
+
+
+if __name__ == '__main__':
+    main()
