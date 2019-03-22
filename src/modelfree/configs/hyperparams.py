@@ -60,20 +60,24 @@ def make_configs(hyper_ex):
     @hyper_ex.named_config
     def gail_spec(train):
         train = dict(train)
-        train['total_timesteps'] = int(1e8)
+        train['total_timesteps'] = int(3e7)
         spec = {
             'config': {
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
                 ),
+                'victim_index': tune.grid_search(
+                    ['0', '1']
+                ),
                 'victim_path': tune.sample_from(
-                    lambda spec: TARGET_VICTIMS.get(spec.config.env_name, 1)
+                    lambda spec: 1 if spec.config.env_name == 'multicomp/SumoHumans-v0'
+                    else spec.config.victim_index + 1
                 ),
                 'seed': tune.sample_from(
                     lambda spec: np.random.randint(1000)
                 ),
                 'rl_args': {
-                    'expert_dataset': None,
+                    'expert_dataset': 'default',
                     # default is 100
                     'hidden_size_adversary': tune.sample_from(
                         lambda spec: 50 * np.random.randint(1, 6)
@@ -94,7 +98,7 @@ def make_configs(hyper_ex):
                     ),
                     # default is 1024 (2^10)
                     'timesteps_per_batch': tune.sample_from(
-                        lambda spec: 2 ** np.random.randint(9, 16)
+                        lambda spec: 2 ** np.random.randint(9, 13)
                     ),
                     # default is 10,
                     'cg_iters': tune.sample_from(
@@ -113,9 +117,12 @@ def make_configs(hyper_ex):
                     # default is 3
                     'vf_iters': tune.sample_from(
                         lambda spec: np.random.randint(2, 7)
-                    )
-                }
+                    ),
+                },
 
-            }
-
+            },
+            'num_samples': 160,
         }
+        exp_name = 'gail'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
