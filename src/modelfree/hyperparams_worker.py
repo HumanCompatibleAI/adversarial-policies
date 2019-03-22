@@ -2,8 +2,11 @@
 
 It's important these are all pickleable."""
 
+import json
+import os
 import os.path as osp
 
+import numpy as np
 from sacred.observers import FileStorageObserver
 from stable_baselines.logger import KVWriter
 
@@ -66,7 +69,15 @@ def train_rl(base_config, tune_config, reporter):
     # We're breaking the Sacred interface by running an experiment from within another experiment.
     # This is the best thing we can do, since we need to run the experiment with varying configs.
     # Just be careful: this could easily break things.
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
-    train_ex.observers.append(observer)
-    train_ex.run(config_updates=config)
-    reporter(done=True, **output_format.last_kvs)
+
+    # observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
+    # train_ex.observers.append(observer)
+
+    # train_ex.run(config_updates=config)
+    # reporter(done=True, **output_format.last_kvs)
+
+    config_hash = hash(str(config))
+    json.dump(config, f"config-{config_hash}.json")
+    command_str = f"mpirun -np 8 python modelfree.train with config-{config_hash}.json"
+    print(command_str)
+    os.system(command_str)
