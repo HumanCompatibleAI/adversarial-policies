@@ -6,14 +6,16 @@ import os
 import os.path as osp
 import pkgutil
 
+from gym.spaces import Box
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import PPO1, PPO2, SAC
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
-from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, VecMultiWrapper,
-                                   make_dummy_vec_multi_env, make_subproc_vec_multi_env)
+from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
+                                   VecMultiWrapper, make_dummy_vec_multi_env,
+                                   make_subproc_vec_multi_env)
 from modelfree import utils
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.logger import setup_logger
@@ -92,15 +94,22 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 @train_ex.capture
 def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timesteps, policy,
-            load_path, rl_args, debug, logger, log_callbacks, save_callbacks,
+            load_path, load_bansal, rl_args, debug, logger, log_callbacks, save_callbacks,
             checkpoint_interval, log_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
                   **rl_args)
-    if load_path is not None:
+    if load_path is not None and not load_bansal:
         # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
         model = cls.load(load_path, **kwargs)
+    elif load_path and load_bansal:
+        from gym_compete.policy import LSTMPolicy
+        kwargs['policy_kwargs'] = dict(hiddens=[128, 128])
+        kwargs['n_steps'] = 1
+        model = cls(policy=LSTMPolicy, **kwargs)
+        model.train_model.load_weights_from_file(load_path, model.sess)
+        model.act_model.load_weights_from_file(load_path, model.sess)
     else:
         model = cls(policy=policy, **kwargs)
 
@@ -182,6 +191,8 @@ def train_config():
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
     load_path = None                # path to load initial policy from
+    load_bansal = False             # policy from Bansal et al's gym_compete
+    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
 
     # General
     checkpoint_interval = 16834     # save weights to disk after this many timesteps
@@ -213,6 +224,7 @@ def wrappers_config(env_name):
 
     victim_noise = False  # enable adding noise to victim
     victim_noise_params = load_default(env_name, 'noise')  # parameters for victim noise
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -245,8 +257,23 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 
 
 @train_ex.capture
-def maybe_embed_victim(multi_venv, scheduler, env_name, victim_type, victim_path, victim_index,
-                       victim_noise, victim_noise_params):
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type):
+    adv_noise_agent_val = adv_noise_params['noise_val']
+    base_policy_path = adv_noise_params.get('base_path', victim_path)
+    base_policy_type = adv_noise_params.get('base_type', victim_type)
+    base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
+                              env=multi_venv, env_name=env_name, index=our_idx)
+    space_shape = multi_venv.action_space.spaces[0].shape
+    adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
+    multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
+                                  replace_action_space=adv_noise_action_space,
+                                  merge_agent_idx=our_idx)
+    return multi_venv
+
+
+@train_ex.capture
+def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
+                       victim_index, victim_noise, victim_noise_params, adv_noise_params):
     if victim_type == 'none':
         if multi_venv.num_agents > 1:
             raise ValueError("Victim needed for multi-agent environments")
@@ -255,12 +282,17 @@ def maybe_embed_victim(multi_venv, scheduler, env_name, victim_type, victim_path
         assert multi_venv.num_agents == 2
         our_idx = 1 - victim_index
 
+        # If we are actually training an epsilon-ball noise agent on top of a zoo agent
+        if adv_noise_params is not None:
+            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
+
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
                              env_name=env_name, index=victim_index)
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
                                           scheduler=scheduler)
+            log_callbacks.append(lambda logger, locals, globals: victim.log_callback(logger))
 
         # Curry the victim
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
@@ -277,6 +309,10 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
         log_callbacks.append(lambda logger, locals, globals: rew_shape_venv.log_callback(logger))
         single_venv = rew_shape_venv
+
+        for anneal_type in ['noise', 'rew_shape']:
+            if scheduler.is_conditional(anneal_type):
+                scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
     if normalize:
         normalized_venv = VecNormalize(single_venv)
@@ -300,22 +336,24 @@ NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac']
 
 @train_ex.main
 def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats):
-    scheduler = Scheduler(func_dict={'lr': ConstantAnnealer(learning_rate).get_value})
+    scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
     pylog.info(f"Log output formats: {logger.output_formats}")
 
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
+
     multi_venv = build_env(out_dir)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler)
+    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx,
                                   log_callbacks=log_callbacks, save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
-    res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
+    res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),
                    logger=logger, log_callbacks=log_callbacks, save_callbacks=save_callbacks)
     single_venv.close()
 

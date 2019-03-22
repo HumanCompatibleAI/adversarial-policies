@@ -45,6 +45,8 @@ def test_score_agent(config):
     """Smoke test for score agent to check it runs with some different configs."""
     config = dict(config)
     config['render'] = False  # faster without, test_experiment already tests with render
+    if 'episodes' not in config:
+        config['episodes'] = 1  # speed up tests
 
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
@@ -72,6 +74,25 @@ TRAIN_CONFIGS = [
     {
         'env_name': 'multicomp/SumoHumans-v0',
         'victim_noise': True,
+    },
+    {
+        'env_name': 'Humanoid-v1',
+        'victim_type': 'none',
+    },
+    {
+        'env_name': 'multicomp/SumoHumansAutoContact-v0',
+        'rew_shape': True,
+        'rew_shape_params': {'metric': 'length', 'min_wait': 100, 'window_size': 100},
+    },
+    {
+        'env_name': 'multicomp/SumoHumans-v0',
+        'rew_shape': True,
+        'victim_noise': True,
+        'victim_noise_params': {'metric': 'sparse', 'min_wait': 100, 'window_size': 100},
+    },
+    {
+        'env_name': 'multicomp/SumoHumansAutoContact-v0',
+        'adv_noise_params': {'noise_val': 0.1},
     }
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}

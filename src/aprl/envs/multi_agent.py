@@ -288,9 +288,88 @@ def _tuple_pop(input, i):
     return tuple(output), elt
 
 
+def _tuple_replace(input, i, obj):
+    output = list(input)
+    del output[i]
+    output.insert(i, obj)
+    return tuple(output)
+
+
 def _tuple_space_filter(tuple_space, filter_idx):
     filtered_spaces = (space for i, space in enumerate(tuple_space.spaces) if i != filter_idx)
     return gym.spaces.Tuple(tuple(filtered_spaces))
+
+
+def _tuple_space_replace(tuple_space, replace_idx, replace_space):
+    current_spaces = tuple_space.spaces
+    old_space = current_spaces[replace_idx]
+    if type(old_space) != type(replace_space):
+        raise TypeError("Replacement action space has different type than original.")
+    new_spaces = _tuple_replace(current_spaces, replace_idx, replace_space)
+    return gym.spaces.Tuple(new_spaces)
+
+
+def _tuple_space_augment(tuple_space, augment_idx, augment_space):
+    current_space = tuple_space.spaces[augment_idx]
+    new_low = np.concatenate([current_space.low, augment_space.low])
+    new_high = np.concatenate([current_space.high, augment_space.high])
+
+    new_space = gym.spaces.Box(low=new_low, high=new_high)
+    return _tuple_space_replace(tuple_space, augment_idx, new_space)
+
+
+class MergeAgentVecEnv(VecMultiWrapper):
+    """Allows merging of two agents into a pseudo-agent by merging their actions.
+       The observation space is augmented with the actions of the fixed policy."""
+    def __init__(self, venv, policy, replace_action_space, merge_agent_idx):
+        """Expands one of the players in a VecMultiEnv.
+        :param venv(VecMultiEnv): the environments.
+        :param policy(Policy): the fixed policy to use at merge_agent_idx
+        :param replace_action_space(Box): the action space of the new agent to merge
+        :param merge_agent_idx(int): the index of the agent that will be merged with the new agent
+        :return: a new VecMultiEnv with the same number of agents. It behaves like venv but
+                 with all actions at index merge_agent_idx merged with a fixed policy."""
+        super().__init__(venv)
+
+        assert venv.num_agents >= 1  # same as in CurryVecEnv
+        self.observation_space = _tuple_space_augment(self.observation_space, merge_agent_idx,
+                                                      self.action_space.spaces[merge_agent_idx])
+        if replace_action_space.shape != self.action_space.spaces[merge_agent_idx].shape:
+            raise ValueError("Replacement action space has different shape than original.")
+        self.action_space = _tuple_space_replace(self.action_space, merge_agent_idx,
+                                                 replace_action_space)
+
+        self._agent_to_merge = merge_agent_idx
+        self._policy = policy
+        self._action = None
+        self._state = None
+        self._obs = None
+        self._dones = [False] * venv.num_envs
+
+    def step_async(self, actions):
+        new_action = actions[self._agent_to_merge] + self._action
+        actions = _tuple_replace(actions, self._agent_to_merge, new_action)
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        observations, rewards, self._dones, infos = self.venv.step_wait()
+        observations = self._get_augmented_obs(observations)
+        return observations, rewards, self._dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        observations = self._get_augmented_obs(observations)
+        return observations
+
+    def _get_augmented_obs(self, observations):
+        """Augments observations[self._agent_to_merge] with action that self._policy would take
+        given its observations. Keeps track of these variables to use in next timestep."""
+        self._obs = observations[self._agent_to_merge]
+        self._action, self._state = self._policy.predict(self._obs, state=self._state,
+                                                         mask=self._dones)
+
+        new_obs = np.concatenate([self._obs, self._action], axis=1)
+        return _tuple_replace(observations, self._agent_to_merge, new_obs)
 
 
 class CurryVecEnv(VecMultiWrapper):
