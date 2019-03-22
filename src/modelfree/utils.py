@@ -157,8 +157,7 @@ def make_session(graph=None):
     return sess
 
 
-def simulate(venv, policies, render=False, record_trajectories=False,
-             num_trajectories_to_save=None):
+def simulate(venv, policies, render=False, record_trajectories=False, num_trajectories_to_save=None):
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
@@ -204,20 +203,15 @@ def simulate(venv, policies, render=False, record_trajectories=False,
                     agent_dicts[env_idx][key].append(data[agent_idx][env_idx])
                 if dones[env_idx]:
                     ep_ret = sum(agent_dicts[env_idx]['rews'])
-                    completed_traj_dicts[agent_idx]['ep_rets'].append(np.array([ep_ret]))
+                    completed_traj_dicts[agent_idx]['ep_rets'].append(ep_ret)
                     for key in keys:
-                        episode_key_data = np.array(agent_dicts[env_idx][key])
-                        completed_traj_dicts[agent_idx][key].append(episode_key_data)
+                        completed_traj_dicts[agent_idx][key].append(np.array(agent_dicts[env_idx][key]))
                     agent_dicts[env_idx] = defaultdict(list)
                     num_completed += int(agent_idx == 0)
 
                     if num_completed >= num_trajectories_to_save:
                         completed_traj_dicts[agent_idx] = {
-                            k: np.expand_dims(np.concatenate(v, axis=0), axis=0)
-                            for k, v in completed_traj_dicts[agent_idx].items()}
-                        completed_traj_dicts[agent_idx]['ep_rets'] = np.squeeze(
-                            completed_traj_dicts[agent_idx]['ep_rets'])
-
+                            k: np.array(v) for k, v in completed_traj_dicts[agent_idx].items()}
                         np.savez(f'data/agent_{agent_idx}_traj.npz',
                                  **completed_traj_dicts[agent_idx])
 

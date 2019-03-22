@@ -42,8 +42,6 @@ SCORE_AGENT_CONFIGS += [
 def test_score_agent(config):
     """Smoke test for score agent to check it runs with some different configs."""
     config = dict(config)
-    if 'episodes' not in config:
-        config['episodes'] = 1
     config['render'] = False  # faster without, test_experiment already tests with render
 
     run = score_agent_ex.run(config_updates=config)
@@ -90,11 +88,11 @@ TRAIN_CONFIGS = [
     },
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',
-        'adv_noise_params': {'noise_val': 0.1},
+        'adv_noise_agent_val': 0.1
     }
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
-                  for algo in RL_ALGOS.keys() if algo != 'gail']
+                  for algo in RL_ALGOS.keys()]
 
 
 @pytest.mark.parametrize('config', TRAIN_CONFIGS)

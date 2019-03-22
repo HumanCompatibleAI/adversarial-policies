@@ -8,8 +8,9 @@ import os.path as osp
 from gym.spaces import Box
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import GAIL, PPO1, PPO2, SAC
+from stable_baselines import PPO1, PPO2, SAC, GAIL
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
+from stable_baselines.gail.dataset.mujocodset import MujocoDset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -135,10 +136,7 @@ def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timestep
     model.learn(total_timesteps=total_timesteps, log_interval=1, seed=_seed, callback=callback)
     final_path = osp.join(out_dir, 'final_model')
     _save(model, final_path, save_callbacks)
-    if isinstance(model, GAIL):
-        model.trpo.sess.close()
-    else:
-        model.sess.close()
+    model.sess.close()
     return final_path
 
 
@@ -150,7 +148,6 @@ def _get_mpi_num_proc():
     else:
         num_proc = MPI.COMM_WORLD.Get_size()
     return num_proc
-
 
 @train_ex.capture
 def ppo1(batch_size, learning_rate, **kwargs):
@@ -178,15 +175,10 @@ def sac(batch_size, learning_rate, **kwargs):
 
 @train_ex.capture
 def gail(batch_size, expert_dataset_path, **kwargs):
-    import matplotlib
-    matplotlib.use('pdf')  # MujocoDset needs this and we don't have tkinter
-    from stable_baselines.gail.dataset.mujocodset import MujocoDset
-
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("Need to set expert_dataset_path if training GAIL")
     expert_dataset = MujocoDset(expert_dataset_path)
-    del kwargs['learning_rate']
     return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
                    callback_mul=batch_size, timesteps_per_batch=batch_size // num_proc, **kwargs)
 
@@ -216,7 +208,7 @@ def train_config():
     rl_args = {}                    # algorithm-specific arguments
     load_path = None                # path to load initial policy from
     load_zoo_train = False
-    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+    adv_noise_agent_val = None      # epsilon-ball noise policy added to existing zoo policy
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
@@ -282,23 +274,8 @@ def multi_wrappers(multi_venv, log_callbacks, save_callbacks, env_name):
 
 
 @train_ex.capture
-def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type):
-    adv_noise_agent_val = adv_noise_params['noise_val']
-    base_policy_path = adv_noise_params.get('base_path', victim_path)
-    base_policy_type = adv_noise_params.get('base_type', victim_type)
-    base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
-                              env=multi_venv, env_name=env_name, index=our_idx)
-    space_shape = multi_venv.action_space.spaces[0].shape
-    adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
-    multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
-                                  replace_action_space=adv_noise_action_space,
-                                  merge_agent_idx=our_idx)
-    return multi_venv
-
-
-@train_ex.capture
 def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
-                       victim_index, victim_noise, victim_noise_params, adv_noise_params):
+                       victim_index, victim_noise, victim_noise_params, adv_noise_agent_val):
     if victim_type == 'none':
         if multi_venv.num_agents > 1:
             raise ValueError("Victim needed for multi-agent environments")
@@ -308,8 +285,14 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
         our_idx = 1 - victim_index
 
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
-        if adv_noise_params is not None:
-            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
+        if adv_noise_agent_val is not None:
+            base_policy = load_policy(policy_path=victim_path, policy_type=victim_type,
+                                      env=multi_venv, env_name=env_name, index=our_idx)
+            space_shape = multi_venv.action_space.spaces[0].shape
+            adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
+            multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
+                                          replace_action_space=adv_noise_action_space,
+                                          merge_agent_idx=1-victim_index)
 
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
@@ -375,7 +358,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate):
     single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks, save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
-    res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),
+    res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
                    logger=logger, log_callbacks=log_callbacks, save_callbacks=save_callbacks)
     single_venv.close()
 
