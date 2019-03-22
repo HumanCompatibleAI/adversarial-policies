@@ -29,13 +29,13 @@ auth:
   ssh_private_key: ~/.ssh/adversarial-policies
 
 head_node:
-  InstanceType: c5.18xlarge
+  InstanceType: m5d.24xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
-        VolumeSize: 50
+        VolumeSize: 100
         VolumeType: gp2
 
 worker_nodes:
@@ -45,7 +45,7 @@ worker_nodes:
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
-        VolumeSize: 50
+        VolumeSize: 100
         VolumeType: gp2
   InstanceMarketOptions:
     MarketType: spot

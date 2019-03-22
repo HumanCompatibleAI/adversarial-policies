@@ -67,7 +67,7 @@ def make_configs(hyper_ex):
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
                 ),
                 'victim_index': tune.grid_search(
-                    ['0', '1']
+                    [0, 1]
                 ),
                 'victim_path': tune.sample_from(
                     lambda spec: 1 if spec.config.env_name == 'multicomp/SumoHumans-v0'
@@ -76,6 +76,11 @@ def make_configs(hyper_ex):
                 'seed': tune.sample_from(
                     lambda spec: np.random.randint(1000)
                 ),
+                # default is 1024 (2^10)
+                'batch_size': tune.sample_from(
+                    lambda spec: 2 ** np.random.randint(9, 15)
+                ),
+                'num_env': 1,
                 'rl_args': {
                     'expert_dataset': 'default',
                     # default is 100
@@ -95,10 +100,6 @@ def make_configs(hyper_ex):
                     # log-uniform between 1e-2.5 and 1e-5
                     'd_stepsize': tune.sample_from(
                         lambda spec: 10 ** (-2.5 + -2.5 * np.random.random())
-                    ),
-                    # default is 1024 (2^10)
-                    'timesteps_per_batch': tune.sample_from(
-                        lambda spec: 2 ** np.random.randint(9, 13)
                     ),
                     # default is 10,
                     'cg_iters': tune.sample_from(

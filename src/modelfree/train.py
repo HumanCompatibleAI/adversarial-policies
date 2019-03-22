@@ -203,7 +203,7 @@ def gail(batch_size, expert_dataset_path, env_name, victim_index, **kwargs):
     expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
     return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
-                   callback_mul=batch_size, timesteps_per_batch=batch_size // num_proc, **kwargs)
+                   callback_mul=1, timesteps_per_batch=batch_size // num_proc, **kwargs)
 
 
 @train_ex.config
@@ -235,7 +235,7 @@ def train_config():
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
-    checkpoint_interval = 16834     # save weights to disk after this many timesteps
+    checkpoint_interval = 16384     # save weights to disk after this many timesteps
     log_interval = 2048             # log statistics to disk after this many timesteps
     log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly
