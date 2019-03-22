@@ -56,3 +56,66 @@ def make_configs(hyper_ex):
         exp_name = 'basic'
         _ = locals()  # quieten flake8 unused variable warning
         del _
+
+    @hyper_ex.named_config
+    def gail_spec(train):
+        train = dict(train)
+        train['total_timesteps'] = int(1e8)
+        spec = {
+            'config': {
+                'env_name': tune.grid_search(
+                    ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
+                ),
+                'victim_path': tune.sample_from(
+                    lambda spec: TARGET_VICTIMS.get(spec.config.env_name, 1)
+                ),
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
+                'rl_args': {
+                    'expert_dataset': None,
+                    # default is 100
+                    'hidden_size_adversary': tune.sample_from(
+                        lambda spec: 50 * np.random.randint(1, 6)
+                    ),
+                    # default is 1e-3
+                    # log-uniform between 1e-2 and 1e-4
+                    'adversary_entcoeff': tune.sample_from(
+                        lambda spec: 10 ** (-2 + -2 * np.random.random())
+                    ),
+                    # default is 3
+                    'g_step': tune.sample_from(
+                        lambda spec: np.random.randint(2, 5)
+                    ),
+                    # default is 3e-4
+                    # log-uniform between 1e-2.5 and 1e-5
+                    'd_stepsize': tune.sample_from(
+                        lambda spec: 10 ** (-2.5 + -2.5 * np.random.random())
+                    ),
+                    # default is 1024 (2^10)
+                    'timesteps_per_batch': tune.sample_from(
+                        lambda spec: 2 ** np.random.randint(9, 16)
+                    ),
+                    # default is 10,
+                    'cg_iters': tune.sample_from(
+                        lambda spec: 3 * np.random.randint(2, 8)
+                    ),
+                    # default is 1e-2
+                    # log-uniform between 1e-1.5 and 1e-3
+                    'cg_damping': tune.sample_from(
+                        lambda spec: 10 ** (-1.5 + -1.5 * np.random.random())
+                    ),
+                    # default is 3e-4
+                    # log-uniform between 1e-2.5 and 1e-5
+                    'vf_stepsize': tune.sample_from(
+                        lambda spec: 10 ** (-2.5 + -2.5 * np.random.random())
+                    ),
+                    # default is 3
+                    'vf_iters': tune.sample_from(
+                        lambda spec: np.random.randint(2, 7)
+                    )
+                }
+
+            }
+
+        }

@@ -184,13 +184,22 @@ def gail(batch_size, expert_dataset_path, env_name, victim_index, **kwargs):
     num_proc = _get_mpi_num_proc()
     expert_index = 1 - victim_index
     if expert_dataset_path is None:
-        sync_cmd = "aws s3 sync s3://adversarial-policies/{0}_datasets/agent_{1}_traj.npz ./"
-        sync_cmd = sync_cmd.format(osp.split(env_name)[1], expert_index)
-        try:
-            os.system(sync_cmd)
-            expert_dataset_path = f"agent_{expert_index}_traj.npz"
-        except OSError:
-            raise ValueError("Need to set expert_dataset_path if training GAIL")
+        raise ValueError("must set expert_dataset_path to use GAIL. (can also use 'default')")
+    elif expert_dataset_path is 'default':
+        dataset_map = {
+            'multicomp/SumoHumans-v0': 'SumoHumans_datasets',
+            'multicomp/SumoHumansAutoContact-v0': 'SumoHumans_datasets',
+            'multicomp/KickAndDefend-v0': 'KickAndDefend_datasets'
+        }
+        dataset_folder = dataset_map[env_name]
+        if not osp.exists(dataset_folder):
+            sync_cmd = "aws s3 sync s3://adversarial-policies/{0}/ ./{0}".format(dataset_folder)
+            try:
+                print(sync_cmd)
+                os.system(sync_cmd)
+            except OSError:
+                raise OSError("expert_dataset was None and could not fetch dataset from S3.")
+        expert_dataset_path = f"{dataset_folder}/agent_{expert_index}_traj.npz"
     expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
     return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
