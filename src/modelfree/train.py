@@ -177,14 +177,21 @@ def sac(batch_size, learning_rate, **kwargs):
 
 
 @train_ex.capture
-def gail(batch_size, expert_dataset_path, **kwargs):
+def gail(batch_size, expert_dataset_path, env_name, victim_index, **kwargs):
     import matplotlib
     matplotlib.use('pdf')  # ExpertDataset needs this and we don't have tkinter
     from stable_baselines.gail.dataset.dataset import ExpertDataset
 
     num_proc = _get_mpi_num_proc()
+    expert_index = 1 - victim_index
     if expert_dataset_path is None:
-        raise ValueError("Need to set expert_dataset_path if training GAIL")
+        sync_cmd = "aws s3 sync s3://adversarial-policies/{0}_datasets/agent_{1}_traj.npz ./"
+        sync_cmd = sync_cmd.format(osp.split(env_name)[1], expert_index)
+        try:
+            os.system(sync_cmd)
+            expert_dataset_path = f"agent_{expert_index}_traj.npz"
+        except OSError:
+            raise ValueError("Need to set expert_dataset_path if training GAIL")
     expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
     return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
