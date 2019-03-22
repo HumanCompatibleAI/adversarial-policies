@@ -193,7 +193,7 @@ def train_config():
     rl_args = {}                    # algorithm-specific arguments
     load_path = None                # path to load initial policy from
     load_zoo_train = False
-    adv_noise_agent_val = None      # epsilon-ball noise policy added to existing zoo policy
+    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
 
     # General
     checkpoint_interval = 16834     # save weights to disk after this many timesteps
@@ -258,8 +258,23 @@ def multi_wrappers(multi_venv, log_callbacks, save_callbacks, env_name):
 
 
 @train_ex.capture
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type):
+    adv_noise_agent_val = adv_noise_params['noise_val']
+    base_policy_path = adv_noise_params.get('base_path', victim_path)
+    base_policy_type = adv_noise_params.get('base_type', victim_type)
+    base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
+                              env=multi_venv, env_name=env_name, index=our_idx)
+    space_shape = multi_venv.action_space.spaces[0].shape
+    adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
+    multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
+                                  replace_action_space=adv_noise_action_space,
+                                  merge_agent_idx=our_idx)
+    return multi_venv
+
+
+@train_ex.capture
 def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
-                       victim_index, victim_noise, victim_noise_params, adv_noise_agent_val):
+                       victim_index, victim_noise, victim_noise_params, adv_noise_params):
     if victim_type == 'none':
         if multi_venv.num_agents > 1:
             raise ValueError("Victim needed for multi-agent environments")
@@ -269,14 +284,8 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
         our_idx = 1 - victim_index
 
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
-        if adv_noise_agent_val is not None:
-            base_policy = load_policy(policy_path=victim_path, policy_type=victim_type,
-                                      env=multi_venv, env_name=env_name, index=our_idx)
-            space_shape = multi_venv.action_space.spaces[0].shape
-            adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
-            multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
-                                          replace_action_space=adv_noise_action_space,
-                                          merge_agent_idx=1-victim_index)
+        if adv_noise_params is not None:
+            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
 
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
@@ -341,7 +350,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate):
     single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks, save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
-    res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_func('lr'),
+    res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),
                    logger=logger, log_callbacks=log_callbacks, save_callbacks=save_callbacks)
     single_venv.close()
 

@@ -371,7 +371,6 @@ class MergeAgentVecEnv(VecMultiWrapper):
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
 
 
-
 class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
     def __init__(self, venv, policy, agent_idx=0):
