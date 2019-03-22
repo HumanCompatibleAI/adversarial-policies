@@ -94,16 +94,16 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 @train_ex.capture
 def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timesteps, policy,
-            load_path, load_zoo_train, rl_args, debug, logger, log_callbacks, save_callbacks,
+            load_path, load_bansal, rl_args, debug, logger, log_callbacks, save_callbacks,
             checkpoint_interval, log_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
                   **rl_args)
-    if load_path is not None and not load_zoo_train:
+    if load_path is not None and not load_bansal:
         # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
         model = cls.load(load_path, **kwargs)
-    elif load_path and load_zoo_train:
+    elif load_path and load_bansal:
         from gym_compete.policy import LSTMPolicy
         kwargs['policy_kwargs'] = dict(hiddens=[128, 128])
         kwargs['n_steps'] = 1
@@ -191,7 +191,7 @@ def train_config():
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
     load_path = None                # path to load initial policy from
-    load_zoo_train = False
+    load_bansal = False             # policy from Bansal et al's gym_compete
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
 
     # General
@@ -346,7 +346,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
 
     multi_venv = build_env(out_dir)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler)
+    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
 
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx,

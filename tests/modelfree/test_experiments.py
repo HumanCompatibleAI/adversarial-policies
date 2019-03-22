@@ -45,6 +45,8 @@ def test_score_agent(config):
     """Smoke test for score agent to check it runs with some different configs."""
     config = dict(config)
     config['render'] = False  # faster without, test_experiment already tests with render
+    if 'episodes' not in config:
+        config['episodes'] = 1  # speed up tests
 
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'

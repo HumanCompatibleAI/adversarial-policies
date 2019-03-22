@@ -1,4 +1,4 @@
 {
-  "victim_noise_anneal_frac": 0.5,
-  "victim_noise_param": 0.5
+  "anneal_frac": 0.5,
+  "param": 0.5
 }
