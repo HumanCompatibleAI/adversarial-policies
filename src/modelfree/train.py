@@ -17,7 +17,8 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree import utils
-from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
+from modelfree.gym_compete_conversion import (GameOutcomeMonitor, GymCompeteToOurs,
+                                              get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.logger import setup_logger
 from modelfree.policy_loader import load_policy
 from modelfree.scheduling import ConstantAnnealer, Scheduler
@@ -93,9 +94,9 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 
 @train_ex.capture
-def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timesteps, policy,
-            load_path, load_bansal, rl_args, debug, logger, log_callbacks, save_callbacks,
-            checkpoint_interval, log_interval, **kwargs):
+def _stable(cls, callback_key, callback_mul, _seed, env, env_name, out_dir, total_timesteps,
+            policy, load_path, load_bansal, rl_args, victim_index, debug, logger, log_callbacks,
+            save_callbacks, log_interval, checkpoint_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
@@ -104,12 +105,16 @@ def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timestep
         # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
         model = cls.load(load_path, **kwargs)
     elif load_path and load_bansal:
-        from gym_compete.policy import LSTMPolicy
-        kwargs['policy_kwargs'] = dict(hiddens=[128, 128])
+        # TODO: factor into helper?
+        policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+        kwargs['policy_kwargs'] = policy_kwargs
         kwargs['n_steps'] = 1
-        model = cls(policy=LSTMPolicy, **kwargs)
-        model.train_model.load_weights_from_file(load_path, model.sess)
-        model.act_model.load_weights_from_file(load_path, model.sess)
+        model = cls(policy=policy_cls, **kwargs)
+
+        our_idx = 1 - victim_index  # TODO: code duplication?
+        params = load_zoo_agent_params(load_path, env_name, our_idx)
+        # We do not need to restore train_model, since it shares params with act_model
+        model.act_model.restore(params)
     else:
         model = cls(policy=policy, **kwargs)
 
