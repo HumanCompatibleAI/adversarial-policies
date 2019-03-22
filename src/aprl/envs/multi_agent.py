@@ -346,9 +346,9 @@ class MergeAgentVecEnv(VecMultiWrapper):
         self._dones = [False] * venv.num_envs
 
     def step_async(self, actions):
-        new_action = actions[self._agent_to_merge] + self._action
-        actions = _tuple_replace(actions, self._agent_to_merge, new_action)
-        self.venv.step_async(actions)
+        actions_copy = list(actions)
+        actions_copy[self._agent_to_merge] += self._action
+        self.venv.step_async(tuple(actions_copy))
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()

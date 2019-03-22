@@ -29,11 +29,11 @@ def tb_layout():
         title='Episode Reward',
         chart=gen_multiline_charts([
             ("Shaped Reward", [r'shaping/eprewmean_true']),
-            ("Episode Length", [r'eplenmean']),
+            ("Episode Length", [r'shaping/eplenmean']),
             ("Sparse Reward", [r'shaping/epsparsemean']),
             ("Dense Reward", [r'shaping/epdensemean']),
             ("Dense Reward Annealing", [r'shaping/rew_anneal_c']),
-            ("Unshaped Reward", [r'ep_rewmean']),
+            ("Unshaped Reward", [r'shaping/ep_rewmean']),
             ("Victim Action Noise", [r'shaping/victim_noise'])
         ]),
     )

@@ -17,6 +17,10 @@ class Scheduler(object):
         if annealer_dict is None:
             annealer_dict = {}
         self.annealer_dict = annealer_dict
+        self.func_dict = {}
+        for k, v in annealer_dict.items():
+            self.func_dict[k] = v.get_value
+
         self.conditionals = collections.defaultdict(lambda: False)
         self.frac_remaining = 1  # frac_remaining goes from 1 to 0
 
@@ -34,7 +38,7 @@ class Scheduler(object):
         _validate_func_type(func_type)
         return self.conditionals[func_type]
 
-    def set_annealer(self, func_type, annealer):
+    def set_annealer_and_func(self, func_type, annealer):
         """
         Common interface for attaching a function to this Scheduler.
         :param func_type: str, must be in self.allowed_func_types
@@ -45,6 +49,7 @@ class Scheduler(object):
         if not isinstance(annealer, Annealer):
             raise TypeError('set_annealer_and_func requires an Annealer as input')
         self.annealer_dict[func_type] = annealer
+        self.func_dict[func_type] = annealer.get_value
 
     def get_val(self, val_type, frac_remaining=None):
         """
@@ -55,16 +60,16 @@ class Scheduler(object):
         """
         _validate_func_type(val_type)
         self._update_frac_remaining(frac_remaining)
-        return self.annealer_dict[val_type].get_value(self.frac_remaining)
+        return self.func_dict[val_type](self.frac_remaining)
 
-    def get_annealer(self, func_type):
+    def get_func(self, func_type):
         """
         Interface for accessing the functions in self.func_dict
         :param func_type: str, must be in self.allowed_func_types
         :return: callable which takes one optional argument - frac_remaining
         """
         _validate_func_type(func_type)
-        if func_type not in self.annealer_dict:
+        if func_type not in self.func_dict:
             return None
         else:
             return functools.partial(self.get_val, func_type)
@@ -179,8 +184,8 @@ class ConditionalAnnealer(Annealer):
             return self.current_param_val
 
         metric_data = current_data[self.metric]
-        current_metric_data = [d for d in itertools.islice(metric_data, self.window_size)]
-        avg_metric_val = float(sum(current_metric_data)) / len(current_metric_data)
+        current_metric_data = itertools.islice(metric_data, self.window_size)
+        avg_metric_val = float(sum(current_metric_data)) / min(self.window_size, len(metric_data))
         if self.operator(avg_metric_val, self.thresh) or current_wait > self.max_wait:
             self.current_param_val *= self.decay_factor
             self.last_total_episodes = current_data['total_episodes']
