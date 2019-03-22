@@ -34,7 +34,8 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
         self.reward_annealer = reward_annealer
         self.agent_idx = agent_idx
-        self.ep_logs = {rew_type: deque([], maxlen=10000) for rew_type in REW_TYPES}
+        queue_keys = REW_TYPES.union(['length'])
+        self.ep_logs = {k: deque([], maxlen=10000) for k in queue_keys}
         self.ep_logs['total_episodes'] = 0
         self.ep_logs['last_callback_episode'] = 0
         self.step_rew_dict = {rew_type: [[] for _ in range(self.num_envs)]

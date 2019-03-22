@@ -336,7 +336,7 @@ NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac']
 
 @train_ex.main
 def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats):
-    scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate).get_value})
+    scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
     pylog.info(f"Log output formats: {logger.output_formats}")
