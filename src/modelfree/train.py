@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import os.path as osp
+import pkgutil
 
 from gym.spaces import Box
 from sacred import Experiment
@@ -22,9 +23,7 @@ from modelfree.policy_loader import load_policy
 from modelfree.scheduling import ConstantAnnealer, Scheduler
 from modelfree.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
 
-train_ex = Experiment("train")
-train_ex.observers.append(FileStorageObserver.create("data/sacred"))
-
+train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
 
 
@@ -95,16 +94,16 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 @train_ex.capture
 def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timesteps, policy,
-            load_path, load_zoo_train, rl_args, debug, logger, log_callbacks, save_callbacks,
+            load_path, load_bansal, rl_args, debug, logger, log_callbacks, save_callbacks,
             checkpoint_interval, log_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
                   **rl_args)
-    if load_path is not None and not load_zoo_train:
+    if load_path is not None and not load_bansal:
         # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
         model = cls.load(load_path, **kwargs)
-    elif load_path and load_zoo_train:
+    elif load_path and load_bansal:
         from gym_compete.policy import LSTMPolicy
         kwargs['policy_kwargs'] = dict(hiddens=[128, 128])
         kwargs['n_steps'] = 1
@@ -220,15 +219,16 @@ def train_config():
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
-    rl_args = {}                    # algorithm-specific arguments
+    rl_args = dict()                # algorithm-specific arguments
     load_path = None                # path to load initial policy from
-    load_zoo_train = False
+    load_bansal = False             # policy from Bansal et al's gym_compete
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
     checkpoint_interval = 16834     # save weights to disk after this many timesteps
     log_interval = 2048             # log statistics to disk after this many timesteps
+    log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly
     seed = 0                        # random seed
     _ = locals()  # quieten flake8 unused variable warning
@@ -242,20 +242,19 @@ DEFAULT_CONFIGS = {
 
 
 def load_default(env_name, config_dir):
-    path_stem = os.path.join('experiments', config_dir)
     default_config = DEFAULT_CONFIGS.get(env_name, 'default.json')
-    fname = os.path.join(path_stem, default_config)
-    with open(fname) as f:
-        return json.load(f)
+    fname = os.path.join('configs', config_dir, default_config)
+    config = pkgutil.get_data('modelfree', fname)
+    return json.loads(config)
 
 
 @train_ex.config
 def wrappers_config(env_name):
-    rew_shape = False  # enable reward shaping
-    rew_shape_params = load_default(env_name, 'rew_configs')  # parameters for reward shaping
+    rew_shape = True  # enable reward shaping
+    rew_shape_params = load_default(env_name, 'rew')  # parameters for reward shaping
 
     victim_noise = False  # enable adding noise to victim
-    victim_noise_params = load_default(env_name, 'noise_configs')  # parameters for victim noise
+    victim_noise_params = load_default(env_name, 'noise')  # parameters for victim noise
 
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -278,7 +277,7 @@ def build_env(out_dir, _seed, env_name, num_env, debug):
 
 
 @train_ex.capture
-def multi_wrappers(multi_venv, log_callbacks, save_callbacks, env_name):
+def multi_wrappers(multi_venv, env_name, log_callbacks):
     if env_name.startswith('multicomp/'):
         game_outcome = GameOutcomeMonitor(multi_venv)
         # Need game_outcome as separate variable as Python closures bind late
@@ -334,8 +333,8 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, log_callbacks, save_callbacks, normalize,
-                    rew_shape, rew_shape_params):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
+                    log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -367,19 +366,23 @@ RL_ALGOS = {
 NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac', 'gail']
 
 
-@train_ex.automain
-def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate):
+@train_ex.main
+def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats):
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
-    out_dir, logger = setup_logger(root_dir, exp_name)
+    out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
+    pylog.info(f"Log output formats: {logger.output_formats}")
 
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
+
     multi_venv = build_env(out_dir)
-    multi_venv = multi_wrappers(multi_venv, log_callbacks, save_callbacks)
-    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks)
+    multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
+    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+
     single_venv = FlattenSingletonVecEnv(multi_venv)
-    single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks, save_callbacks)
+    single_venv = single_wrappers(single_venv, scheduler, our_idx,
+                                  log_callbacks=log_callbacks, save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
     res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),
@@ -387,3 +390,13 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate):
     single_venv.close()
 
     return res
+
+
+def main():
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
+    train_ex.observers.append(observer)
+    train_ex.run_commandline()
+
+
+if __name__ == '__main__':
+    main()

@@ -11,3 +11,6 @@ GitPython>=2.1
 git+git://github.com/HumanCompatibleAI/baselines.git@8978e3#egg=baselines
 git+git://github.com/HumanCompatibleAI/baselines.git@5c93d7#egg=stable-baselines
 git+git://github.com/HumanCompatibleAI/ilqr.git#egg=ilqr
+ray[debug]>=0.6.4
+boto3>=1.9
+awscli>=1.16

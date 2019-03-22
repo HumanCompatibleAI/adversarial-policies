@@ -89,13 +89,14 @@ class Annealer(ABC):
         self.get_logs = get_logs
 
     def __getstate__(self):
-        """Do not try to save self.get_logs since it involves saving an unpicklable tf.Session"""
+        """Custom pickler.
+        Omits self.get_logs which may involve non-picklable objects such as tf.Session."""
         state = self.__dict__.copy()
         state['get_logs'] = None
         return state
 
     def set_get_logs(self, get_logs):
-        """Set the get_logs attribute since passing into constructor may not be possible"""
+        """Set the get_logs attribute since passing into constructor may not be possible."""
         self.get_logs = get_logs
 
     @abstractmethod
@@ -173,13 +174,12 @@ class ConditionalAnnealer(Annealer):
         current_data = self.get_logs()
         if current_data is None:  # if we have zero episodes thus far
             return self.current_param_val
-        # this is fine since we are doing deque.appendleft to put together these values
         current_wait = current_data['total_episodes'] - self.last_total_episodes
         if current_wait < self.min_wait:
             return self.current_param_val
 
         metric_data = current_data[self.metric]
-        current_metric_data = [d for d in itertools.islice(metric_data, self.window_size)]
+        current_metric_data = list(itertools.islice(metric_data, self.window_size))
         avg_metric_val = float(sum(current_metric_data)) / len(current_metric_data)
         if self.operator(avg_metric_val, self.thresh) or current_wait > self.max_wait:
             self.current_param_val *= self.decay_factor

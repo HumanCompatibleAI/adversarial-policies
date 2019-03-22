@@ -13,6 +13,12 @@ setup(
     url='https://github.com/HumanCompatibleAI/adversarial-policies',
     packages=find_packages('src'),
     package_dir={'': 'src'},
+    package_data={'modelfree':
+        [
+            'configs/noise/*.json',
+            'configs/rew/*.json',
+        ]
+    },
     # We have some non-pip packages as requirements,
     # see requirements-build.txt and requirements.txt.
     install_requires=[],

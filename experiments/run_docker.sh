@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${DIR}/common.sh
+
 CMD="bash"
 NAME="adversarial-policies"
 VENV="modelfree"
@@ -17,13 +20,13 @@ case $key in
     shift
     shift
     ;;
-    -n|--name)
-    NAME="$2"
+    -l|--listen)
+    FLAGS="${FLAGS} -p $2"
     shift
     shift
     ;;
-    -l|--listen)
-    FLAGS="${FLAGS} -p $2"
+    -n|--name)
+    NAME="$2"
     shift
     shift
     ;;
@@ -59,5 +62,5 @@ docker run \
        --env MUJOCO_KEY=${MUJOCO_KEY} \
        --name ${NAME} \
        --mount type=bind,source="$(pwd)"/data,target=/adversarial_policies/data \
-       humancompatibleai/adversarial_policies:${TAG} \
+       ${DOCKER_REPO}:${TAG} \
        bash -c "env=${VENV} . ci/prepare_env.sh && ${CMD}"
