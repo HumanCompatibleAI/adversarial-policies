@@ -1,5 +1,3 @@
-from collections import defaultdict
-import itertools
 import os
 from os import path as osp
 
@@ -157,27 +155,17 @@ def make_session(graph=None):
     return sess
 
 
-def simulate(venv, policies, render=False, record_trajectories=False, num_trajectories_to_save=None):
+def simulate(venv, policies, render=False):
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
     :param policies(list<BasePolicy>): a policy per agent.
     :param render: true if the run should be rendered to the screen
-    :param record_trajectories: whether to save trajectory data in stable_baselines.GAIL format
-    :param num_trajectories_to_save: when to save trajectories since this function is a generator
     :return: streams information about the simulation
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
     states = [None for policy in policies]
-
-    if record_trajectories:
-        if num_trajectories_to_save is None:
-            msg = "Must set number of trajectories to save in order to save them."
-            raise ValueError(msg)
-        traj_dicts = [[defaultdict(list) for env in range(venv.num_envs)] for policy in policies]
-        completed_traj_dicts = [defaultdict(list) for policy in policies]
-        num_completed = 0
 
     while True:
         if render:
@@ -185,8 +173,7 @@ def simulate(venv, policies, render=False, record_trajectories=False, num_trajec
 
         actions = []
         new_states = []
-        prev_observations = observations
-        for idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
+        for policy, obs, state in zip(policies, observations, states):
             act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
             new_states.append(new_state)
@@ -194,27 +181,6 @@ def simulate(venv, policies, render=False, record_trajectories=False, num_trajec
         states = new_states
 
         observations, rewards, dones, infos = venv.step(actions)
-        if record_trajectories:
-            keys = ('rews', 'acs', 'obs')
-            datas = (rewards, actions, prev_observations)
-            iter_space = itertools.product(enumerate(traj_dicts), range(venv.num_envs))
-            for (agent_idx, agent_dicts), env_idx in iter_space:
-                for key, data in zip(keys, datas):
-                    agent_dicts[env_idx][key].append(data[agent_idx][env_idx])
-                if dones[env_idx]:
-                    ep_ret = sum(agent_dicts[env_idx]['rews'])
-                    completed_traj_dicts[agent_idx]['ep_rets'].append(ep_ret)
-                    for key in keys:
-                        completed_traj_dicts[agent_idx][key].append(np.array(agent_dicts[env_idx][key]))
-                    agent_dicts[env_idx] = defaultdict(list)
-                    num_completed += int(agent_idx == 0)
-
-                    if num_completed >= num_trajectories_to_save:
-                        completed_traj_dicts[agent_idx] = {
-                            k: np.array(v) for k, v in completed_traj_dicts[agent_idx].items()}
-                        np.savez(f'data/agent_{agent_idx}_traj.npz',
-                                 **completed_traj_dicts[agent_idx])
-
         yield observations, rewards, dones, infos
 
 

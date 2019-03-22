@@ -356,7 +356,8 @@ class MergeAgentVecEnv(VecMultiWrapper):
         return observations, rewards, self._dones, infos
 
     def reset(self):
-        observations = self._get_augmented_obs(self.venv.reset())
+        observations = self.venv.reset()
+        observations = self._get_augmented_obs(observations)
         return observations
 
     def _get_augmented_obs(self, observations):
@@ -368,6 +369,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
         new_obs = np.concatenate([self._obs, self._action], axis=1)
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
+
 
 
 class CurryVecEnv(VecMultiWrapper):
