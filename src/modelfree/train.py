@@ -94,27 +94,26 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 
 @train_ex.capture
-def _stable(cls, callback_key, callback_mul, _seed, env, env_name, out_dir, total_timesteps,
-            policy, load_path, load_bansal, rl_args, victim_index, debug, logger, log_callbacks,
-            save_callbacks, log_interval, checkpoint_interval, **kwargs):
+def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out_dir,
+            total_timesteps, policy, load_policy, rl_args, victim_index, debug, logger,
+            log_callbacks, save_callbacks, log_interval, checkpoint_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
                   **rl_args)
-    if load_path is not None and not load_bansal:
-        # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
-        model = cls.load(load_path, **kwargs)
-    elif load_path and load_bansal:
-        # TODO: factor into helper?
-        policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
-        kwargs['policy_kwargs'] = policy_kwargs
-        kwargs['n_steps'] = 1
-        model = cls(policy=policy_cls, **kwargs)
+    if load_policy['path'] is not None:
+        if load_policy['type'] == our_type:
+            # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
+            model = cls.load(load_policy['path'], **kwargs)
+        elif load_policy['type'] == 'zoo':
+            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+            kwargs['policy_kwargs'] = policy_kwargs
+            model = cls(policy=policy_cls, **kwargs)
 
-        our_idx = 1 - victim_index  # TODO: code duplication?
-        params = load_zoo_agent_params(load_path, env_name, our_idx)
-        # We do not need to restore train_model, since it shares params with act_model
-        model.act_model.restore(params)
+            our_idx = 1 - victim_index  # TODO: code duplication?
+            params = load_zoo_agent_params(load_policy['path'], env_name, our_idx)
+            # We do not need to restore train_model, since it shares params with act_model
+            model.act_model.restore(params)
     else:
         model = cls(policy=policy, **kwargs)
 
@@ -153,23 +152,21 @@ def ppo1(batch_size, learning_rate, **kwargs):
         num_proc = MPI.COMM_WORLD.Get_size()
     pylog.warning('Assuming constant learning rate schedule for PPO1')
     optim_stepsize = learning_rate(1)  # PPO1 does not support a callable learning_rate
-    return _stable(PPO1, callback_key='timesteps_so_far', callback_mul=batch_size,
-                   timesteps_per_actorbatch=batch_size // num_proc,
+    return _stable(PPO1, our_type='ppo1', callback_key='timesteps_so_far',
+                   callback_mul=batch_size, timesteps_per_actorbatch=batch_size // num_proc,
                    optim_stepsize=optim_stepsize, schedule='constant', **kwargs)
 
 
 @train_ex.capture
 def ppo2(batch_size, num_env, learning_rate, **kwargs):
-    return _stable(PPO2, callback_key='update', callback_mul=batch_size,
-                   n_steps=batch_size // num_env,
-                   learning_rate=learning_rate, **kwargs)
+    return _stable(PPO2, our_type='ppo2', callback_key='update', callback_mul=batch_size,
+                   n_steps=batch_size // num_env, learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.capture
 def sac(batch_size, learning_rate, **kwargs):
-    return _stable(SAC, callback_key='step', callback_mul=1,
-                   batch_size=batch_size,
-                   learning_rate=learning_rate, **kwargs)
+    return _stable(SAC, our_type='sac', callback_key='step', callback_mul=1,
+                   batch_size=batch_size, learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.config
@@ -195,12 +192,14 @@ def train_config():
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
-    load_path = None                # path to load initial policy from
-    load_bansal = False             # policy from Bansal et al's gym_compete
+    load_policy = {                 # fine-tune this policy
+        'path': None,               # path with policy weights
+        'type': rl_algo,            # type supported by policy_loader.py
+    }
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
 
     # General
-    checkpoint_interval = 16834     # save weights to disk after this many timesteps
+    checkpoint_interval = 16384     # save weights to disk after this many timesteps
     log_interval = 2048             # log statistics to disk after this many timesteps
     log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly
@@ -307,8 +306,8 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
-                    log_callbacks, save_callbacks):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
+                    rew_shape, rew_shape_params, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -320,6 +319,10 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
     if normalize:
+        if load_policy['type'] == 'zoo':
+            raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
+                             "implicitly. Please set normalize=False to disable VecNormalize.")
+
         normalized_venv = VecNormalize(single_venv)
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
