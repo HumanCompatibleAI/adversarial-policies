@@ -6,7 +6,6 @@ import pkgutil
 
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
-import numpy as np
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
@@ -70,85 +69,84 @@ class GameOutcomeMonitor(VecMultiWrapper):
         self.outcomes = []
 
 
-def get_policy_type_for_agent_zoo(env_name):
-    """Determines the type of policy gym_complete used in each environment. This is needed because
-    we must tell their code how to load their own policies.
-    :param env_name: the environment of the policy we want to load
-    :return: the type of the gym policy."""
-    policy_types = {
-        "KickAndDefend-v0": "lstm",
-        "RunToGoalHumans-v0": "mlp",
-        "RunToGoalAnts-v0": "mlp",
-        "YouShallNotPassHumans-v0": "mlp",
-        "SumoHumans-v0": "lstm",
-        "SumoAnts-v0": "lstm",
+def _env_name_to_canonical(env_name):
+    env_aliases = {
+        'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
     }
-    if env_name in policy_types:
-        return policy_types[env_name]
+    env_name = env_aliases.get(env_name, env_name)
+    env_prefix, env_suffix = env_name.split('/')
+    if env_prefix != 'multicomp':
+        raise ValueError(f"Unsupported env '{env_name}'; must start with multicomp")
+    return env_suffix
+
+
+def get_policy_type_for_zoo_agent(env_name):
+    """Determines the type of policy gym_complete used in each environment.
+    :param env_name: (str) the environment of the policy we want to load
+    :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
+    canonical_env = _env_name_to_canonical(env_name)
+    lstm = (LSTMPolicy, {'hiddens': [128, 128], 'normalize': True})
+    mlp = (MlpPolicyValue, {'hiddens': [64, 64], 'normalize': True})
+    policy_types = {
+        'KickAndDefend-v0': lstm,
+        'RunToGoalHumans-v0': mlp,
+        'RunToGoalAnts-v0': mlp,
+        'YouShallNotPassHumans-v0': mlp,
+        'SumoHumans-v0': lstm,
+        'SumoAnts-v0': lstm,
+    }
+    if canonical_env in policy_types:
+        return policy_types[canonical_env]
     else:
-        msg = "Unsupported Environment: {}, choose from {}".format(env_name, policy_types.keys())
+        msg = f"Unsupported Environment: {canonical_env}, choose from {policy_types.keys()}"
         raise ValueError(msg)
 
 
-def set_from_flat(var_list, flat_params, sess):
-    shapes = list(map(lambda x: x.get_shape().as_list(), var_list))
-    total_size = np.sum([int(np.prod(shape)) for shape in shapes])
-    theta = tf.placeholder(tf.float32, [total_size])
-    start = 0
-    assigns = []
-    for (shape, v) in zip(shapes, var_list):
-        size = int(np.prod(shape))
-        assigns.append(tf.assign(v, tf.reshape(theta[start:start + size], shape)))
-        start += size
-    op = tf.group(*assigns)
-    sess.run(op, {theta: flat_params})
+def load_zoo_agent_params(tag, env_name, index):
+    """Loads parameters for the gym_compete zoo agent, but does not restore them.
+    :param tag: (str) version of the zoo agent (e.g. '1', '2', '3').
+    :param env_name: (str) Gym environment ID
+    :param index: (int) the player ID of the agent we want to load ('0' or '1')
+    :return a NumPy array of policy weights."""
+    # Load parameters
+    canonical_env = _env_name_to_canonical(env_name)
+    dir = os.path.join('agent_zoo', canonical_env)
+    asymmetric_fname = f'agent{index + 1}_parameters-v{tag}.pkl'
+    symmetric_fname = f'agent_parameters-v{tag}.pkl'
+    try:  # asymmetric version, parameters tagged with agent id
+        path = os.path.join(dir, asymmetric_fname)
+        params_pkl = pkgutil.get_data('gym_compete', path)
+    except OSError:  # symmetric version, parameters not associated with a specific agent
+        path = os.path.join(dir, symmetric_fname)
+        params_pkl = pkgutil.get_data('gym_compete', path)
+    pylog.info(f"Loaded zoo parameters from '{path}'")
+
+    return pickle.loads(params_pkl)
 
 
-def load_zoo_policy(tag, policy_type, scope, env, env_name, index):
+def load_zoo_agent(tag, env, env_name, index):
+    """Loads a gym_compete zoo agent.
+    :param tag: (str) version of the zoo agent (e.g. '1', '2', '3').
+    :param env: (gym.Env) the environment
+    :param env_name: (str) Gym environment ID
+    :param index: (int) the player ID of the agent we want to load ('0' or '1')
+    :return a BaseModel, where predict executes the loaded policy."""
     g = tf.Graph()
     sess = make_session(g)
 
     with g.as_default():
         with sess.as_default():
-            # Construct graph
+            # Build policy
+            scope = f"zoo_policy_{tag}_{index}"
             kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
                           ac_space=env.action_space.spaces[index], n_env=env.num_envs,
-                          n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False,
-                          normalize=True)
-            if policy_type == 'lstm':
-                policy = LSTMPolicy(hiddens=[128, 128], **kwargs)
-            elif policy_type == 'mlp':
-                policy = MlpPolicyValue(hiddens=[64, 64], **kwargs)
-            else:
-                raise NotImplementedError()
-
-            # Load parameters
-            dir = os.path.join('agent_zoo', env_name)
-            asymmetric_fname = f'agent{index+1}_parameters-v{tag}.pkl'
-            symmetric_fname = f'agent_parameters-v{tag}.pkl'
-            try:  # asymmetric version, parameters tagged with agent id
-                path = os.path.join(dir, asymmetric_fname)
-                params_pkl = pkgutil.get_data('gym_compete', path)
-            except OSError:  # symmetric version, parameters not associated with a specific agent
-                path = os.path.join(dir, symmetric_fname)
-                params_pkl = pkgutil.get_data('gym_compete', path)
-            pylog.info(f"Loaded zoo policy from '{path}'")
+                          n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False)
+            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+            kwargs.update(policy_kwargs)
+            policy = policy_cls(**kwargs)
 
             # Restore parameters
-            params = pickle.loads(params_pkl)
-            set_from_flat(policy.get_variables(), params, sess)
+            params = load_zoo_agent_params(tag, env_name, index)
+            policy.restore(params)
 
             return PolicyToModel(policy)
-
-
-def load_zoo_agent(path, env, env_name, index):
-    env_aliases = {
-        'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
-    }
-    env_name = env_aliases.get(env_name, env_name)
-
-    env_prefix, env_suffix = env_name.split('/')
-    assert env_prefix == 'multicomp'
-    policy_type = get_policy_type_for_agent_zoo(env_suffix)
-    return load_zoo_policy(path, policy_type, "zoo_policy_{}".format(path),
-                           env, env_suffix, index)
