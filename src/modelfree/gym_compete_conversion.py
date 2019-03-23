@@ -5,7 +5,8 @@ import pickle
 import pkgutil
 
 from gym import Wrapper
-from gym_compete.policy import LSTMPolicy, MlpPolicyValue
+from gym_compete import policy as policy_new
+from gym_compete_old import policy as policy_old
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
@@ -80,13 +81,14 @@ def _env_name_to_canonical(env_name):
     return env_suffix
 
 
-def get_policy_type_for_zoo_agent(env_name):
+def get_policy_type_for_zoo_agent(env_name, old):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
     canonical_env = _env_name_to_canonical(env_name)
-    lstm = (LSTMPolicy, {'hiddens': [128, 128], 'normalize': True})
-    mlp = (MlpPolicyValue, {'hiddens': [64, 64], 'normalize': True})
+    module = policy_old if old else policy_new
+    lstm = (module.LSTMPolicy, {'hiddens': [128, 128], 'normalize': True})
+    mlp = (module.MlpPolicyValue, {'hiddens': [64, 64], 'normalize': True})
     policy_types = {
         'KickAndDefend-v0': lstm,
         'RunToGoalHumans-v0': mlp,
@@ -124,7 +126,7 @@ def load_zoo_agent_params(tag, env_name, index):
     return pickle.loads(params_pkl)
 
 
-def load_zoo_agent(tag, env, env_name, index):
+def load_zoo_agent(tag, env, env_name, index, old=False):
     """Loads a gym_compete zoo agent.
     :param tag: (str) version of the zoo agent (e.g. '1', '2', '3').
     :param env: (gym.Env) the environment
@@ -141,7 +143,7 @@ def load_zoo_agent(tag, env, env_name, index):
             kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
                           ac_space=env.action_space.spaces[index], n_env=env.num_envs,
                           n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False)
-            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name, old=old)
             kwargs.update(policy_kwargs)
             policy = policy_cls(**kwargs)
 
