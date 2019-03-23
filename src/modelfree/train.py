@@ -56,7 +56,7 @@ def _save(model, root_dir, save_callbacks):
 
 @train_ex.capture
 def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
-             batch_size, load_path, learning_rate, rl_args,
+             batch_size, load_policy, learning_rate, rl_args,
              logger, log_callbacks, save_callbacks):
     try:
         from baselines.ppo2 import ppo2 as ppo2_old
@@ -79,6 +79,9 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
     graph = tf.Graph()
     sess = utils.make_session(graph)
+    load_path = load_policy['path']
+    if load_path is not None:
+        assert load_policy['type'] == 'old_ppo2'
     with graph.as_default():
         with sess.as_default():
             model = ppo2_old.learn(network=network, env=env,
