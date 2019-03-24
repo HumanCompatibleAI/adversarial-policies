@@ -202,7 +202,7 @@ def train_config():
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
 
     # General
-    checkpoint_interval = 16384     # save weights to disk after this many timesteps
+    checkpoint_interval = 131072    # save weights to disk after this many timesteps
     log_interval = 2048             # log statistics to disk after this many timesteps
     log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly

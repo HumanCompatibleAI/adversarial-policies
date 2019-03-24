@@ -8,7 +8,7 @@ from ray.tune.trial import Trial
 
 import pytest
 
-from modelfree.hyperparams import hyper_ex
+from modelfree.multi_train import multi_train_ex
 from modelfree.score_agent import score_ex
 from modelfree.policy_loader import AGENT_LOADERS
 from modelfree.train_and_score import train_and_score
@@ -120,7 +120,7 @@ def test_hyper():
             'sync_function': None,  # as above
         },
     }
-    run = hyper_ex.run(config_updates=config)
+    run = multi_train_ex.run(config_updates=config)
     trials = run.result
     for trial in trials:
         assert isinstance(trial, Trial)

@@ -1,4 +1,4 @@
-"""Helper functions for hyperparams.py executed on worker nodes using Ray Tune.
+"""Helper functions for multi_train.py executed on worker nodes using Ray Tune.
 
 It's important these are all pickleable."""
 

@@ -85,8 +85,8 @@ def get_policy_type_for_zoo_agent(env_name):
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
     canonical_env = _env_name_to_canonical(env_name)
-    lstm = (LSTMPolicy, {'hiddens': [128, 128], 'normalize': True})
-    mlp = (MlpPolicyValue, {'hiddens': [64, 64], 'normalize': True})
+    lstm = (LSTMPolicy, {'normalize': True})
+    mlp = (MlpPolicyValue, {'normalize': True})
     policy_types = {
         'KickAndDefend-v0': lstm,
         'RunToGoalHumans-v0': mlp,

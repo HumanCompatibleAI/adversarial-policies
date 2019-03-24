@@ -14,18 +14,18 @@ from ray import tune
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
-from modelfree.configs.hyperparams import make_configs
-from modelfree.hyperparams_worker import train_rl
+from modelfree.configs.multi_train import make_configs
 from modelfree.logger import make_timestamp
+from modelfree.multi_train_worker import train_rl
 from modelfree.train import train_ex
 
-hyper_ex = Experiment('hyperparams', ingredients=[train_ex])
-pylog = logging.getLogger('modelfree.hyperparams')
+multi_train_ex = Experiment('multi_train', ingredients=[train_ex])
+pylog = logging.getLogger('modelfree.multi_train')
 
 
-@hyper_ex.config
+@multi_train_ex.config
 def default_config(train):
-    spec = {              # hyperparameter search specification
+    spec = {              # experiment specification
         'run': 'train_rl',
         # TODO: tune number of actual CPUs required
         'resources_per_trial': {'cpu': train['num_env'] // 2},
@@ -41,7 +41,7 @@ def default_config(train):
     del _
 
 
-@hyper_ex.named_config
+@multi_train_ex.named_config
 def debug_config():
     spec = {
         'config': {
@@ -67,7 +67,7 @@ def _detect_ec2():
         return False
 
 
-@hyper_ex.config
+@multi_train_ex.config
 def ec2_config(platform, s3_bucket, spec):
     """When running on AWS EC2 cloud.
 
@@ -80,7 +80,7 @@ def ec2_config(platform, s3_bucket, spec):
         # We're running on EC2
         if s3_bucket is None:
             s3_bucket = 'adversarial-policies'
-        spec['upload_dir'] = f's3://{s3_bucket}/hyper'
+        spec['upload_dir'] = f's3://{s3_bucket}/multi_train'
 
 
 def _rsync_func(local_dir, remote_uri):
@@ -100,7 +100,7 @@ def _rsync_func(local_dir, remote_uri):
     subprocess.run(rsync)
 
 
-@hyper_ex.config
+@multi_train_ex.config
 def baremetal_config(platform, baremetal, spec):
     """When running on bare-metal hardware (i.e. not in cloud).
 
@@ -116,7 +116,7 @@ def baremetal_config(platform, baremetal, spec):
         if 'host' not in baremetal:
             baremetal['host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
         if 'dir' not in baremetal:
-            baremetal['dir'] = osp.abspath(osp.join(os.getcwd(), 'data', 'hyper'))
+            baremetal['dir'] = osp.abspath(osp.join(os.getcwd(), 'data', 'multi_train'))
 
         spec = dict(spec)
         spec['upload_dir'] = ':'.join([baremetal['host'], baremetal['ssh_key'], baremetal['dir']])
@@ -124,11 +124,11 @@ def baremetal_config(platform, baremetal, spec):
 
 
 # Load named configs for individual experiments (these change a lot, so keep out of this file)
-make_configs(hyper_ex)
+make_configs(multi_train_ex)
 
 
-@hyper_ex.main
-def hyperparameter_search(ray_server, exp_name, train, spec):
+@multi_train_ex.main
+def multi_train(ray_server, exp_name, train, spec):
     ray.init(redis_address=ray_server)
     tune.register_trainable('train_rl', functools.partial(train_rl, train))
     exp_id = f'{exp_name}/{make_timestamp()}'
@@ -136,9 +136,9 @@ def hyperparameter_search(ray_server, exp_name, train, spec):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'hyperparams'))
-    hyper_ex.observers.append(observer)
-    hyper_ex.run_commandline()
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'multi_train'))
+    multi_train_ex.observers.append(observer)
+    multi_train_ex.run_commandline()
 
 
 if __name__ == '__main__':
