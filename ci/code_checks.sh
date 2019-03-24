@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SOURCE_DIRS="src experiments"
+SOURCE_DIRS="src experiments tests"
 
 RET=0
 

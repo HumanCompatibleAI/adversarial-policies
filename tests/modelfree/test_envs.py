@@ -2,8 +2,8 @@
 
 import gym
 import pytest
-
 from tests.aprl.test_envs import check_env, check_random_rollout
+
 from modelfree.gym_compete_conversion import GymCompeteToOurs
 
 spec_list = [spec

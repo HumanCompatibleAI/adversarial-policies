@@ -5,11 +5,10 @@ from ilqr import iLQR
 import numpy as np
 import pytest
 
-from aprl.agents.monte_carlo import (MonteCarloSingle, MonteCarloParallel, MujocoResettableWrapper,
+from aprl.agents.monte_carlo import (MonteCarloParallel, MonteCarloSingle, MujocoResettableWrapper,
                                      receding_horizon)
 from aprl.agents.mujoco_lqr import (MujocoFiniteDiffCost, MujocoFiniteDiffDynamicsBasic,
                                     MujocoFiniteDiffDynamicsPerformance)
-
 
 dynamics_list = [MujocoFiniteDiffDynamicsBasic, MujocoFiniteDiffDynamicsPerformance]
 @pytest.mark.parametrize("dynamics_cls", dynamics_list)
@@ -117,7 +116,7 @@ def check_monte_carlo(kind, score_thresholds, total_horizon,
             random_rew = sum(rews)
             random_rews.append(random_rew)
             assert total_rew >= random_rew, "random sequence {}".format(i)
-        print(f'Random actions on {env_name} for {total_horizon} obtains ' 
+        print(f'Random actions on {env_name} for {total_horizon} obtains '
               f'mean {np.mean(random_rews)} s.d. {np.std(random_rews)}')
 
         # Check against pre-defined score threshold
@@ -138,12 +137,12 @@ MC_SINGLE_THRESHOLDS = {
 }
 MC_PARALLEL_THRESHOLDS = {
         'Reacher-v2': -16,  # tested at -15.3; random -25.8 s.d. 1.8
-        'HalfCheetah-v2': 34, # tested at 35.5; random -6.0 s.d. 7.1
+        'HalfCheetah-v2': 34,  # tested at 35.5; random -6.0 s.d. 7.1
         'Hopper-v2': 53,  # tested at 54.7; random 21.1 s.d. 13.2
 }
 _test_mc_single = check_monte_carlo('single', MC_SINGLE_THRESHOLDS,
                                     total_horizon=20, planning_horizon=10, trajectories=100)
 _test_mc_parallel = check_monte_carlo('parallel', MC_PARALLEL_THRESHOLDS,
                                       total_horizon=30, planning_horizon=15, trajectories=4096)
-test_monte_carlo_single = pytest.mark.parametrize("env_name", MONTE_CARLO_ENVS)(_test_mc_single)
-test_monte_carlo_parallel = pytest.mark.parametrize("env_name", MONTE_CARLO_ENVS)(_test_mc_parallel)
+test_mc_single = pytest.mark.parametrize("env_name", MONTE_CARLO_ENVS)(_test_mc_single)
+test_mc_parallel = pytest.mark.parametrize("env_name", MONTE_CARLO_ENVS)(_test_mc_parallel)

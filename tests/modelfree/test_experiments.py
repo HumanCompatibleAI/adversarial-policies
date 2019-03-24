@@ -4,16 +4,15 @@ Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
 import json
 import os
-from ray.tune.trial import Trial
 
 import pytest
+from ray.tune.trial import Trial
 
 from modelfree.multi_train import multi_train_ex
-from modelfree.score_agent import score_ex
 from modelfree.policy_loader import AGENT_LOADERS
-from modelfree.train_and_score import train_and_score
+from modelfree.score_agent import score_ex
 from modelfree.train import NO_VECENV, RL_ALGOS, train_ex
-
+from modelfree.train_and_score import train_and_score
 
 EXPERIMENTS = [score_ex, train_and_score, train_ex]
 
