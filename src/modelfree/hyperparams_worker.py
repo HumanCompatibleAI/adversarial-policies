@@ -80,7 +80,7 @@ def train_rl(base_config, tune_config, reporter):
     with open(f"config-{config_hash}.json", 'w') as config_file:
         json.dump(config, config_file)
     print('cwd', os.getcwd())
-    command_str = f"mpirun --allow-run-as-root -np 2 python -m modelfree.train with config-{config_hash}.json > stdout 2>stderr"
+    command_str = f"mpirun --allow-run-as-root -np 4 python -m modelfree.train with config-{config_hash}.json > stdout 2>stderr"
     #command_str = f"mpirun --allow-run-as-root -np 2 python -c 'print(\"Hello\")'"
     #command_str = f"mpirun --allow-run-as-root -np 2 /bin/true"
     #command_str = f"python -c 'print(\"Hello\")'"

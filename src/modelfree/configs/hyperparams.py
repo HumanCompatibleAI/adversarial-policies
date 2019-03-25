@@ -60,10 +60,10 @@ def make_configs(hyper_ex):
     @hyper_ex.named_config
     def gail_spec(train):
         train = dict(train)
-        train['total_timesteps'] = int(3e7)
+        train['total_timesteps'] = int(1e7)
         spec = {
             'config': {
-                'rl_algo': 'gail', 
+                'rl_algo': 'gail',
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
                 ),
@@ -123,7 +123,7 @@ def make_configs(hyper_ex):
                 },
 
             },
-            'num_samples': 160,
+            'num_samples': 50,
         }
         exp_name = 'gail'
         _ = locals()  # quieten flake8 unused variable warning
