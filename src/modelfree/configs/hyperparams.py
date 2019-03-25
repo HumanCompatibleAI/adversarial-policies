@@ -63,6 +63,7 @@ def make_configs(hyper_ex):
         train['total_timesteps'] = int(3e7)
         spec = {
             'config': {
+                'rl_algo': 'gail', 
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
                 ),

@@ -1,4 +1,4 @@
-cluster_name: adversarial-policies-aws
+cluster_name: adversarial-policies-aws-neel
 min_workers: 0
 max_workers: 10
 initial_workers: 0
@@ -56,8 +56,18 @@ setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco
   - ln -sf /home/ubuntu/ray_bootstrap_key.pem /root/ray_bootstrap_key.pem
-head_setup_commands: []
-worker_setup_commands: []
+head_setup_commands:
+  # Get expert datasets
+  - >
+    . modelfreevenv/bin/activate &&
+    aws s3 sync s3://adversarial-policies/gail/SumoHumans_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/SumoHumans_datasets &&
+    aws s3 sync s3://adversarial-policies/gail/KickAndDefend_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/KickAndDefend_datasets
+worker_setup_commands:
+  # Get expert datasets
+  - >
+    . modelfreevenv/bin/activate &&
+    aws s3 sync s3://adversarial-policies/gail/SumoHumans_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/SumoHumans_datasets &&
+    aws s3 sync s3://adversarial-policies/gail/KickAndDefend_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/KickAndDefend_datasets
 
 head_start_ray_commands:
   # Set up alarm for if node is left running by mistake

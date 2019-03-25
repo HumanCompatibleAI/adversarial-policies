@@ -8,18 +8,18 @@ import os.path as osp
 
 import numpy as np
 from sacred.observers import FileStorageObserver
-from stable_baselines.logger import KVWriter
+#from stable_baselines.logger import KVWriter
 
 
-class ReporterOutputFormat(KVWriter):
-    """Key-value logging plugin for Stable Baselines that writes to a Ray Tune StatusReporter."""
-    def __init__(self, reporter):
-        self.last_kvs = dict()
-        self.reporter = reporter
-
-    def writekvs(self, kvs):
-        self.last_kvs = kvs
-        self.reporter(**kvs)
+#class ReporterOutputFormat(KVWriter):
+#    """Key-value logging plugin for Stable Baselines that writes to a Ray Tune StatusReporter."""
+#    def __init__(self, reporter):
+#        self.last_kvs = dict()
+#        self.reporter = reporter
+#
+#    def writekvs(self, kvs):
+#        self.last_kvs = kvs
+#        self.reporter(**kvs)
 
 
 def short_str(d):
@@ -55,16 +55,16 @@ def train_rl(base_config, tune_config, reporter):
     :param reporter: (ray.tune.StatusReporter) Ray Tune internal logger."""
     # train_ex is not pickleable, so we cannot close on it.
     # Instead, import inside the function.
-    from modelfree.train import train_ex
+    # from modelfree.train import train_ex
 
     config = dict(base_config)
     config.update(tune_config)
     # tune_kv_str = '-'.join([f'{k}={v}' if not isinstance(v, dict) else f'{k}={short_str(v)}'])
     tune_kv_str = short_str(config)
-    config['exp_name'] = config['exp_name'] + '-' + tune_kv_str
+    config['exp_name'] = 'dummy' + '-' + tune_kv_str
 
-    output_format = ReporterOutputFormat(reporter)
-    config['log_output_formats'] = [output_format]
+    #output_format = ReporterOutputFormat(reporter)
+    # config['log_output_formats'] = [output_format]
 
     # We're breaking the Sacred interface by running an experiment from within another experiment.
     # This is the best thing we can do, since we need to run the experiment with varying configs.
@@ -74,10 +74,17 @@ def train_rl(base_config, tune_config, reporter):
     # train_ex.observers.append(observer)
 
     # train_ex.run(config_updates=config)
-    # reporter(done=True, **output_format.last_kvs)
 
     config_hash = hash(str(config))
-    json.dump(config, f"config-{config_hash}.json")
-    command_str = f"mpirun -np 8 python modelfree.train with config-{config_hash}.json"
-    print(command_str)
-    os.system(command_str)
+    config['exp_name'] = str(config_hash)
+    with open(f"config-{config_hash}.json", 'w') as config_file:
+        json.dump(config, config_file)
+    print('cwd', os.getcwd())
+    command_str = f"mpirun --allow-run-as-root -np 2 python -m modelfree.train with config-{config_hash}.json > stdout 2>stderr"
+    #command_str = f"mpirun --allow-run-as-root -np 2 python -c 'print(\"Hello\")'"
+    #command_str = f"mpirun --allow-run-as-root -np 2 /bin/true"
+    #command_str = f"python -c 'print(\"Hello\")'"
+    print('running: ', command_str)
+    ret = os.system(command_str)
+    print('return: ', ret)
+    reporter(done=True, **{})
