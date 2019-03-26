@@ -128,9 +128,9 @@ make_configs(hyper_ex)
 
 
 @hyper_ex.main
-def hyperparameter_search(ray_server, exp_name, train, spec):
+def hyperparameter_search(ray_server, exp_name, train, spec, num_mpi=0):
     ray.init(redis_address=ray_server)
-    tune.register_trainable('train_rl', functools.partial(train_rl, train))
+    tune.register_trainable('train_rl', functools.partial(train_rl, train, num_mpi=num_mpi))
     exp_id = f'{exp_name}/{make_timestamp()}'
     return tune.run_experiments({exp_id: spec})
 

@@ -9,6 +9,7 @@ from gym.monitoring import VideoRecorder
 import numpy as np
 from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
+from stable_baselines.logger import KVWriter
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
@@ -151,6 +152,17 @@ class VideoWrapper(Wrapper):
             base_path=osp.join(self.directory, 'video.{:06}'.format(self.episode_id)),
             metadata={'episode_id': self.episode_id},
         )
+
+
+class ReporterOutputFormat(KVWriter):
+    """Key-value logging plugin for Stable Baselines that writes to a Ray Tune StatusReporter."""
+    def __init__(self, reporter):
+        self.last_kvs = dict()
+        self.reporter = reporter
+
+    def writekvs(self, kvs):
+        self.last_kvs = kvs
+        self.reporter(**kvs)
 
 
 def make_session(graph=None):
