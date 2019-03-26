@@ -11,8 +11,6 @@ from tensorboard.plugins.custom_scalar import layout_pb2
 import tensorboard.summary as summary_lib
 from tensorflow.core.util import event_pb2
 
-ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
-
 
 def gen_multiline_charts(cfg):
     charts = []
@@ -69,7 +67,6 @@ def tb_layout():
         chart=gen_multiline_charts([
             ("Total Timesteps", [r'total_timesteps']),
             ("FPS", [r'fps']),
-
         ])
     )
 
@@ -77,8 +74,13 @@ def tb_layout():
     return summary_lib.custom_scalar_pb(layout_pb2.Layout(category=categories))
 
 
-def setup_logger(out_dir='results', exp_name='test'):
-    timestamp = datetime.datetime.now().strftime(ISO_TIMESTAMP)
+def make_timestamp():
+    ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
+    return datetime.datetime.now().strftime(ISO_TIMESTAMP)
+
+
+def setup_logger(out_dir='results', exp_name='test', output_formats=None):
+    timestamp = make_timestamp()
     exp_name = exp_name.replace('/', '_')  # environment names can contain /'s
     out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
@@ -86,6 +88,9 @@ def setup_logger(out_dir='results', exp_name='test'):
     logger.configure(folder=osp.join(out_dir, 'rl'),
                      format_strs=['tensorboard', 'stdout'])
     logger_instance = logger.Logger.CURRENT
+
+    if output_formats is not None:
+        logger_instance.output_formats += output_formats
 
     for fmt in logger_instance.output_formats:
         if isinstance(fmt, logger.TensorBoardOutputFormat):

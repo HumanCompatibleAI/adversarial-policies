@@ -1,0 +1,95 @@
+cluster_name: adversarial-policies-aws-neel
+min_workers: 0
+max_workers: 10
+initial_workers: 0
+target_utilization_fraction: 0.8
+idle_timeout_minutes: 5
+
+docker:
+  image: humancompatibleai/adversarial_policies:gail-tune
+  container_name: ray
+  run_options:
+    # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
+    - "--env MUJOCO_KEY=${MUJOCO_KEY}"
+    # Open port 6006 for TensorBoard
+    - "-p 6006:6006"
+    # These are to work around Ray bug #4403.
+    - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
+    - "--env LOGNAME=ubuntu"
+    - "--env HOME=/home/ubuntu"
+
+provider:
+  type: aws
+  region: us-west-2
+  availability_zone: us-west-2a,us-west-2b,us-west-2c
+
+# How Ray will authenticate with newly launched nodes.
+auth:
+  ssh_user: ubuntu
+  ssh_private_key: ~/.ssh/adversarial-policies
+
+head_node:
+  InstanceType: r5.24xlarge
+  ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
+  KeyName: Adversarial Policies
+  BlockDeviceMappings:
+    - DeviceName: /dev/sda1
+      Ebs:
+        VolumeSize: 100
+        VolumeType: gp2
+
+worker_nodes:
+  InstanceType: r5.24xlarge
+  ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
+  KeyName: Adversarial Policies
+  BlockDeviceMappings:
+    - DeviceName: /dev/sda1
+      Ebs:
+        VolumeSize: 100
+        VolumeType: gp2
+  InstanceMarketOptions:
+    MarketType: spot
+
+# List of shell commands to run to set up nodes.
+initialization_commands: []  # before entering Docker
+setup_commands:
+  # Part of Ray bug #4403 workaround.
+  - ln -sf /root/.mujoco /home/ubuntu/.mujoco
+  - ln -sf /home/ubuntu/ray_bootstrap_key.pem /root/ray_bootstrap_key.pem
+head_setup_commands:
+  # Get expert datasets
+  - >
+    . modelfreevenv/bin/activate &&
+    aws s3 sync s3://adversarial-policies/gail/SumoHumans_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/SumoHumans_datasets &&
+    aws s3 sync s3://adversarial-policies/gail/KickAndDefend_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/KickAndDefend_datasets
+worker_setup_commands:
+  # Get expert datasets
+  - >
+    . modelfreevenv/bin/activate &&
+    aws s3 sync s3://adversarial-policies/gail/SumoHumans_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/SumoHumans_datasets &&
+    aws s3 sync s3://adversarial-policies/gail/KickAndDefend_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/KickAndDefend_datasets
+
+head_start_ray_commands:
+  # Set up alarm for if node is left running by mistake
+  # Pretend to be ubuntu user to workaround Ray bug #4403.
+  # Then (re)start Ray.
+  - >
+    DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
+    env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    /adversarial-policies/scripts/aws/cloudwatch.sh &&
+    ray stop &&
+    ulimit -n 65536 &&
+    ray start --head --redis-port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml
+
+# Command to start ray on worker nodes. You don't need to change this.
+worker_start_ray_commands:
+  # (Re)start spot termination monitor.
+  # Pretend to be ubuntu user to workaround Ray bug #4403.
+  # Then (re)start Ray.
+  - >
+    (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
+    env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    ray stop &&
+    (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
+    ulimit -n 65536 &&
+    ray start --redis-address=$RAY_HEAD_IP:6379 --object-manager-port=8076

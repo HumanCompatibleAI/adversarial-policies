@@ -165,6 +165,54 @@ def make_session(graph=None):
     return sess
 
 
+class TrajectoryRecorder(object):
+    def __init__(self, num_envs, num_policies, num_trajectories_to_save):
+        self.num_envs = num_envs
+        self.num_policies = num_policies
+        self.num_trajectories_to_save = num_trajectories_to_save
+
+        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)] for p in range(num_policies)]
+        self.full_traj_dicts = [defaultdict(list) for p in range(num_policies)]
+        self.num_completed = 0
+        self.already_saved = [False for p in range(num_policies)]
+
+    def record_trajectories(self, rewards, actions, dones, prev_observations):
+        data_keys = ('rewards', 'actions', 'obs')
+        data_vals = (rewards, actions, prev_observations)
+        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
+        # iterate over both agents over all environments in VecEnv
+        for (agent_idx, agent_dicts), env_idx in iter_space:
+            for key, val in zip(data_keys, data_vals):
+                agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
+            if dones[env_idx]:
+                ep_len = len(agent_dicts[env_idx]['rewards'])
+                ep_starts = [True] + [False] * (ep_len - 1)
+                self.full_traj_dicts[agent_idx]['episode_starts'].append(np.array(ep_starts))
+
+                ep_ret = sum(agent_dicts[env_idx]['rewards'])
+                self.full_traj_dicts[agent_idx]['episode_returns'].append(np.array([ep_ret]))
+
+                for key in data_keys:
+                    # consolidate episode data and append to long-term data dict
+                    episode_key_data = np.array(agent_dicts[env_idx][key])
+                    self.full_traj_dicts[agent_idx][key].append(episode_key_data)
+                agent_dicts[env_idx] = defaultdict(list)
+                # so as not to double-count number of episodes
+                self.num_completed += int(agent_idx == 0)
+                if self.num_completed >= self.num_trajectories_to_save:
+                    self.save_trajectories(agent_idx)
+
+    def save_trajectories(self, agent_idx):
+        if self.already_saved[agent_idx]:
+            print(f'Warning: already saved trajectories for agent {agent_idx}')
+        self.full_traj_dicts[agent_idx] = {
+            k: np.concatenate(v, axis=0)
+            for k, v in self.full_traj_dicts[agent_idx].items()}
+        np.savez(f'data/agent_{agent_idx}_traj.npz',
+                 **self.full_traj_dicts[agent_idx])
+        self.already_saved[agent_idx] = True
+
+
 def simulate(venv, policies, render=False, record_trajectories=False,
              num_trajectories_to_save=None):
     """
@@ -182,11 +230,8 @@ def simulate(venv, policies, render=False, record_trajectories=False,
 
     if record_trajectories:
         if num_trajectories_to_save is None:
-            msg = "Must set number of trajectories to save in order to save them."
-            raise ValueError(msg)
-        traj_dicts = [[defaultdict(list) for env in range(venv.num_envs)] for policy in policies]
-        full_traj_dicts = [defaultdict(list) for policy in policies]
-        num_completed = 0
+            raise ValueError("Must set number of trajectories to save in order to save them.")
+        recorder = TrajectoryRecorder(venv.num_envs, len(policies), num_trajectories_to_save)
 
     while True:
         if render:
@@ -204,35 +249,7 @@ def simulate(venv, policies, render=False, record_trajectories=False,
 
         observations, rewards, dones, infos = venv.step(actions)
         if record_trajectories:
-            data_keys = ('rewards', 'actions', 'obs')
-            data_vals = (rewards, actions, prev_observations)
-            iter_space = itertools.product(enumerate(traj_dicts), range(venv.num_envs))
-            for (agent_idx, agent_dicts), env_idx in iter_space:
-                for key, val in zip(data_keys, data_vals):
-                    agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
-                if dones[env_idx]:
-                    ep_starts = [True] + agent_dicts[env_idx]['episode_starts']
-                    full_traj_dicts[agent_idx]['episode_starts'].append(np.array(ep_starts))
-
-                    ep_ret = sum(agent_dicts[env_idx]['rewards'])
-                    full_traj_dicts[agent_idx]['episode_returns'].append(np.array([ep_ret]))
-
-                    for key in data_keys:
-                        episode_key_data = np.array(agent_dicts[env_idx][key])
-                        full_traj_dicts[agent_idx][key].append(episode_key_data)
-                    agent_dicts[env_idx] = defaultdict(list)
-                    num_completed += int(agent_idx == 0)
-
-                    if num_completed >= num_trajectories_to_save:
-                        full_traj_dicts[agent_idx] = {
-                            k: np.concatenate(v, axis=0)
-                            for k, v in full_traj_dicts[agent_idx].items()}
-
-                        np.savez(f'data/agent_{agent_idx}_traj.npz',
-                                 **full_traj_dicts[agent_idx])
-                else:
-                    agent_dicts[env_idx]['episode_starts'].append(False)
-
+            recorder.record_trajectories(rewards, actions, dones, prev_observations)
         yield observations, rewards, dones, infos
 
 

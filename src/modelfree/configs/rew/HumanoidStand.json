@@ -1,0 +1,12 @@
+{
+    "weights": {
+        "dense": {
+            "reward_linvel": 0,
+            "reward_quadctrl": 0.1,
+            "reward_alive": 0.1,
+            "reward_impact": 0.1
+        },
+        "sparse": {
+        }
+    }
+}

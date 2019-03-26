@@ -303,11 +303,11 @@ def _tuple_space_filter(tuple_space, filter_idx):
 
 def _tuple_space_replace(tuple_space, replace_idx, replace_space):
     current_spaces = tuple_space.spaces
-    old_space = current_spaces.pop(replace_idx)
+    old_space = current_spaces[replace_idx]
     if type(old_space) != type(replace_space):
-        raise TypeError("Replacement action space has different type than original")
-    current_spaces.insert(replace_idx, replace_space)
-    return gym.spaces.Tuple(tuple(current_spaces))
+        raise TypeError("Replacement action space has different type than original.")
+    new_spaces = _tuple_replace(current_spaces, replace_idx, replace_space)
+    return gym.spaces.Tuple(new_spaces)
 
 
 def _tuple_space_augment(tuple_space, augment_idx, augment_space):
@@ -320,7 +320,8 @@ def _tuple_space_augment(tuple_space, augment_idx, augment_space):
 
 
 class MergeAgentVecEnv(VecMultiWrapper):
-    """Allows merging of two agents into a pseudo-agent by merging their actions"""
+    """Allows merging of two agents into a pseudo-agent by merging their actions.
+       The observation space is augmented with the actions of the fixed policy."""
     def __init__(self, venv, policy, replace_action_space, merge_agent_idx):
         """Expands one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
@@ -357,7 +358,8 @@ class MergeAgentVecEnv(VecMultiWrapper):
         return observations, rewards, self._dones, infos
 
     def reset(self):
-        observations = self._get_updated_obs(self.venv.reset())
+        observations = self.venv.reset()
+        observations = self._get_augmented_obs(observations)
         return observations
 
     def _get_updated_obs(self, observations):

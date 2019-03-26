@@ -1,4 +1,4 @@
-from collections import defaultdict, deque
+from collections import deque
 from itertools import islice
 
 import numpy as np
@@ -35,10 +35,12 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
         self.reward_annealer = reward_annealer
         self.agent_idx = agent_idx
-        self.ep_logs = defaultdict(lambda: deque([], maxlen=10000))
+        queue_keys = REW_TYPES.union(['length'])
+        self.ep_logs = {k: deque([], maxlen=10000) for k in queue_keys}
         self.ep_logs['total_episodes'] = 0
         self.ep_logs['last_callback_episode'] = 0
-        self.step_rew_dict = defaultdict(lambda: [[] for _ in range(self.num_envs)])
+        self.step_rew_dict = {rew_type: [[] for _ in range(self.num_envs)]
+                              for rew_type in REW_TYPES}
 
     def log_callback(self, logger):
         """Logs various metrics. This is given as a callback to PPO2.learn()"""
@@ -166,11 +168,11 @@ def apply_victim_wrapper(victim, noise_params, scheduler):
         noise_annealer = ConditionalAnnealer.from_dict(noise_params, get_logs=None)
         scheduler.set_conditional('noise')
     else:
-        victim_noise_anneal_frac = noise_params.get('victim_noise_anneal_frac', 0)
-        victim_noise_param = noise_params.get('victim_noise_param', 0)
+        victim_noise_anneal_frac = noise_params.get('anneal_frac', 0)
+        victim_noise_param = noise_params.get('param', 0)
 
         if victim_noise_anneal_frac <= 0:
-            msg = "victim_noise_anneal_frac must be greater than 0 if using a NoisyAgentWrapper."
+            msg = "victim_noise_params.anneal_frac must be >0 if using a NoisyAgentWrapper."
             raise ValueError(msg)
         noise_annealer = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac)
     scheduler.set_annealer('noise', noise_annealer)
