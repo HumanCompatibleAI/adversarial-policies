@@ -29,7 +29,7 @@ auth:
   ssh_private_key: ~/.ssh/adversarial-policies
 
 head_node:
-  InstanceType: r5.24xlarge
+  InstanceType: m5.24xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
@@ -39,7 +39,7 @@ head_node:
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: r5.24xlarge
+  InstanceType: m5.24xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:

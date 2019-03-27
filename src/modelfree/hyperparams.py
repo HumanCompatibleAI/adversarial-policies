@@ -11,6 +11,9 @@ import urllib
 
 import ray
 from ray import tune
+from ray.tune.experiment import convert_to_experiment_list
+from ray.tune.tune import run
+from ray.tune.web_server import TuneServer
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
@@ -128,8 +131,15 @@ make_configs(hyper_ex)
 
 
 @hyper_ex.main
-def hyperparameter_search(ray_server, exp_name, train, spec, num_mpi=0):
-    ray.init(redis_address=ray_server)
+def hyperparameter_search(ray_server, exp_name, train, spec, num_mpi=0, max_memory=None):
+    if max_memory is not None:
+        # ray will have max_memory amount of memory available, and each trial
+        # will consume memory_use memory.
+        ray.init(redis_address=ray_server, resources={'memory': max_memory})
+        memory_use = max(num_mpi, spec['config']['num_env'])
+        spec['resources_per_trial']['memory'] = memory_use
+    else:
+        ray.init(redis_address=ray_server)
     tune.register_trainable('train_rl', functools.partial(train_rl, train, num_mpi=num_mpi))
     exp_id = f'{exp_name}/{make_timestamp()}'
     return tune.run_experiments({exp_id: spec})

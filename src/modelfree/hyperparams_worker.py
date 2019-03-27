@@ -19,14 +19,19 @@ def train_rl(base_config, tune_config, reporter, num_mpi):
     config = dict(base_config)
     config.update(tune_config)
 
-    if num_mpi > 0:
+    if config['rl_algo'] == 'gail':
         # GAIL has many hyperparameters and will produce file names that are too large.
-        config_hash = hash(str(config))
+        config_hash = abs(hash(str(config)))
         config['exp_name'] = str(config_hash)
         with open(f"config-{config_hash}.json", 'w') as config_file:
             json.dump(config, config_file)
-        command_str = f"mpirun --allow-run-as-root -np {num_mpi} python -m modelfree.train" + \
-            f" with config-{config_hash}.json > stdout 2>stderr"
+    else:
+        tune_kv_str = '-'.join([f'{k}={v}' for k, v in tune_config.items()])
+        config['exp_name'] = config['exp_name'] + '-' + tune_kv_str
+
+    if num_mpi > 0:
+        command_str = f"mpirun -np {num_mpi} python -m modelfree.train" + \
+            f" with config-{config_hash}.json > stdout 2> stderr"
         subprocess.check_call(command_str, shell=True)
         reporter(done=True, **{})
     else:
@@ -34,9 +39,6 @@ def train_rl(base_config, tune_config, reporter, num_mpi):
         # Instead, import inside the function.
         from modelfree.train import train_ex
         from modelfree.utils import ReporterOutputFormat
-
-        tune_kv_str = '-'.join([f'{k}={v}' for k, v in tune_config.items()])
-        config['exp_name'] = config['exp_name'] + '-' + tune_kv_str
 
         output_format = ReporterOutputFormat(reporter)
         config['log_output_formats'] = [output_format]
