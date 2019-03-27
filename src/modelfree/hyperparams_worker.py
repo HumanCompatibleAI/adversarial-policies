@@ -14,27 +14,29 @@ def train_rl(base_config, tune_config, reporter, num_mpi):
 
     :param base_config: (dict) default config
     :param tune_config: (dict) overrides values in base_config
-    :param reporter: (ray.tune.StatusReporter) Ray Tune internal logger."""
-    # train_ex is not pickleable, so we cannot close on it.
-    # Instead, import inside the function.
+    :param reporter: (ray.tune.StatusReporter) Ray Tune internal logger.
+    :param num_mpi: (int) number of MPI processes, if any."""
     config = dict(base_config)
     config.update(tune_config)
 
     if num_mpi > 0:
+        # GAIL has many hyperparameters and will produce file names that are too large.
         config_hash = hash(str(config))
         config['exp_name'] = str(config_hash)
         with open(f"config-{config_hash}.json", 'w') as config_file:
             json.dump(config, config_file)
         command_str = f"mpirun --allow-run-as-root -np {num_mpi} python -m modelfree.train" + \
             f" with config-{config_hash}.json > stdout 2>stderr"
-        subprocess.call(command_str, shell=True)
+        subprocess.check_call(command_str, shell=True)
         reporter(done=True, **{})
     else:
+        # train_ex is not pickleable, so we cannot close on it.
+        # Instead, import inside the function.
         from modelfree.train import train_ex
         from modelfree.utils import ReporterOutputFormat
 
         tune_kv_str = '-'.join([f'{k}={v}' for k, v in tune_config.items()])
-        config['exp_name'] = 'dummy' + '-' + tune_kv_str
+        config['exp_name'] = config['exp_name'] + '-' + tune_kv_str
 
         output_format = ReporterOutputFormat(reporter)
         config['log_output_formats'] = [output_format]

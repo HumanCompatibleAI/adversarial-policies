@@ -60,14 +60,12 @@ head_setup_commands:
   # Get expert datasets
   - >
     . modelfreevenv/bin/activate &&
-    aws s3 sync s3://adversarial-policies/gail/SumoHumans_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/SumoHumans_datasets &&
-    aws s3 sync s3://adversarial-policies/gail/KickAndDefend_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/KickAndDefend_datasets
+    aws s3 sync s3://adversarial-policies/gail/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/gail
 worker_setup_commands:
   # Get expert datasets
   - >
     . modelfreevenv/bin/activate &&
-    aws s3 sync s3://adversarial-policies/gail/SumoHumans_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/SumoHumans_datasets &&
-    aws s3 sync s3://adversarial-policies/gail/KickAndDefend_datasets/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/KickAndDefend_datasets
+    aws s3 sync s3://adversarial-policies/gail/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/gail
 
 head_start_ray_commands:
   # Set up alarm for if node is left running by mistake

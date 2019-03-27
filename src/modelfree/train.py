@@ -5,6 +5,7 @@ import logging
 import os
 import os.path as osp
 import pkgutil
+import subprocess
 
 from gym.spaces import Box
 from sacred import Experiment
@@ -193,15 +194,11 @@ def gail(batch_size, expert_dataset_path, env_name, victim_index, **kwargs):
         }
         curr_path = os.path.dirname(os.path.abspath(__file__))
         dataset_folder = dataset_map[env_name]
-        local_folder = os.path.join(curr_path, dataset_folder)
+        local_folder = os.path.join(curr_path, 'gail', dataset_folder)
         if not osp.exists(local_folder):
             sync_cmd = "aws s3 sync s3://adversarial-policies/gail/{0}/ {1}"
             sync_cmd = sync_cmd.format(dataset_folder, local_folder)
-            try:
-                print(sync_cmd)
-                os.system(sync_cmd)
-            except OSError:
-                raise OSError("expert_dataset was None and could not fetch dataset from S3.")
+            subprocess.check_call(sync_cmd, shell=True)
         expert_dataset_path = os.path.join(local_folder, f"agent_{expert_index}_traj.npz")
     expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
