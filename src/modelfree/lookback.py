@@ -34,23 +34,24 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.past_venvs = [self.past_venvs[-1]] + self.past_venvs[:-1]
         self.past_data = [self.past_data[-1]] + self.past_data[:-1]
         for past_venv, past_dict in zip(self.past_venvs, self.past_data)[1:]:
+            # base_action is calculated from the most recent step_wait()
             past_venv.step_async(past_dict['base_action'])
 
         for env_idx in range(self.num_envs):
             self.past_venvs[0].env_method('set_state', indices=env_idx, *[current_states[env_idx]])
 
+        # the baseline policy's state is what it would have been if it had observed all of
+        # the same things as our policy. self._pseudo_base_state comes from seeing only self._obs
         base_action, self._pseudo_base_state = self._policy.predict(self._obs, state=self._pseudo_base_state,
                                                                     mask=self._dones)
         self.past_data[0]['base_state'] = self._pseudo_base_state
-        self.past_data[0]['base_action'] = base_action
         self.past_venvs[0].step_async(base_action)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
         self._process_own_obs(observations)
         past_data = [venv.step_wait() for venv in self.past_venvs]
-        past_obs_list = [data[0] for data in past_data]
-        self._process_base_obs(past_obs_list)
+        self._process_base_obs([data[0] for data in past_data])  # observations are first
 
         self.ep_lens *= ~np.array(self._dones)
         for env_idx in range(self.num_envs):
@@ -58,6 +59,10 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 # align this env with self.venv since self.venv was reset
                 self._reset_state_data(observations, env_idx)
             # TODO: process rewards based on past_data and self.ep_lens
+            valid_baseline_times = self.past_data[:self.ep_lens[env_idx]]
+            for data in valid_baseline_times:
+                # rew[env_idx] += f(data)
+                pass
 
         return observations, rewards, self._dones, infos
 

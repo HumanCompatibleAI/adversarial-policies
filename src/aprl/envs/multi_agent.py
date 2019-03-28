@@ -359,7 +359,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def reset(self):
         observations = self.venv.reset()
-        observations = self._get_augmented_obs(observations)
+        observations = self._get_updated_obs(observations)
         return observations
 
     def _get_updated_obs(self, observations):
@@ -410,13 +410,16 @@ class CurryVecEnv(VecMultiWrapper):
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
         return observations
 
+    def get_policy(self):
+        return self._policy
+
 
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, agent_idx)
         if not isinstance(policy, TransparentPolicy):
-            raise TypeError("Error: policy must be transparent")
+            raise TypeError("Error: policy must be instance of TransparentPolicy")
         self._action = None
 
         obs_aug_amount = policy.get_obs_aug_amount()

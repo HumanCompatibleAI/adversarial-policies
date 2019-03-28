@@ -19,6 +19,7 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
 from modelfree import utils
 from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
 from modelfree.logger import setup_logger
+from modelfree.lookback import LookbackRewardVecWrapper
 from modelfree.policy_loader import load_policy
 from modelfree.scheduling import ConstantAnnealer, Scheduler
 from modelfree.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
@@ -236,6 +237,7 @@ def train_config():
     load_bansal = False             # policy from Bansal et al's gym_compete
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
     expert_dataset_path = None      # path to trajectory data to train GAIL
+    num_lookback = 0                # activates LookbackRewardVecWrapper and uses num_lookback venvs
 
     # General
     checkpoint_interval = 16384     # save weights to disk after this many timesteps
@@ -273,11 +275,12 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, debug):
+def build_env(out_dir, _seed, env_name, num_env, debug, num_lookback):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
+    resettable = num_lookback > 0
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, pre_wrapper=pre_wrapper)
+        return utils.make_env(env_name, _seed, i, out_dir, pre_wrapper=pre_wrapper, resettable=resettable)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
@@ -346,7 +349,7 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
 
 @train_ex.capture
 def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
-                    log_callbacks, save_callbacks):
+                    lookback_args, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -356,6 +359,10 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
         for anneal_type in ['noise', 'rew_shape']:
             if scheduler.is_conditional(anneal_type):
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
+
+    if lookback_args is not None:
+        lookback_venv = LookbackRewardVecWrapper(single_venv, lookback_args['policy'], lookback_args['past_venvs'])
+        single_venv = lookback_venv
 
     if normalize:
         normalized_venv = VecNormalize(single_venv)
@@ -379,7 +386,7 @@ NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac', 'gail']
 
 
 @train_ex.main
-def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats):
+def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats, num_lookback):
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
@@ -388,12 +395,19 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    multi_venv = build_env(out_dir)
-    multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+    def get_single_venv():
+        multi_venv = build_env(out_dir)
+        multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
+        multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+        return FlattenSingletonVecEnv(multi_venv), our_idx
 
-    single_venv = FlattenSingletonVecEnv(multi_venv)
-    single_venv = single_wrappers(single_venv, scheduler, our_idx,
+    single_venv, our_idx = get_single_venv()
+    lookback_args = None
+    if num_lookback > 0:
+        lookback_args = {'past_venvs': [get_single_venv()[0] for _ in range(num_lookback)],
+                         'policy': single_venv.venv.get_policy()}
+
+    single_venv = single_wrappers(single_venv, scheduler, our_idx, lookback_args,
                                   log_callbacks=log_callbacks, save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
