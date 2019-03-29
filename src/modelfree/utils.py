@@ -11,7 +11,7 @@ from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
-from aprl.agents.monte_carlo import MujocoResettableWrapper
+from aprl.agents.monte_carlo import OldMujocoResettableWrapper
 from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti
 from modelfree.transparent import TransparentPolicy
@@ -256,10 +256,10 @@ def simulate(venv, policies, render=False, record_trajectories=False,
 
 def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None, resettable=False):
     multi_env = gym.make(env_name)
-    if resettable:
-        multi_env = MujocoResettableWrapper(multi_env.unwrapped)
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
+    if resettable:
+        multi_env = OldMujocoResettableWrapper(multi_env)
     if not isinstance(multi_env, MultiAgentEnv):
         multi_env = SingleToMulti(multi_env)
     multi_env.seed(seed + i)

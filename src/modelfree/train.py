@@ -35,6 +35,9 @@ class EmbedVictimWrapper(VecMultiWrapper):
 
         super().__init__(curried_env)
 
+    def get_policy(self):
+        return self.venv.get_policy()
+
     def reset(self):
         return self.venv.reset()
 
@@ -407,7 +410,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
         lookback_args = {'past_venvs': [get_single_venv()[0] for _ in range(num_lookback)],
                          'policy': single_venv.venv.get_policy()}
 
-    single_venv = single_wrappers(single_venv, scheduler, our_idx, lookback_args,
+    single_venv = single_wrappers(single_venv, scheduler, our_idx, lookback_args=lookback_args,
                                   log_callbacks=log_callbacks, save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
