@@ -80,6 +80,8 @@ def ec2_config(platform, s3_bucket, spec):
         # We're running on EC2
         if s3_bucket is None:
             s3_bucket = 'adversarial-policies'
+
+        spec = dict(spec)
         spec['upload_dir'] = f's3://{s3_bucket}/multi_train'
         ray_server = 'localhost:6379'
 
@@ -93,7 +95,8 @@ def _rsync_func(local_dir, remote_uri):
     # If we instead specified a shell command, ray.tune._LogSyncer would run it asynchronously.
     # But we need to do a two-stage command, creating the directories first, because rsync will
     # balk if destination directory does not exist; so no easy way to do that.
-    remote_host, ssh_key, remote_dir = remote_uri.split(':')
+    remote_host, ssh_key, *remainder = remote_uri.split(':')
+    remote_dir = ':'.join(remainder)  # remote directory may contain :
 
     ssh_command = ['ssh', '-o', 'StrictHostKeyChecking=no', '-i', ssh_key]
     ssh_mkdir = ssh_command + [remote_host, 'mkdir', '-p', remote_dir]

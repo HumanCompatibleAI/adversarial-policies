@@ -1,5 +1,8 @@
 """Named configs for modelfree.hyperparams."""
 
+import collections
+import itertools
+
 import numpy as np
 from ray import tune
 
@@ -7,10 +10,36 @@ TARGET_VICTIMS = {
     'multicomp/KickAndDefend-v0': 2,
 }
 
+NUM_VICTIMS = collections.OrderedDict([
+    ('multicomp/RunToGoalAnts-v0', 1),
+    ('multicomp/RunToGoalHumans-v0', 1),
+    ('multicomp/YouShallNotPassHumans-v0', 1),
+    ('multicomp/SumoHumans-v0', 3),
+    ('multicomp/SumoAnts-v0', 4),
+    ('multicomp/KickAndDefend-v0', 3),
+])
+
+BANSAL_ENVS = list(NUM_VICTIMS.keys())
+
+
+def _env_victim(envs=None):
+    if envs is None:
+        envs = BANSAL_ENVS
+    env_and_victims = [[(env, i + 1) for i in range(NUM_VICTIMS[env])] for env in envs]
+    return list(itertools.chain(*env_and_victims))
+
 
 def _sparse_reward(train):
     train['rew_shape'] = True
     train['rew_shape_params'] = {'anneal_frac': 0}
+
+
+def _finetune(train):
+    train['load_policy'] = {
+        'path': '1',
+        'type': 'zoo',
+    }
+    train['normalize'] = False
 
 
 def make_configs(multi_train_ex):
@@ -68,31 +97,6 @@ def make_configs(multi_train_ex):
 
     @multi_train_ex.named_config
     def best_guess(train):
-        """Current best guess for hyperparameters on a standard test suite."""
-        train = dict(train)
-        _sparse_reward(train)
-        train['total_timesteps'] = int(5e6)
-        train['learning_rate'] = 2.5e-4
-        train['batch_size'] = 2048
-        train['rl_args'] = {'ent_coef': 0.00}
-        train['normalize'] = True
-        spec = {
-            'config': {
-                'env_name': tune.grid_search([
-                    'multicomp/KickAndDefend-v0',
-                    'multicomp/SumoHumans-v0',
-                    'multicomp/SumoAnts-v0',
-                ]),
-                'seed': tune.grid_search([0, 1, 2]),
-                'victim_path': tune.grid_search(['1', '2', '3']),
-            },
-        }
-        exp_name = 'best_guess'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def best_longrun(train):
         """Train with promising hyperparameters for 10 million timesteps."""
         train = dict(train)
         _sparse_reward(train)
@@ -106,15 +110,11 @@ def make_configs(multi_train_ex):
         }
         spec = {
             'config': {
-                'env_name': tune.grid_search([
-                    'multicomp/KickAndDefend-v0',
-                    'multicomp/SumoHumans-v0',
-                    'multicomp/SumoAnts-v0',
-                ]),
+                'env_name:victim_path': tune.grid_search(_env_victim()),
                 'seed': tune.grid_search([0, 1, 2]),
-            }
+            },
         }
-        exp_name = 'best_longrun'
+        exp_name = 'best_guess'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -193,13 +193,9 @@ def make_configs(multi_train_ex):
         """Sanity check finetuning: with a learning rate of 0.0, do we get performance the
            same as that given by `score_agent`? Tests the training-specific loading pipeline."""
         train = dict(train)
+        _finetune(train)
         train['total_timesteps'] = int(1e6)
         train['learning_rate'] = 0.0
-        train['load_policy'] = {
-            'path': '1',
-            'type': 'zoo',
-        }
-        train['normalize'] = False
         spec = {
             'config': {
                 'env_name': tune.grid_search([
@@ -243,54 +239,30 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
-    def finetune_hyper_search(train):
-        """Hyperparameter search for finetuning gym_compete policies."""
+    def finetune_best_guess(train):
+        """Finetuning gym_compete policies with current best guess of hyperparameters. Policy
+        initialization is the same path as the victim path. (In symmetric environments, they'll be
+        the same policy.)"""
         train = dict(train)
         _sparse_reward(train)
-        # Checkpoints take up a lot of disk space, only save every ~500k steps
-        train['checkpoint_interval'] = 2 ** 19
-        train['total_timesteps'] = int(3e6)
+        _finetune(train)
+        train['total_timesteps'] = int(10e6)
+        train['batch_size'] = 16384
+        train['learning_rate'] = 3e-4
+        train['rl_args'] = {
+            'ent_coef': 0.0,
+            'nminibatches': 4,
+            'noptepochs': 4,
+        }
         spec = {
             'config': {
-                'env_name': tune.grid_search([
-                    'multicomp/KickAndDefend-v0',
-                    'multicomp/SumoHumans-v0'
-                ]),
-                'victim_path': tune.sample_from(
-                    lambda spec: TARGET_VICTIMS.get(spec.config.env_name, 1)
-                ),
-                'seed': tune.sample_from(
-                    lambda spec: np.random.randint(1000)
-                ),
-                # Dec 2018 experiments used 2^11 = 2048 batch size.
-                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
-                'batch_size': tune.sample_from(
-                    lambda spec: 2 ** np.random.randint(11, 16)
-                ),
-                'rl_args': {
-                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
-                    'ent_coef': tune.sample_from(
-                        lambda spec: np.random.uniform(low=0.00, high=0.02)
-                    ),
-                    # nminibatches must be a factor of batch size; OK provided power of two
-                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-                    'nminibatches': tune.sample_from(
-                        lambda spec: 2 ** (np.random.randint(0, 7))
-                    ),
-                    # PPO2 default is 4; run_humanoid.py is 10
-                    'noptepochs': tune.sample_from(
-                        lambda spec: np.random.randint(1, 11),
-                    ),
-                },
-                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
-                # Bansal et al use 1e-2 (but with huge batch size).
-                # Sample log-uniform between 1e-2 and 1e-5.
-                'learning_rate': tune.sample_from(
-                    lambda spec: 10 ** (-2 + -3 * np.random.random())
-                ),
+                'env_name:victim_path': tune.grid_search(_env_victim()),
+                'seed': tune.grid_search([0, 1, 2]),
+                'load_policy': {
+                    'path': tune.sample_from(lambda spec: spec.config['env_name:victim_path'][1]),
+                }
             },
-            'num_samples': 100,
         }
-        exp_name = 'finetune_hyper'
+        exp_name = 'finetune_best_guess'
         _ = locals()  # quieten flake8 unused variable warning
         del _
