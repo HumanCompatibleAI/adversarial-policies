@@ -17,35 +17,36 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
         self._action = None
         self._obs = None
-        self._obs_queue = deque([], maxlen=self.lookback_num)
         self._state = None
         self._pseudo_base_state = None
         self._dones = [False] * self.num_envs
-        self.ep_lens = np.zeros(self.num_envs)
+        self.ep_lens = np.zeros(self.num_envs).astype(int)
 
         state_dict = {k: None for k in ('base_state', 'base_obs', 'base_action')}
         self.past_data = [state_dict.copy() for _ in range(self.lookback_num)]
 
     def step_async(self, actions):
         self.ep_lens += 1
-        current_states = self.venv.env_method('get_state')
+        current_states = self.venv.unwrapped.env_method('get_state')
 
         # cycle the past_venvs and step all but the first. Then reset the first one with self.venv.
         self.past_venvs = [self.past_venvs[-1]] + self.past_venvs[:-1]
         self.past_data = [self.past_data[-1]] + self.past_data[:-1]
-        for past_venv, past_dict in zip(self.past_venvs, self.past_data)[1:]:
+        for past_venv, past_dict in list(zip(self.past_venvs, self.past_data))[1:]:
             # base_action is calculated from the most recent step_wait()
             past_venv.step_async(past_dict['base_action'])
 
+        new_baseline_venv = self.past_venvs[0]
         for env_idx in range(self.num_envs):
-            self.past_venvs[0].env_method('set_state', indices=env_idx, *[current_states[env_idx]])
+            new_baseline_venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx])
 
         # the baseline policy's state is what it would have been if it had observed all of
         # the same things as our policy. self._pseudo_base_state comes from seeing only self._obs
         base_action, self._pseudo_base_state = self._policy.predict(self._obs, state=self._pseudo_base_state,
                                                                     mask=self._dones)
         self.past_data[0]['base_state'] = self._pseudo_base_state
-        self.past_venvs[0].step_async(base_action)
+        new_baseline_venv.step_async(base_action)
+        self.venv.step_async(actions)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
@@ -69,33 +70,37 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
     def reset(self):
         observations = self.venv.reset()
         self._process_own_obs(observations)
-        for env_idx in range(self.num_envs):
-            # align all of the past_venvs with self.venv
-            self._reset_state_data(observations, env_idx)
+        self._reset_state_data(observations)
         return observations
 
     def _process_own_obs(self, observations):
-        """Record action, state and observation of our policy"""
+        """Record action, state and observations of our policy"""
         self._obs = observations
-        self._obs_queue.append(observations)
         self._action, self._state = self._policy.predict(self._obs, state=self._state,
                                                          mask=self._dones)
 
-    def _process_base_obs(self, past_obs_list):
-        """Record action, state and observation of baseline policy"""
-        for idx, base_obs in enumerate(past_obs_list):
+    def _process_base_obs(self, base_obs_list):
+        """Record action and state of baseline policy"""
+        for idx, base_obs in enumerate(base_obs_list):
             base_action, base_state = self._policy.predict(base_obs, state=self.past_data[idx]['base_state'],
                                                            mask=self._dones)
             self.past_data[idx]['base_action'] = base_action
             self.past_data[idx]['base_state'] = base_state
-            self.past_data[idx]['base_obs'] = base_obs
 
-    def _reset_state_data(self, observations, env_idx):
+    def _reset_state_data(self, observations, env_idx=None):
         """Reset past_venv states when self.venv resets. Also reset data for baseline policy."""
-        initial_state = self.venv.env_method('get_state', indices=env_idx)[0]
-        initial_base_obs = observations[env_idx]
-        for past_step, past_venv in enumerate(self.past_venvs):
-            self.past_data[past_step] = {'base_obs': initial_base_obs,
-                                         'base_state': None,
-                                         'base_action': None}
-            past_venv.env_method('set_state', indices=env_idx, *[initial_state])
+        action, state = self._policy.predict(observations, state=None, mask=None)
+        initial_env_states = self.venv.unwrapped.env_method('get_state', env_idx)
+        for past_dict, past_venv in list(zip(self.past_data, self.past_venvs)):
+            if env_idx is None:
+                # this gets called only in self.reset()
+                past_venv.reset()
+                past_dict['base_action'] = action
+                past_dict['base_state'] = state
+            else:
+                # this gets called when an episode ends in one of the environments
+                past_dict['base_action'][env_idx] = action[env_idx]
+                past_dict['base_state'][:, env_idx, :] = state[:, env_idx, :]
+            envs_iter = range(self.num_envs) if env_idx is None else (0,)
+            for env_to_set in envs_iter:
+                past_venv.unwrapped.env_method('set_state', env_to_set, initial_env_states[env_to_set])
