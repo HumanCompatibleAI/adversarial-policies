@@ -81,6 +81,10 @@ def ec2_config(platform, s3_bucket, spec):
         if s3_bucket is None:
             s3_bucket = 'adversarial-policies'
         spec['upload_dir'] = f's3://{s3_bucket}/multi_train'
+        ray_server = 'localhost:6379'
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 
 def _rsync_func(local_dir, remote_uri):

@@ -237,19 +237,29 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, debug):
+def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
 
+    if victim_type == 'none':
+        our_idx = 0
+    else:
+        our_idx = 1 - victim_index
+
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, pre_wrapper=pre_wrapper)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
     else:
         make_vec_env = make_dummy_vec_multi_env
-    multi_env = make_vec_env([lambda: env_fn(i) for i in range(num_env)])
+    multi_venv = make_vec_env([lambda: env_fn(i) for i in range(num_env)])
 
-    return multi_env
+    if victim_type == 'none':
+        assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
+    else:
+        assert multi_venv.num_agents == 2, "Need two-agent environment when victim"
+
+    return multi_venv, our_idx
 
 
 @train_ex.capture
@@ -279,16 +289,10 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 
 @train_ex.capture
-def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
-                       victim_index, victim_noise, victim_noise_params, adv_noise_params):
-    if victim_type == 'none':
-        if multi_venv.num_agents > 1:
-            raise ValueError("Victim needed for multi-agent environments")
-        our_idx = 0
-    else:
-        assert multi_venv.num_agents == 2
-        our_idx = 1 - victim_index
-
+def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
+                       victim_path, victim_index, victim_noise, victim_noise_params,
+                       adv_noise_params):
+    if victim_type != 'none':
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params is not None:
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
@@ -305,7 +309,7 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                         victim_index=victim_index)
 
-    return multi_venv, our_idx
+    return multi_venv
 
 
 @train_ex.capture
@@ -355,9 +359,9 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    multi_venv = build_env(out_dir)
+    multi_venv, our_idx = build_env(out_dir)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+    multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
 
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx,

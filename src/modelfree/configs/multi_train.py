@@ -67,6 +67,58 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
+    def best_guess(train):
+        """Current best guess for hyperparameters on a standard test suite."""
+        train = dict(train)
+        _sparse_reward(train)
+        train['total_timesteps'] = int(5e6)
+        train['learning_rate'] = 2.5e-4
+        train['batch_size'] = 2048
+        train['rl_args'] = {'ent_coef': 0.00}
+        train['normalize'] = True
+        spec = {
+            'config': {
+                'env_name': tune.grid_search([
+                    'multicomp/KickAndDefend-v0',
+                    'multicomp/SumoHumans-v0',
+                    'multicomp/SumoAnts-v0',
+                ]),
+                'seed': tune.grid_search([0, 1, 2]),
+                'victim_path': tune.grid_search(['1', '2', '3']),
+            },
+        }
+        exp_name = 'best_guess'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def best_longrun(train):
+        """Train with promising hyperparameters for 10 million timesteps."""
+        train = dict(train)
+        _sparse_reward(train)
+        train['total_timesteps'] = int(10e6)
+        train['batch_size'] = 16384
+        train['learning_rate'] = 3e-4
+        train['rl_args'] = {
+            'ent_coef': 0.0,
+            'nminibatches': 4,
+            'noptepochs': 4,
+        }
+        spec = {
+            'config': {
+                'env_name': tune.grid_search([
+                    'multicomp/KickAndDefend-v0',
+                    'multicomp/SumoHumans-v0',
+                    'multicomp/SumoAnts-v0',
+                ]),
+                'seed': tune.grid_search([0, 1, 2]),
+            }
+        }
+        exp_name = 'best_longrun'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
     def single_agent_baseline(train):
         """Baseline applying our method to standard single-agent Gym MuJoCo environments.
 
@@ -76,9 +128,12 @@ def make_configs(multi_train_ex):
         train['victim_type'] = 'none'
         train['total_timesteps'] = int(5e6)
         train['batch_size'] = 2048
+        train['rew_shape'] = False
         spec = {
-            'env_name': tune.grid_search(['Reacher-v1', 'Hopper-v1', 'Ant-v1', 'Humanoid-v1']),
-            'seed': tune.grid_search([0, 1, 2]),
+            'config': {
+                'env_name': tune.grid_search(['Reacher-v1', 'Hopper-v1', 'Ant-v1', 'Humanoid-v1']),
+                'seed': tune.grid_search([0, 1, 2]),
+            },
         }
         exp_name = 'single_agent_baseline'
         _ = locals()   # quieten flake8 unused variable warning
@@ -95,12 +150,14 @@ def make_configs(multi_train_ex):
         train['batch_size'] = 2048
         train['rl_args'] = {'ent_coef': 0.00}
         spec = {
-            'env_name': tune.grid_search(
-                ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
-            ),
-            'seed': tune.grid_search([0, 1, 2]),
-            'victim_path': tune.grid_search(['1', '2', '3']),
-            'normalize': tune.grid_search([True, False]),
+            'config': {
+                'env_name': tune.grid_search(
+                    ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
+                ),
+                'seed': tune.grid_search([0, 1, 2]),
+                'victim_path': tune.grid_search(['1', '2', '3']),
+                'normalize': tune.grid_search([True, False]),
+            },
         }
         exp_name = 'vec_normalize'
         _ = locals()   # quieten flake8 unused variable warning
@@ -116,13 +173,15 @@ def make_configs(multi_train_ex):
         train['learning_rate'] = 2.5e-4
         train['rl_args'] = {'ent_coef': 0.0}
         spec = {
-            'env_name': tune.grid_search(
-                ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
-            ),
-            'victim_path': tune.grid_search(['1', '2', '3']),
-            'seed': tune.grid_search([0, 1, 2]),
-            'rew_shape_params': {
-                'anneal_frac': tune.grid_search([0.0, 0.1]),
+            'config': {
+                'env_name': tune.grid_search(
+                    ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
+                ),
+                'victim_path': tune.grid_search(['1', '2', '3']),
+                'seed': tune.grid_search([0, 1, 2]),
+                'rew_shape_params': {
+                    'anneal_frac': tune.grid_search([0.0, 0.1]),
+                },
             },
         }
         exp_name = 'dec2018rep'

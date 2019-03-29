@@ -6,7 +6,7 @@ target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:adam-ray
+  image: humancompatibleai/adversarial_policies:latest
   container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
@@ -29,7 +29,7 @@ auth:
   ssh_private_key: ~/.ssh/adversarial-policies
 
 head_node:
-  InstanceType: c5.18xlarge
+  InstanceType: c5.2xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
@@ -69,7 +69,8 @@ head_start_ray_commands:
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
-    ray start --head --redis-port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml
+    ray start --head --redis-port=6379 --object-manager-port=8076 \
+              --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=1
 
 # Command to start ray on worker nodes. You don't need to change this.
 worker_start_ray_commands:

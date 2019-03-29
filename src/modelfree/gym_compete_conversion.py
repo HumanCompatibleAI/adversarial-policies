@@ -136,6 +136,9 @@ def load_zoo_agent(tag, env, env_name, index):
 
     with g.as_default():
         with sess.as_default():
+            # Load parameters (do this first so fail-fast if tag does not exist)
+            params = load_zoo_agent_params(tag, env_name, index)
+
             # Build policy
             scope = f"zoo_policy_{tag}_{index}"
             kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
@@ -145,8 +148,7 @@ def load_zoo_agent(tag, env, env_name, index):
             kwargs.update(policy_kwargs)
             policy = policy_cls(**kwargs)
 
-            # Restore parameters
-            params = load_zoo_agent_params(tag, env_name, index)
+            # Now restore params
             policy.restore(params)
 
             return PolicyToModel(policy)
