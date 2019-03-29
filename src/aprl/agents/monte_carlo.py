@@ -7,6 +7,7 @@ import gym
 from stable_baselines.common.vec_env import CloudpickleWrapper
 
 from aprl.common.mujoco import MujocoState
+from aprl.envs.multi_agent import MultiWrapper
 
 
 class ResettableEnv(gym.Env):
@@ -21,6 +22,38 @@ class ResettableEnv(gym.Env):
         """Restores the environment to a previously saved state.
         :param x: return value of a previous call to get_state()."""
         pass
+
+
+class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
+    """Converts a MujocoEnv into a ResettableEnv.
+
+    Note all MuJoCo environments are resettable."""
+    def __init__(self, env):
+        """Wraps a MujocoEnv, adding get_state and set_state methods.
+        :param env: a MujocoEnv. NOTE: it must not be wrapped in a TimeLimit."""
+        if hasattr(env, '_max_episode_steps'):
+            raise TypeError('Environment must not have a time limit '
+                            '(try passing in env.unwrapped instead).')
+        gym.Wrapper.__init__(self, env)
+        self.sim = env.unwrapped.env_scene
+
+    def get_state(self):
+        """Serializes the qpos and qvel state of the MuJoCo emulator."""
+        return MujocoState.from_mjdata(self.sim.data).flatten()
+
+    def set_state(self, x):
+        """Restores qpos and qvel, calling forward() to derive other values."""
+        state = MujocoState.from_flattened(x, self.sim)
+        state.set_mjdata(self.sim.data, old_mujoco=True)
+        self.sim.model.forward()  # put mjData in consistent state
+
+    def reset(self):
+        """See base class."""
+        return self.env.reset()
+
+    def step(self, a):
+        """See base class."""
+        return self.env.step(a)
 
 
 class MujocoResettableWrapper(ResettableEnv, gym.Wrapper):

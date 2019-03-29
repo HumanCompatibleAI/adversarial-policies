@@ -3,6 +3,7 @@ import time
 import numpy as np
 from stable_baselines.bench import Monitor
 
+from aprl.agents.monte_carlo import ResettableEnv
 from aprl.utils import getattr_unwrapped
 
 
@@ -48,3 +49,13 @@ class MultiMonitor(Monitor):
             info['episode'] = ep_info
         self.total_steps += 1
         return observation, reward, done, info
+
+    def get_state(self):
+        """Pass through to a ResettableEnv"""
+        assert isinstance(self.env, ResettableEnv)
+        return self.env.get_state()
+
+    def set_state(self, x):
+        """Pass through to a ResettableEnv"""
+        assert isinstance(self.env, ResettableEnv)
+        return self.env.set_state(x)

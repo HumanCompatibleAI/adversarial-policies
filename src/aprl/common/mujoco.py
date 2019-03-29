@@ -18,9 +18,13 @@ class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
         qvel = flattened[sim.model.nq:sim.model.nq + sim.model.nv]
         return MujocoState(qpos, qvel)
 
-    def set_mjdata(self, data):
-        data.qpos[:] = self.qpos
-        data.qvel[:] = self.qvel
+    def set_mjdata(self, data, old_mujoco=False):
+        if old_mujoco:
+            data.qpos = self.qpos
+            data.qvel = self.qvel
+        else:
+            data.qpos[:] = self.qpos
+            data.qvel[:] = self.qvel
 
     def flatten(self):
         return np.concatenate((self. qpos, self.qvel))
