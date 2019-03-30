@@ -1,5 +1,6 @@
 """Uses PPO to train an attack policy against a fixed victim policy."""
 
+import functools
 import json
 import logging
 import os
@@ -252,7 +253,7 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debu
         make_vec_env = make_subproc_vec_multi_env
     else:
         make_vec_env = make_dummy_vec_multi_env
-    multi_venv = make_vec_env([lambda: env_fn(i) for i in range(num_env)])
+    multi_venv = make_vec_env([functools.partial(env_fn, i) for i in range(num_env)])
 
     if victim_type == 'none':
         assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"

@@ -1,5 +1,6 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
+import functools
 import os.path as osp
 
 from sacred import Experiment
@@ -71,7 +72,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         if videos:
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
-    env_fns = [lambda: env_fn(i) for i in range(num_env)]
+    env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
     if num_env > 1:
         venv = make_subproc_vec_multi_env(env_fns)
     else:
