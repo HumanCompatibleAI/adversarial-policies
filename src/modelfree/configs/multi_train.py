@@ -6,6 +6,8 @@ import itertools
 import numpy as np
 from ray import tune
 
+from modelfree import gym_compete_conversion
+
 TARGET_VICTIMS = {
     'multicomp/KickAndDefend-v0': 2,
 }
@@ -20,6 +22,7 @@ NUM_VICTIMS = collections.OrderedDict([
 ])
 
 BANSAL_ENVS = list(NUM_VICTIMS.keys())
+LSTM_ENVS = [env for env in BANSAL_ENVS if gym_compete_conversion.is_stateful(env)]
 
 
 def _env_victim(envs=None):
@@ -264,5 +267,31 @@ def make_configs(multi_train_ex):
             },
         }
         exp_name = 'finetune_best_guess'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def lstm_policies(train):
+        """Do LSTM policies work? This is likely to require some hyperparameter tuning;
+           just my best guess."""
+        train = dict(train)
+        _sparse_reward(train)
+        train['total_timesteps'] = int(10e6)
+        train['learning_rate'] = 1e-4
+        train['num_env'] = 16
+        train['batch_size'] = train['num_env'] * 128
+        train['rl_args'] = {
+            'ent_coef': 0.0,
+            'nminibatches': 4,
+            'noptepochs': 4,
+        }
+        spec = {
+            'config': {
+                'env_name': tune.grid_search(LSTM_ENVS),
+                'policy': tune.grid_search(['MlpLstmPolicy', 'BansalLstmPolicy']),
+                'seed': tune.grid_search([0, 1, 2]),
+            },
+        }
+        exp_name = 'lstm_policies'
         _ = locals()  # quieten flake8 unused variable warning
         del _

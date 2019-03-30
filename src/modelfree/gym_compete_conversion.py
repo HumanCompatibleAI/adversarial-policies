@@ -13,6 +13,15 @@ from modelfree.utils import PolicyToModel, make_session
 
 pylog = logging.getLogger('modelfree.gym_compete_conversion')
 
+POLICY_STATEFUL = {
+    'KickAndDefend-v0': True,
+    'RunToGoalHumans-v0': False,
+    'RunToGoalAnts-v0': False,
+    'YouShallNotPassHumans-v0': False,
+    'SumoHumans-v0': True,
+    'SumoAnts-v0': True,
+}
+
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
     """This adapts gym_compete.MultiAgentEnv to our eponymous MultiAgentEnv.
@@ -80,6 +89,10 @@ def _env_name_to_canonical(env_name):
     return env_suffix
 
 
+def is_stateful(env_name):
+    return POLICY_STATEFUL[_env_name_to_canonical(env_name)]
+
+
 def get_policy_type_for_zoo_agent(env_name):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
@@ -87,18 +100,10 @@ def get_policy_type_for_zoo_agent(env_name):
     canonical_env = _env_name_to_canonical(env_name)
     lstm = (LSTMPolicy, {'normalize': True})
     mlp = (MlpPolicyValue, {'normalize': True})
-    policy_types = {
-        'KickAndDefend-v0': lstm,
-        'RunToGoalHumans-v0': mlp,
-        'RunToGoalAnts-v0': mlp,
-        'YouShallNotPassHumans-v0': mlp,
-        'SumoHumans-v0': lstm,
-        'SumoAnts-v0': lstm,
-    }
-    if canonical_env in policy_types:
-        return policy_types[canonical_env]
+    if canonical_env in POLICY_STATEFUL:
+        return lstm if POLICY_STATEFUL[canonical_env] else mlp
     else:
-        msg = f"Unsupported Environment: {canonical_env}, choose from {policy_types.keys()}"
+        msg = f"Unsupported Environment: {canonical_env}, choose from {POLICY_STATEFUL.keys()}"
         raise ValueError(msg)
 
 
