@@ -15,3 +15,22 @@ register(
             'max_radius': 3.5
             },
 )
+
+register(
+    id='multicomp/SumoAntsAutoContact-v0',
+    entry_point='gym_compete.new_envs:SumoEnv',
+    kwargs={'agent_names': ['ant_fighter', 'ant_fighter'],
+            'scene_xml_path': resource_filename(
+                'gym_compete',
+                'new_envs/assets/world_body_arena.ant_body.ant_body.xml'
+            ),
+            'world_xml_path': resource_filename(
+                'gym_compete',
+                'new_envs/assets/world_body_arena.xml'
+            ),
+            'init_pos': [(-1, 0, 2.5), (1, 0, 2.5)],
+            'max_episode_steps': 500,
+            'min_radius': 2.5,
+            'max_radius': 4.5
+            },
+)

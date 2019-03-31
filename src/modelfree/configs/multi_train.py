@@ -8,33 +8,62 @@ from ray import tune
 
 from modelfree import gym_compete_conversion
 
-TARGET_VICTIMS = {
-    'multicomp/KickAndDefend-v0': 2,
-}
-
-NUM_VICTIMS = collections.OrderedDict([
-    ('multicomp/RunToGoalAnts-v0', 1),
-    ('multicomp/RunToGoalHumans-v0', 1),
-    ('multicomp/YouShallNotPassHumans-v0', 1),
-    ('multicomp/SumoHumans-v0', 3),
-    ('multicomp/SumoAnts-v0', 4),
-    ('multicomp/KickAndDefend-v0', 3),
-])
-
-BANSAL_ENVS = list(NUM_VICTIMS.keys())
+BANSAL_ENVS = ['multicomp/' + env for env in gym_compete_conversion.POLICY_STATEFUL.keys()]
+BANSAL_ENVS += ['multicomp/SumoHumansAutoContact-v0', 'multicomp/SumoAntsAutoContact-v0']
+BANSAL_GOOD_ENVS = [  # Environments well-suited to adversarial attacks
+    'multicomp/KickAndDefend-v0',
+    'multicomp/SumoHumansAutoContact-v0',
+    'multicomp/SumoAntsAutoContact-v0',
+    'multicomp/YouShallNotPassHumans-v0',
+]
 LSTM_ENVS = [env for env in BANSAL_ENVS if gym_compete_conversion.is_stateful(env)]
+
+TARGET_VICTIM = collections.defaultdict(lambda: 1)
+TARGET_VICTIM['multicomp/KickAndDefend-v0'] = 2
+
+VICTIM_INDEX = collections.defaultdict(lambda: 0)
+VICTIM_INDEX.update({
+    # YouShallNotPass: 1 is the walker, 0 is the blocker agent.
+    # An adversarial walker makes little sense, but a blocker can be adversarial.
+    'multicomp/YouShallNotPassHumans-v0': 1,
+})
 
 
 def _env_victim(envs=None):
     if envs is None:
-        envs = BANSAL_ENVS
-    env_and_victims = [[(env, i + 1) for i in range(NUM_VICTIMS[env])] for env in envs]
+        envs = BANSAL_GOOD_ENVS
+    env_and_victims = [[(env, i + 1) for i in range(gym_compete_conversion.num_zoo_policies(env))]
+                       for env in envs]
     return list(itertools.chain(*env_and_victims))
 
 
 def _sparse_reward(train):
     train['rew_shape'] = True
     train['rew_shape_params'] = {'anneal_frac': 0}
+
+
+def _best_guess_train(train):
+    train['total_timesteps'] = int(10e6)
+    train['batch_size'] = 16384
+    train['learning_rate'] = 3e-4
+    train['rl_args'] = {
+        'ent_coef': 0.0,
+        'nminibatches': 4,
+        'noptepochs': 4,
+    }
+
+
+def _best_guess_spec(envs=None):
+    spec = {
+        'config': {
+            'env_name:victim_path': tune.grid_search(_env_victim(envs)),
+            'victim_index': tune.sample_from(
+                lambda spec: VICTIM_INDEX[spec.config['env_name:victim_path'][0]]
+            ),
+            'seed': tune.grid_search([0, 1, 2]),
+        },
+    }
+    return spec
 
 
 def _finetune(train):
@@ -60,7 +89,7 @@ def make_configs(multi_train_ex):
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
                 ),
                 'victim_path': tune.sample_from(
-                    lambda spec: TARGET_VICTIMS.get(spec.config.env_name, 1)
+                    lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
                 'seed': tune.sample_from(
                     lambda spec: np.random.randint(1000)
@@ -103,21 +132,45 @@ def make_configs(multi_train_ex):
         """Train with promising hyperparameters for 10 million timesteps."""
         train = dict(train)
         _sparse_reward(train)
-        train['total_timesteps'] = int(10e6)
-        train['batch_size'] = 16384
-        train['learning_rate'] = 3e-4
-        train['rl_args'] = {
-            'ent_coef': 0.0,
-            'nminibatches': 4,
-            'noptepochs': 4,
-        }
+        _best_guess_train(train)
+        spec = _best_guess_spec()
+        exp_name = 'best_guess'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def dense_env_reward(train):
+        """Train with the dense reward defined by the environment."""
+        train = dict(train)
+        _best_guess_train(train)
+        train['rew_shape'] = True
+        train['rew_shape_params'] = {'anneal_frac': 0.25}
+        spec = _best_guess_spec()
+        exp_name = 'dense_env_reward'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def dense_env_reward_anneal_search(train):
+        """Search for the best annealing fraction in SumoHumans."""
+        train = dict(train)
+        _best_guess_train(train)
+        train['rew_shape'] = True
+        train['env_name'] = 'multicomp/SumoHumansAutoContact-v0'
         spec = {
             'config': {
-                'env_name:victim_path': tune.grid_search(_env_victim()),
-                'seed': tune.grid_search([0, 1, 2]),
+                'rew_shape_params': {
+                    'anneal_frac': tune.sample_from(
+                        lambda spec: np.random.rand()
+                    ),
+                },
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
             },
+            'num_samples': 20,
         }
-        exp_name = 'best_guess'
+        exp_name = 'dense_env_reward_anneal_search'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -231,7 +284,7 @@ def make_configs(multi_train_ex):
                     'multicomp/SumoHumans-v0',  # should be able to get to 50% in this
                 ]),
                 'victim_path': tune.sample_from(
-                    lambda spec: TARGET_VICTIMS.get(spec.config.env_name, 1)
+                    lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
                 'policy': tune.grid_search(['BansalMlpPolicy', 'BansalLstmPolicy']),
                 'seed': tune.grid_search([0, 1, 2]),
@@ -263,7 +316,10 @@ def make_configs(multi_train_ex):
                 'seed': tune.grid_search([0, 1, 2]),
                 'load_policy': {
                     'path': tune.sample_from(lambda spec: spec.config['env_name:victim_path'][1]),
-                }
+                },
+                'victim_index': tune.sample_from(
+                    lambda spec: VICTIM_INDEX[spec.config['env_name:victim_path'][0]]
+                ),
             },
         }
         exp_name = 'finetune_best_guess'

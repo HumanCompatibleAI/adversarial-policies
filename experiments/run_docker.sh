@@ -61,6 +61,6 @@ docker run \
        -it \
        --env MUJOCO_KEY=${MUJOCO_KEY} \
        --name ${NAME} \
-       --mount type=bind,source="$(pwd)"/data,target=/adversarial_policies/data \
+       --mount type=bind,source="$(pwd)"/data,target=/adversarial-policies/data \
        ${DOCKER_REPO}:${TAG} \
        bash -c "env=${VENV} . ci/prepare_env.sh && ${CMD}"

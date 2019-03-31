@@ -212,10 +212,7 @@ def train_config():
     del _
 
 
-DEFAULT_CONFIGS = {
-    'multicomp/SumoHumans-v0': 'SumoHumans.json',
-    'multicomp/SumoHumansAutoContact-v0': 'SumoHumans.json'
-}
+DEFAULT_CONFIGS = {}
 
 
 def load_default(env_name, config_dir):

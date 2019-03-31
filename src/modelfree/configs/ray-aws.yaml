@@ -65,7 +65,10 @@ head_start_ray_commands:
   # Then (re)start Ray.
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
+    git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    pip install . &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
@@ -79,7 +82,10 @@ worker_start_ray_commands:
   # Then (re)start Ray.
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
+    git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    pip install . &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&

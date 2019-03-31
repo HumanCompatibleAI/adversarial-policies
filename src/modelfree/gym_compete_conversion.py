@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, OrderedDict, defaultdict
 import logging
 import os
 import pickle
@@ -13,14 +13,21 @@ from modelfree.utils import PolicyToModel, make_session
 
 pylog = logging.getLogger('modelfree.gym_compete_conversion')
 
-POLICY_STATEFUL = {
-    'KickAndDefend-v0': True,
-    'RunToGoalHumans-v0': False,
-    'RunToGoalAnts-v0': False,
-    'YouShallNotPassHumans-v0': False,
-    'SumoHumans-v0': True,
-    'SumoAnts-v0': True,
-}
+POLICY_STATEFUL = OrderedDict([
+    ('KickAndDefend-v0', True),
+    ('RunToGoalAnts-v0', False),
+    ('RunToGoalHumans-v0', False),
+    ('SumoAnts-v0', True),
+    ('SumoHumans-v0', True),
+    ('YouShallNotPassHumans-v0', False),
+])
+
+NUM_ZOO_POLICIES = defaultdict(lambda: 1)
+NUM_ZOO_POLICIES.update({
+    'SumoHumans-v0': 3,
+    'SumoAnts-v0': 4,
+    'KickAndDefend-v0': 3,
+})
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -78,9 +85,10 @@ class GameOutcomeMonitor(VecMultiWrapper):
         self.outcomes = []
 
 
-def _env_name_to_canonical(env_name):
+def env_name_to_canonical(env_name):
     env_aliases = {
-        'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0'
+        'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0',
+        'multicomp/SumoAntsAutoContact-v0': 'multicomp/SumoAnts-v0',
     }
     env_name = env_aliases.get(env_name, env_name)
     env_prefix, env_suffix = env_name.split('/')
@@ -90,14 +98,18 @@ def _env_name_to_canonical(env_name):
 
 
 def is_stateful(env_name):
-    return POLICY_STATEFUL[_env_name_to_canonical(env_name)]
+    return POLICY_STATEFUL[env_name_to_canonical(env_name)]
+
+
+def num_zoo_policies(env_name):
+    return NUM_ZOO_POLICIES[env_name_to_canonical(env_name)]
 
 
 def get_policy_type_for_zoo_agent(env_name):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
-    canonical_env = _env_name_to_canonical(env_name)
+    canonical_env = env_name_to_canonical(env_name)
     lstm = (LSTMPolicy, {'normalize': True})
     mlp = (MlpPolicyValue, {'normalize': True})
     if canonical_env in POLICY_STATEFUL:
@@ -114,7 +126,7 @@ def load_zoo_agent_params(tag, env_name, index):
     :param index: (int) the player ID of the agent we want to load ('0' or '1')
     :return a NumPy array of policy weights."""
     # Load parameters
-    canonical_env = _env_name_to_canonical(env_name)
+    canonical_env = env_name_to_canonical(env_name)
     dir = os.path.join('agent_zoo', canonical_env)
     asymmetric_fname = f'agent{index + 1}_parameters-v{tag}.pkl'
     symmetric_fname = f'agent_parameters-v{tag}.pkl'
