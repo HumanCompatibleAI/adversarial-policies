@@ -267,7 +267,7 @@ def load_default(env_name, config_dir):
 
 @train_ex.config
 def wrappers_config(env_name):
-    rew_shape = True  # enable reward shaping
+    rew_shape = False  # enable reward shaping
     rew_shape_params = load_default(env_name, 'rew')  # parameters for reward shaping
 
     victim_noise = False  # enable adding noise to victim

@@ -59,7 +59,7 @@ class PolicyToModel(DummyModel):
         """
         super().__init__(policy=policy, sess=policy.sess)
 
-    def predict(self, observation, state=None, mask=None, deterministic=False):
+    def predict(self, observation, state=None, mask=None, deterministic=True):
         if state is None:
             state = self.policy.initial_state
         if mask is None:

@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
+from stable_baselines.common.base_class import ActorCriticRLModel
 
 
 class LookbackRewardVecWrapper(VecEnvWrapper):
@@ -59,9 +60,15 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 # align this env with self.venv since self.venv was reset
                 self._reset_state_data(observations, env_idx)
             valid_baseline_dicts = self.base_data[:self.ep_lens[env_idx]]
-            for base_dict in valid_baseline_dicts:
+            env_diff_reward = 0
+            for i, base_dict in enumerate(valid_baseline_dicts):
                 diff_reward = rewards[env_idx] - base_dict['reward'][env_idx]
-                rewards[env_idx] += diff_reward
+                print('diff:', "{:8.4f}".format(diff_reward),
+                      'base:', "{:8.4f}".format(base_dict['reward'][env_idx]),
+                      'rew:', "{:8.4f}".format(rewards[env_idx]),
+                      'idx', i)
+                env_diff_reward += diff_reward
+            rewards[env_idx] += env_diff_reward
         return observations, rewards, self._dones, infos
 
     def reset(self):
@@ -72,7 +79,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def _process_own_obs(self, observations):
         """Record action, state and observations of our policy"""
-        self._obs = observations[:, :self._policy.policy.ob_space.shape[0]]
+        self._obs = self._get_truncated_obs(observations)
         self._action, self._state = self._policy.predict(self._obs, state=self._state,
                                                          mask=self._dones)
 
@@ -81,7 +88,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         :param base_data: list of (observations, rewards, dones, infos), one for each base_venv
         """
         for idx, (base_obs, base_reward, _, base_info) in enumerate(base_data):
-            base_obs = base_obs[:, :self._policy.policy.ob_space.shape[0]]
+            base_obs = self._get_truncated_obs(base_obs)
             base_action, base_state = self._policy.predict(base_obs, state=self.base_data[idx]['state'],
                                                            mask=self._dones)
             self.base_data[idx]['action'] = base_action
@@ -92,7 +99,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def _reset_state_data(self, initial_observations, env_idx=None):
         """Reset base_venv states when self.venv resets. Also reset data for baseline policy."""
-        truncated_obs = initial_observations[:, :self._policy.policy.ob_space.shape[0]]
+        truncated_obs = self._get_truncated_obs(initial_observations)
         action, state = self._policy.predict(truncated_obs, state=None, mask=None)
         initial_env_states = self.venv.unwrapped.env_method('get_state', env_idx)
         for base_dict, base_venv in list(zip(self.base_data, self.base_venvs)):
@@ -106,9 +113,21 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             else:
                 # this gets called when an episode ends in one of the environments
                 base_dict['action'][env_idx] = action[env_idx]
-                base_dict['state'][:, env_idx, :] = state[:, env_idx, :]
+                if state is None:
+                    base_dict['state'] = None
+                else:
+                    base_dict['state'][:, env_idx, :] = state[:, env_idx, :]
                 base_dict['reward'][env_idx] = 0
                 base_dict['info'][env_idx] = {}
             envs_iter = range(self.num_envs) if env_idx is None else (0,)
             for env_to_set in envs_iter:
                 base_venv.unwrapped.env_method('set_state', env_to_set, initial_env_states[env_to_set])
+
+    def _get_truncated_obs(self, obs):
+        """Truncate the observation given to self._policy if we are using adversarial noise ball"""
+        if isinstance(self._policy.policy, ActorCriticRLModel):
+            # stable_baselines policy
+            return obs[:, :self._policy.policy.observation_space.shape[0]]
+        else:
+            # gym_compete policy
+            return obs[:, :self._policy.policy.ob_space.shape[0]]
