@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import numpy as np
-
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 
@@ -22,7 +21,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self._dones = [False] * self.num_envs
         self.ep_lens = np.zeros(self.num_envs).astype(int)
 
-        state_dict = {'state': None, 'action': None, 'reward': 0, 'info': defaultdict(dict)}
+        state_dict = {'state': None, 'action': None, 'reward': np.zeros(self.num_envs), 'info': defaultdict(dict)}
         self.base_data = [state_dict.copy() for _ in range(self.lookback_num)]
 
     def step_async(self, actions):
@@ -73,7 +72,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def _process_own_obs(self, observations):
         """Record action, state and observations of our policy"""
-        self._obs = observations
+        self._obs = observations[:, :self._policy.policy.ob_space.shape[0]]
         self._action, self._state = self._policy.predict(self._obs, state=self._state,
                                                          mask=self._dones)
 
@@ -82,6 +81,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         :param base_data: list of (observations, rewards, dones, infos), one for each base_venv
         """
         for idx, (base_obs, base_reward, _, base_info) in enumerate(base_data):
+            base_obs = base_obs[:, :self._policy.policy.ob_space.shape[0]]
             base_action, base_state = self._policy.predict(base_obs, state=self.base_data[idx]['state'],
                                                            mask=self._dones)
             self.base_data[idx]['action'] = base_action
@@ -92,7 +92,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def _reset_state_data(self, initial_observations, env_idx=None):
         """Reset base_venv states when self.venv resets. Also reset data for baseline policy."""
-        action, state = self._policy.predict(initial_observations, state=None, mask=None)
+        truncated_obs = initial_observations[:, :self._policy.policy.ob_space.shape[0]]
+        action, state = self._policy.predict(truncated_obs, state=None, mask=None)
         initial_env_states = self.venv.unwrapped.env_method('get_state', env_idx)
         for base_dict, base_venv in list(zip(self.base_data, self.base_venvs)):
             if env_idx is None:

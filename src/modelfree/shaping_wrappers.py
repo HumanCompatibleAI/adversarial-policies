@@ -5,7 +5,6 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 from modelfree.scheduling import ConditionalAnnealer, ConstantAnnealer, LinearAnnealer
-from modelfree.transparent import TransparentPolicy, TRANSPARENCY_KEYS
 from modelfree.utils import DummyModel
 
 REW_TYPES = set(('sparse', 'dense'))

@@ -16,6 +16,7 @@ from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti
 from modelfree.transparent import TransparentPolicy
 
+
 class DummyModel(BaseRLModel):
     """Abstract class for policies pretending to be RL algorithms (models).
 

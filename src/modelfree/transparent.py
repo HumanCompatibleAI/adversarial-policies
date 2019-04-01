@@ -2,9 +2,8 @@ from abc import ABC, abstractmethod
 
 from gym_compete.policy import LSTMPolicy
 import numpy as np
-import tensorflow as tf
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
-
+import tensorflow as tf
 
 TRANSPARENCY_KEYS = ('obs', 'fc', 'hid')
 
