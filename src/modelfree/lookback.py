@@ -86,7 +86,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                                                            mask=self._dones)
             self.base_data[idx]['action'] = base_action
             self.base_data[idx]['state'] = base_state
-            self.base_data[idx]['reward'] += base_reward
+            self.base_data[idx]['reward'] = base_reward
             for env_idx in range(self.num_envs):
                 self.base_data[idx]['info'][env_idx].update(base_info[env_idx])
 
