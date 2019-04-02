@@ -51,12 +51,28 @@ def _best_guess_spec(envs=None):
     return spec
 
 
-def _finetune(train):
+def _finetune_train(train):
     train['load_policy'] = {
         'path': '1',
         'type': 'zoo',
     }
     train['normalize'] = False
+
+
+def _finetune_spec(envs=None):
+    spec = {
+        'config': {
+            'env_name:victim_path': tune.grid_search(_env_victim(envs)),
+            'seed': tune.grid_search([0, 1, 2]),
+            'load_policy': {
+                'path': tune.sample_from(lambda spec: spec.config['env_name:victim_path'][1]),
+            },
+            'victim_index': tune.sample_from(
+                lambda spec: VICTIM_INDEX[spec.config['env_name:victim_path'][0]]
+            ),
+        },
+    }
+    return spec
 
 
 def make_configs(multi_train_ex):
@@ -128,9 +144,11 @@ def make_configs(multi_train_ex):
         """Train with the dense reward defined by the environment."""
         train = dict(train)
         _best_guess_train(train)
+        train['total_timesteps'] = int(40e6)
         train['rew_shape'] = True
         train['rew_shape_params'] = {'anneal_frac': 0.25}
-        spec = _best_guess_spec()
+        spec = _best_guess_spec(envs=['multicomp/SumoHumansAutoContact-v0',
+                                      'multicomp/YouShallNotPassHumans-v0'])
         exp_name = 'dense_env_reward'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -140,8 +158,10 @@ def make_configs(multi_train_ex):
         """Search for the best annealing fraction in SumoHumans."""
         train = dict(train)
         _best_guess_train(train)
+        train['total_timesteps'] = int(40e6)
         train['rew_shape'] = True
         train['env_name'] = 'multicomp/SumoHumansAutoContact-v0'
+        train['victim_path'] = 3  # median difficulty victim (1 is easy, 2 is hard)
         spec = {
             'config': {
                 'rew_shape_params': {
@@ -153,9 +173,29 @@ def make_configs(multi_train_ex):
                     lambda spec: np.random.randint(1000)
                 ),
             },
-            'num_samples': 20,
+            'num_samples': 10,
         }
         exp_name = 'dense_env_reward_anneal_search'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def kick_and_defend_sparse_vs_dense(train):
+        """Does dense reward help KickAndDefend, even though the final policy never stands up?"""
+        train = dict(train)
+        _best_guess_train(train)
+        train['rew_shape'] = True
+        train['env_name'] = 'multicomp/KickAndDefend-v0'
+        spec = {
+            'config': {
+                'rew_shape_params': {
+                    'anneal_frac': tune.grid_search([0.0, 0.25]),
+                },
+                'victim_path': tune.grid_search(['1', '2', '3']),
+                'seed': tune.grid_search([10, 20, 30, 40, 50]),
+            },
+        }
+        exp_name = 'kick_and_defend_sparse_vs_dense'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -234,7 +274,7 @@ def make_configs(multi_train_ex):
         """Sanity check finetuning: with a learning rate of 0.0, do we get performance the
            same as that given by `score_agent`? Tests the training-specific loading pipeline."""
         train = dict(train)
-        _finetune(train)
+        _finetune_train(train)
         train['total_timesteps'] = int(1e6)
         train['learning_rate'] = 0.0
         spec = {
@@ -286,28 +326,25 @@ def make_configs(multi_train_ex):
         the same policy.)"""
         train = dict(train)
         _sparse_reward(train)
-        _finetune(train)
-        train['total_timesteps'] = int(10e6)
-        train['batch_size'] = 16384
-        train['learning_rate'] = 3e-4
-        train['rl_args'] = {
-            'ent_coef': 0.0,
-            'nminibatches': 4,
-            'noptepochs': 4,
-        }
-        spec = {
-            'config': {
-                'env_name:victim_path': tune.grid_search(_env_victim()),
-                'seed': tune.grid_search([0, 1, 2]),
-                'load_policy': {
-                    'path': tune.sample_from(lambda spec: spec.config['env_name:victim_path'][1]),
-                },
-                'victim_index': tune.sample_from(
-                    lambda spec: VICTIM_INDEX[spec.config['env_name:victim_path'][0]]
-                ),
-            },
-        }
+        _finetune_train(train)
+        _best_guess_train(train)
+        spec = _finetune_spec()
         exp_name = 'finetune_best_guess'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def finetune_gentle(train):
+        """Finetuning gym_compete policies with lower learning rate / larger batch size.
+        This more closely emulates the environment they were trained with."""
+        train = dict(train)
+        _sparse_reward(train)
+        _finetune_train(train)
+        _best_guess_train(train)
+        train['batch_size'] = 32768
+        train['learning_rate'] = 1e-4
+        spec = _finetune_spec()
+        exp_name = 'finetune_gentle'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
