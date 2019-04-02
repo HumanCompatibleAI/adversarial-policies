@@ -25,7 +25,6 @@ make_configs(multi_train_ex)
 @multi_train_ex.config
 def default_config(train):
     spec = {  # experiment specification
-        'run': 'train_rl',
         'resources_per_trial': {'cpu': train['num_env'] // 2},
     }
 

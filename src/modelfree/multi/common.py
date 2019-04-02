@@ -6,6 +6,8 @@ depending on if running on EC2 or baremetal.
 
 import functools
 import getpass
+import hashlib
+import json
 import os
 import os.path as osp
 import shlex
@@ -112,9 +114,26 @@ def make_sacred(ex, worker_name, worker_fn):
     @ex.capture
     def run(base_config, ray_server, exp_name, spec):
         ray.init(redis_address=ray_server)
-        tune.register_trainable(worker_name, functools.partial(worker_fn, base_config))
+
+        # We have to register the function we're going to call with Ray.
+        # We partially apply worker_fn, so it's different for each experiment.
+        # Compute a hash based on the config to make sure it has a unique name!
+        # (Could probably do this with a RNG too, but I want to avoid that as we often set
+        # seeds to ensure reproducibility...)
+        cfg = {'base_config': base_config, 'exp_name': exp_name}
+        cfg_str = json.dumps(cfg)
+        hasher = hashlib.md5()  # we are not worried about security here
+        hasher.update(cfg_str.encode('utf8'))
+        cfg_hash = hasher.hexdigest()
+
+        trainable_name = f'{worker_name}-{cfg_hash}'
+        trainable_fn = functools.partial(worker_fn, base_config)
+        tune.register_trainable(trainable_name, trainable_fn)
+
         exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}'
+        spec['run'] = trainable_name
         result = tune.run_experiments({exp_id: spec})
+
         ray.shutdown()  # run automatically on exit, but needed here to not break tests
         return result
 

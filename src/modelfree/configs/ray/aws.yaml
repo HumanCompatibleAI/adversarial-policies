@@ -61,7 +61,6 @@ worker_setup_commands: []
 
 head_start_ray_commands:
   # Set up alarm for if node is left running by mistake
-  # Pretend to be ubuntu user to workaround Ray bug #4403.
   # Then (re)start Ray.
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
@@ -78,7 +77,6 @@ head_start_ray_commands:
 # Command to start ray on worker nodes. You don't need to change this.
 worker_start_ray_commands:
   # (Re)start spot termination monitor.
-  # Pretend to be ubuntu user to workaround Ray bug #4403.
   # Then (re)start Ray.
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&

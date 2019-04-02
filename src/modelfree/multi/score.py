@@ -26,8 +26,6 @@ make_configs(multi_score_ex)
 @multi_score_ex.config
 def default_config(score):
     spec = {  # experiment specification
-        'run': 'score',
-        # TODO: tune number of actual CPUs required
         'resources_per_trial': {'cpu': score['num_env'] // 2},
     }
 
