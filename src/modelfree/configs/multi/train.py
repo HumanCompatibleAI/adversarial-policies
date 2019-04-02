@@ -9,7 +9,9 @@ from ray import tune
 from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, VICTIM_INDEX
 from modelfree.envs import gym_compete
 
+MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
 LSTM_ENVS = [env for env in BANSAL_ENVS if gym_compete.is_stateful(env)]
+
 TARGET_VICTIM = collections.defaultdict(lambda: 1)
 TARGET_VICTIM['multicomp/KickAndDefend-v0'] = 2
 
@@ -334,17 +336,33 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
-    def finetune_gentle(train):
-        """Finetuning gym_compete policies with lower learning rate / larger batch size.
-        This more closely emulates the environment they were trained with."""
+    def finetune_gentle_mlp(train):
+        """Finetuning gym_compete MLP policies with lower learning rate / larger batch size.
+        This more closely emulates the hyperparameters they were originally trained with."""
         train = dict(train)
         _sparse_reward(train)
         _finetune_train(train)
         _best_guess_train(train)
         train['batch_size'] = 32768
         train['learning_rate'] = 1e-4
-        spec = _finetune_spec()
-        exp_name = 'finetune_gentle'
+        spec = _finetune_spec(envs=MLP_ENVS)
+        exp_name = 'finetune_gentle_mlp'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def finetune_gentle_lstm(train):
+        """Finetuning gym_compete LSTM policies with lower learning rate / larger batch size.
+        This more closely emulates the hyperparameters they were originally trained with."""
+        train = dict(train)
+        _sparse_reward(train)
+        _finetune_train(train)
+        _best_guess_train(train)
+        train['num_env'] = 16
+        train['batch_size'] = train['num_env'] * 128  # Note Bansal used n_steps=10
+        train['learning_rate'] = 1e-4
+        spec = _finetune_spec(envs=['multicomp/SumoHumansAutoContact-v0'])
+        exp_name = 'finetune_gentle_lstm'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
