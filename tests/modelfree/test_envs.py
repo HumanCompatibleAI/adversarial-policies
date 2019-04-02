@@ -4,7 +4,7 @@ import gym
 import pytest
 from tests.aprl.test_envs import check_env, check_random_rollout
 
-from modelfree.gym_compete_conversion import GymCompeteToOurs
+from modelfree.envs.gym_compete import GymCompeteToOurs
 
 spec_list = [spec
              for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)

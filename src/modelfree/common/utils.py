@@ -1,3 +1,4 @@
+import datetime
 import os
 from os import path as osp
 
@@ -159,13 +160,13 @@ def simulate(venv, policies, render=False):
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
-    :param policies(list<BasePolicy>): a policy per agent.
+    :param policies(list<BaseModel>): a policy per agent.
     :param render: true if the run should be rendered to the screen
     :return: streams information about the simulation
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
-    states = [None for policy in policies]
+    states = [None for _ in policies]
 
     while True:
         if render:
@@ -201,3 +202,8 @@ def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wr
         multi_env = post_wrapper(multi_env)
 
     return multi_env
+
+
+def make_timestamp():
+    ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
+    return datetime.datetime.now().strftime(ISO_TIMESTAMP)

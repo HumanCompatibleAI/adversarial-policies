@@ -1,4 +1,4 @@
-"""Uses PPO to train an attack policy against a fixed victim policy."""
+"""Uses PPO to training an attack policy against a fixed victim policy."""
 
 import functools
 import json
@@ -17,13 +17,13 @@ import tensorflow as tf
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
-from modelfree import utils
-from modelfree.gym_compete_conversion import (GameOutcomeMonitor, GymCompeteToOurs,
-                                              get_policy_type_for_zoo_agent, load_zoo_agent_params)
-from modelfree.logger import setup_logger
-from modelfree.policy_loader import load_policy
-from modelfree.scheduling import ConstantAnnealer, Scheduler
-from modelfree.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
+from modelfree.common import utils
+from modelfree.common.policy_loader import load_policy
+from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
+                                        get_policy_type_for_zoo_agent, load_zoo_agent_params)
+from modelfree.training.logger import setup_logger
+from modelfree.training.scheduling import ConstantAnnealer, Scheduler
+from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
@@ -182,7 +182,7 @@ def train_config():
     # Environment
     env_name = "multicomp/SumoAnts-v0"  # Gym environment ID
     num_env = 8                     # number of environments to run in parallel
-    total_timesteps = 4096          # total number of timesteps to train for
+    total_timesteps = 4096          # total number of timesteps to training for
 
     # Victim Config
     victim_type = "zoo"             # type supported by policy_loader.py

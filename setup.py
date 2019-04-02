@@ -15,6 +15,7 @@ setup(
     package_dir={'': 'src'},
     package_data={'modelfree':
         [
+            'configs/multi/*.json',
             'configs/noise/*.json',
             'configs/rew/*.json',
         ]

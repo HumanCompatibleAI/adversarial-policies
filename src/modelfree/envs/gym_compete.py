@@ -9,9 +9,9 @@ from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
-from modelfree.utils import PolicyToModel, make_session
+from modelfree.common.utils import PolicyToModel, make_session
 
-pylog = logging.getLogger('modelfree.gym_compete_conversion')
+pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 
 POLICY_STATEFUL = OrderedDict([
     ('KickAndDefend-v0', True),
