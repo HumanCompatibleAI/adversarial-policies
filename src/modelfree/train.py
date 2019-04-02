@@ -278,8 +278,9 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
     base_policy_type = adv_noise_params.get('base_type', victim_type)
     base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
                               env=multi_venv, env_name=env_name, index=our_idx)
-    space_shape = multi_venv.action_space.spaces[0].shape
-    adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
+    base_action_space = multi_venv.action_space.spaces[our_idx]
+    adv_noise_action_space = Box(low=adv_noise_agent_val * base_action_space.low,
+                                 high=adv_noise_agent_val * base_action_space.high)
     multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
                                   replace_action_space=adv_noise_action_space,
                                   merge_agent_idx=our_idx)
