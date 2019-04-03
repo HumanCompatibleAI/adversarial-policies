@@ -18,7 +18,7 @@ def parse():
     parser.add_argument('--vec-env', type=int, default=8,
                         help='number of environments to run in parallel.')
     parser.add_argument('--population-size', type=int, default=4,
-                        help='number of agents to train via self-play')
+                        help='number of agents to training via self-play')
     parser.add_argument('--network', type=str, default='mlp',
                         help='network architecture for policy')
     parser.add_argument('--total-timesteps', type=int, default=100000)

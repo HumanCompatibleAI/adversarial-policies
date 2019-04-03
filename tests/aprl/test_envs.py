@@ -1,5 +1,5 @@
 import gym
-from gym.spaces.tuple_space import Tuple
+from gym.spaces import Tuple
 import numpy as np
 import pytest
 

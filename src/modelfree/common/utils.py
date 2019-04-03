@@ -1,5 +1,6 @@
 from collections import defaultdict
 import itertools
+import datetime
 import os
 from os import path as osp
 
@@ -184,7 +185,7 @@ class TrajectoryRecorder(object):
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
         for (agent_idx, agent_dicts), env_idx in iter_space:
-            for key, val in zip(data_keys, data_vals):
+            for key, val in list(zip(data_keys, data_vals)):
                 agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
             if dones[env_idx]:
                 ep_len = len(agent_dicts[env_idx]['rewards'])
@@ -220,7 +221,7 @@ def simulate(venv, policies, render=False, record_trajectories=False,
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
-    :param policies(list<BasePolicy>): a policy per agent.
+    :param policies(list<BaseModel>): a policy per agent.
     :param render: true if the run should be rendered to the screen
     :param record_trajectories: whether to save trajectory data in stable_baselines.GAIL format
     :param num_trajectories_to_save: when to save trajectories since this function is a generator
@@ -228,7 +229,7 @@ def simulate(venv, policies, render=False, record_trajectories=False,
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
-    states = [None for policy in policies]
+    states = [None for _ in policies]
 
     if record_trajectories:
         if num_trajectories_to_save is None:
@@ -255,7 +256,8 @@ def simulate(venv, policies, render=False, record_trajectories=False,
         yield observations, rewards, dones, infos
 
 
-def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None, resettable=False):
+def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wrapper=None,
+             resettable=False):
     multi_env = gym.make(env_name)
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
@@ -268,9 +270,14 @@ def make_env(env_name, seed, i, out_dir, pre_wrapper=None, post_wrapper=None, re
     if out_dir is not None:
         mon_dir = osp.join(out_dir, 'mon')
         os.makedirs(mon_dir, exist_ok=True)
-        multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)))
+        multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)), our_idx)
 
     if post_wrapper is not None:
         multi_env = post_wrapper(multi_env)
 
     return multi_env
+
+
+def make_timestamp():
+    ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
+    return datetime.datetime.now().strftime(ISO_TIMESTAMP)

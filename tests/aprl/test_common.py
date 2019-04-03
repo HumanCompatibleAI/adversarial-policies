@@ -4,7 +4,7 @@ import tempfile
 import gym
 
 from aprl.common.multi_monitor import MultiMonitor
-import aprl.envs
+import aprl.envs  # noqa: F401
 
 
 def test_multi_monitor():

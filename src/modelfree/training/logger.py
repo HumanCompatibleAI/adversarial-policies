@@ -2,7 +2,6 @@
 
 Configures Baseline's logger and TensorBoard appropriately."""
 
-import datetime
 import os
 from os import path as osp
 
@@ -10,6 +9,8 @@ from stable_baselines import logger
 from tensorboard.plugins.custom_scalar import layout_pb2
 import tensorboard.summary as summary_lib
 from tensorflow.core.util import event_pb2
+
+from modelfree.common import utils
 
 
 def gen_multiline_charts(cfg):
@@ -74,13 +75,8 @@ def tb_layout():
     return summary_lib.custom_scalar_pb(layout_pb2.Layout(category=categories))
 
 
-def make_timestamp():
-    ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
-    return datetime.datetime.now().strftime(ISO_TIMESTAMP)
-
-
 def setup_logger(out_dir='results', exp_name='test', output_formats=None):
-    timestamp = make_timestamp()
+    timestamp = utils.make_timestamp()
     exp_name = exp_name.replace('/', '_')  # environment names can contain /'s
     out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
     os.makedirs(out_dir, exist_ok=True)
