@@ -413,6 +413,18 @@ class CurryVecEnv(VecMultiWrapper):
     def get_policy(self):
         return self._policy
 
+    def set_obs(self, obs, env_idx=None):
+        if env_idx is None:
+            self._obs = obs
+        else:
+            self._obs[env_idx] = obs[env_idx]
+
+    def get_obs(self, env_idx=None):
+        if env_idx is None:
+            return self._obs
+        else:
+            return self._obs[env_idx]
+
 
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""

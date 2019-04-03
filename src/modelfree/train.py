@@ -352,7 +352,8 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
 
 @train_ex.capture
 def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
-                    lookback_args, log_callbacks, save_callbacks):
+                    victim_index, victim_path, victim_type, debug, env_name,
+                    num_lookback, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -363,8 +364,8 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
             if scheduler.is_conditional(anneal_type):
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
-    if lookback_args is not None:
-        lookback_venv = LookbackRewardVecWrapper(single_venv, lookback_args['policy'], lookback_args['past_venvs'])
+    if num_lookback > 0:
+        lookback_venv = LookbackRewardVecWrapper(single_venv, num_lookback, env_name, debug, victim_index, victim_path, victim_type)
         single_venv = lookback_venv
 
     if normalize:
@@ -398,19 +399,11 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    def get_single_venv():
-        multi_venv = build_env(out_dir)
-        multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-        multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
-        return FlattenSingletonVecEnv(multi_venv), our_idx
-
-    single_venv, our_idx = get_single_venv()
-    lookback_args = None
-    if num_lookback > 0:
-        lookback_args = {'past_venvs': [get_single_venv()[0] for _ in range(num_lookback)],
-                         'policy': single_venv.venv.get_policy()}
-
-    single_venv = single_wrappers(single_venv, scheduler, our_idx, lookback_args=lookback_args,
+    multi_venv = build_env(out_dir)
+    multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
+    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+    single_venv = FlattenSingletonVecEnv(multi_venv)
+    single_venv = single_wrappers(single_venv, scheduler, our_idx, num_lookback=num_lookback,
                                   log_callbacks=log_callbacks, save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
