@@ -3,24 +3,24 @@ from collections import defaultdict, namedtuple
 import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 from stable_baselines.common.base_class import ActorCriticRLModel
-from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 
-from aprl.envs.multi_agent import FlattenSingletonVecEnv, make_dummy_vec_multi_env, make_subproc_vec_multi_env
+from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_env,
+                                   make_subproc_vec_multi_env, CurryVecEnv)
 from modelfree.gym_compete_conversion import GymCompeteToOurs
 from modelfree.policy_loader import load_policy
 from modelfree.utils import make_env
 
 LookbackDict = namedtuple('LookbackDict', ['curry', 'venv', 'data'])
 
+
 class LookbackRewardVecWrapper(VecEnvWrapper):
     """Retains information about prior episodes and rollouts to be used in k-lookback whitebox attacks"""
-    def __init__(self, venv, lookback_num, env_name, use_dummy,
-                 victim_idx, victim_path, victim_type, lookback_space=1):
+    def __init__(self, venv, lookback_num, env_name, use_dummy, victim_idx,
+                 victim_path, victim_type, lookback_space=1):
         super().__init__(venv)
         self.lookback_num = lookback_num
         self.lookback_space = lookback_space
 
-        self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_idx, victim_path, victim_type)
         self._policy = self.venv.venv.get_policy()
         self._action = None
         self._obs = None
@@ -28,10 +28,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self._new_lb_state = None
         self._dones = [False] * self.num_envs
         self.ep_lens = np.zeros(self.num_envs).astype(int)
-
-        state_dict = {'state': None, 'action': None, 'reward': np.zeros(self.num_envs),
-                      'info': defaultdict(dict)}
-        self.lb_data = [state_dict.copy() for _ in range(self.lookback_num)]
+        self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_idx,
+                                              victim_path, victim_type)
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_idx, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -44,6 +42,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             make_vec_env = make_dummy_vec_multi_env if use_dummy else make_subproc_vec_multi_env
             multi_venv = make_vec_env([lambda: env_fn(i) for i in range(self.num_envs)])
 
+            # this needs to be a TransparentPolicy.
             victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
                                  env_name=env_name, index=victim_idx)
             multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
@@ -61,11 +60,11 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         # cycle the lb_venvs and step all but the first. Then reset the first one with self.venv.
         self.lb_dicts = [self.lb_dicts[-1]] + self.lb_dicts[:-1]
 
-        new_baseline_venv = self.lb_dicts[0].venv
-        curry_obs = self.venv.venv.venv.get_obs()
-        self.lb_dicts[0].curry.set_obs(curry_obs)
+        new_baseline_dict = self.lb_dicts[0]
+        curry_obs = self._get_curry_obs()
+        new_baseline_dict.curry.set_obs(curry_obs)
         for env_idx in range(self.num_envs):
-            new_baseline_venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx])
+            new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx])
 
         for lb_dict in self.lb_dicts[1:]:
             # lb_action is calculated from reset() or the most recent step_wait()
@@ -75,8 +74,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         # the same things as our policy. self._pseudo_lb_state comes from seeing only self._obs
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones)
-        self.lb_dicts[0].data['state'] = self._new_lb_state
-        new_baseline_venv.step_async(lb_action)
+        new_baseline_dict.data['state'] = self._new_lb_state
+        new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
         self.ep_lens += 1
 
@@ -108,6 +107,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self._reset_state_data(observations)
         return observations
 
+    def _get_curry_obs(self):
+        return self.venv.venv.venv.get_obs()
+
     def _process_own_obs(self, observations):
         """Record action, state and observations of our policy"""
         self._obs = self._get_truncated_obs(observations)
@@ -132,7 +134,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
     def _reset_state_data(self, initial_observations, env_idx=None):
         """Reset lb_venv states when self.venv resets. Also reset data for baseline policy."""
         truncated_obs = self._get_truncated_obs(initial_observations)
-        curry_obs = self.venv.venv.venv.get_obs()
+        curry_obs = self._get_curry_obs()
         action, state = self._policy.predict(truncated_obs, state=None, mask=None)
         initial_env_states = self.venv.unwrapped.env_method('get_state', env_idx)
         for lb_dict in self.lb_dicts:
