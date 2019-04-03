@@ -1,7 +1,6 @@
 """Two-player, normal-form games with symmetric action spaces."""
 
-from gym.spaces.discrete import Discrete
-from gym.spaces.tuple_space import Tuple
+from gym.spaces import Discrete, Tuple
 import numpy as np
 
 from aprl.envs.multi_agent import MultiAgentEnv

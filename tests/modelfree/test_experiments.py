@@ -2,18 +2,17 @@
 
 Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
-import json
 import os
-from ray.tune.trial import Trial
 
 import pytest
+from ray.tune.trial import Trial
 
-from modelfree.hyperparams import hyper_ex
+from modelfree.common.policy_loader import AGENT_LOADERS
+from modelfree.multi.score import multi_score_ex
+from modelfree.multi.train import multi_train_ex
 from modelfree.score_agent import score_ex
-from modelfree.policy_loader import AGENT_LOADERS
-from modelfree.train_and_score import train_and_score
 from modelfree.train import NO_VECENV, RL_ALGOS, train_ex
-
+from modelfree.train_and_score import train_and_score
 
 EXPERIMENTS = [score_ex, train_and_score, train_ex]
 
@@ -53,14 +52,8 @@ def test_score_agent(config):
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
 
-    ties = run.result['ties']
-    win_a, win_b = run.result['wincounts']
-    assert sum([ties, win_a, win_b]) == run.config['episodes']
-
-
-def load_json(fname):
-    with open(fname) as f:
-        return json.load(f)
+    outcomes = [run.result[k] for k in ['ties', 'win0', 'win1']]
+    assert sum(outcomes) == run.config['episodes']
 
 
 TRAIN_CONFIGS = [
@@ -107,22 +100,41 @@ def test_train(config):
     # Use a small number of steps to keep things quick
     config['batch_size'] = 512
     config['total_timesteps'] = 1024
+
     run = train_ex.run(config_updates=config)
+    assert run.status == 'COMPLETED'
+
     final_dir = run.result
     assert os.path.isdir(final_dir), "final result not saved"
     assert os.path.isfile(os.path.join(final_dir, 'model.pkl')), "model weights not saved"
 
 
-def test_hyper():
-    """Smoke test for hyperparameter search."""
-    config = {
+MULTI_EXPERIMENTS = [multi_score_ex, multi_train_ex]
+
+
+def _test_multi(ex):
+    multi_config = {
         'spec': {
             'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
             'upload_dir': None,  # do not upload test results anywhere
             'sync_function': None,  # as above
         },
     }
-    run = hyper_ex.run(config_updates=config)
+
+    run = ex.run(config_updates=multi_config, named_configs=('debug_config',))
+    assert run.status == 'COMPLETED'
+
+    return run
+
+
+def test_multi_score():
+    run = _test_multi(multi_score_ex)
+    assert isinstance(run.result, dict)
+
+
+def test_multi_train():
+    run = _test_multi(multi_train_ex)
+
     trials = run.result
     for trial in trials:
         assert isinstance(trial, Trial)

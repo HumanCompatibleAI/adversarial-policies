@@ -1,14 +1,15 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
+import functools
 import os.path as osp
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
-from modelfree.gym_compete_conversion import GymCompeteToOurs, game_outcome
-from modelfree.policy_loader import load_policy
-from modelfree.utils import VideoWrapper, make_env, simulate
+from modelfree.common.policy_loader import load_policy
+from modelfree.common.utils import VideoWrapper, make_env, simulate
+from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 
 score_ex = Experiment('score')
 
@@ -24,10 +25,15 @@ def announce_winner(sim_stream):
 
 
 def get_empirical_score(_run, env, agents, episodes, render=False, record_trajectories=False):
-    result = {
-        'ties': 0,
-        'wincounts': [0] * len(agents)
-    }
+    """Computes number of wins for each agent and ties.
+
+    :param env: (gym.Env) environment
+    :param agents: (list<BaseModel>) agents/policies to execute.
+    :param episodes: (int) number of episodes.
+    :param render: (bool) whether to render to screen during simulation.
+    :return a dictionary mapping from 'winN' to wins for each agent N, and 'ties' for ties."""
+    result = {f'win{i}': 0 for i in range(len(agents))}
+    result['ties'] = 0
 
     # This tells sacred about the intermediate computation so it
     # updates the result as the experiment is running
@@ -38,7 +44,7 @@ def get_empirical_score(_run, env, agents, episodes, render=False, record_trajec
         if winner is None:
             result['ties'] += 1
         else:
-            result['wincounts'][winner] += 1
+            result[f'win{winner}'] += 1
         if ep + 1 >= episodes:
             break
 
@@ -73,7 +79,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         if videos:
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
-    env_fns = [lambda: env_fn(i) for i in range(num_env)]
+    env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
     if num_env > 1:
         venv = make_subproc_vec_multi_env(env_fns)
     else:

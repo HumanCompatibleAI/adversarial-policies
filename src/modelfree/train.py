@@ -1,5 +1,6 @@
-"""Uses PPO to train an attack policy against a fixed victim policy."""
+"""Uses PPO to training an attack policy against a fixed victim policy."""
 
+import functools
 import json
 import logging
 import os
@@ -16,12 +17,13 @@ import tensorflow as tf
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
-from modelfree import utils
-from modelfree.gym_compete_conversion import GameOutcomeMonitor, GymCompeteToOurs
-from modelfree.logger import setup_logger
-from modelfree.policy_loader import load_policy
-from modelfree.scheduling import ConstantAnnealer, Scheduler
-from modelfree.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
+from modelfree.common import utils
+from modelfree.common.policy_loader import load_policy
+from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
+                                        get_policy_type_for_zoo_agent, load_zoo_agent_params)
+from modelfree.training.logger import setup_logger
+from modelfree.training.scheduling import ConstantAnnealer, Scheduler
+from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
@@ -55,7 +57,7 @@ def _save(model, root_dir, save_callbacks):
 
 @train_ex.capture
 def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
-             batch_size, load_path, learning_rate, rl_args,
+             batch_size, load_policy, learning_rate, rl_args,
              logger, log_callbacks, save_callbacks):
     try:
         from baselines.ppo2 import ppo2 as ppo2_old
@@ -78,6 +80,9 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
     graph = tf.Graph()
     sess = utils.make_session(graph)
+    load_path = load_policy['path']
+    if load_path is not None:
+        assert load_policy['type'] == 'old_ppo2'
     with graph.as_default():
         with sess.as_default():
             model = ppo2_old.learn(network=network, env=env,
@@ -93,23 +98,26 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 
 @train_ex.capture
-def _stable(cls, callback_key, callback_mul, _seed, env, out_dir, total_timesteps, policy,
-            load_path, load_bansal, rl_args, debug, logger, log_callbacks, save_callbacks,
-            checkpoint_interval, log_interval, **kwargs):
+def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out_dir,
+            total_timesteps, policy, load_policy, rl_args, victim_index, debug, logger,
+            log_callbacks, save_callbacks, log_interval, checkpoint_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
                   **rl_args)
-    if load_path is not None and not load_bansal:
-        # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
-        model = cls.load(load_path, **kwargs)
-    elif load_path and load_bansal:
-        from gym_compete.policy import LSTMPolicy
-        kwargs['policy_kwargs'] = dict(hiddens=[128, 128])
-        kwargs['n_steps'] = 1
-        model = cls(policy=LSTMPolicy, **kwargs)
-        model.train_model.load_weights_from_file(load_path, model.sess)
-        model.act_model.load_weights_from_file(load_path, model.sess)
+    if load_policy['path'] is not None:
+        if load_policy['type'] == our_type:
+            # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
+            model = cls.load(load_policy['path'], **kwargs)
+        elif load_policy['type'] == 'zoo':
+            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+            kwargs['policy_kwargs'] = policy_kwargs
+            model = cls(policy=policy_cls, **kwargs)
+
+            our_idx = 1 - victim_index  # TODO: code duplication?
+            params = load_zoo_agent_params(load_policy['path'], env_name, our_idx)
+            # We do not need to restore train_model, since it shares params with act_model
+            model.act_model.restore(params)
     else:
         model = cls(policy=policy, **kwargs)
 
@@ -156,23 +164,21 @@ def ppo1(batch_size, learning_rate, **kwargs):
     num_proc = _get_mpi_num_proc()
     pylog.warning('Assuming constant learning rate schedule for PPO1')
     optim_stepsize = learning_rate(1)  # PPO1 does not support a callable learning_rate
-    return _stable(PPO1, callback_key='timesteps_so_far', callback_mul=batch_size,
-                   timesteps_per_actorbatch=batch_size // num_proc,
+    return _stable(PPO1, our_type='ppo1', callback_key='timesteps_so_far',
+                   callback_mul=batch_size, timesteps_per_actorbatch=batch_size // num_proc,
                    optim_stepsize=optim_stepsize, schedule='constant', **kwargs)
 
 
 @train_ex.capture
 def ppo2(batch_size, num_env, learning_rate, **kwargs):
-    return _stable(PPO2, callback_key='update', callback_mul=batch_size,
-                   n_steps=batch_size // num_env,
-                   learning_rate=learning_rate, **kwargs)
+    return _stable(PPO2, our_type='ppo2', callback_key='update', callback_mul=batch_size,
+                   n_steps=batch_size // num_env, learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.capture
 def sac(batch_size, learning_rate, **kwargs):
-    return _stable(SAC, callback_key='step', callback_mul=1,
-                   batch_size=batch_size,
-                   learning_rate=learning_rate, **kwargs)
+    return _stable(SAC, our_type='sac', callback_key='step', callback_mul=1,
+                   batch_size=batch_size, learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.capture
@@ -218,7 +224,7 @@ def train_config():
     # Environment
     env_name = "multicomp/SumoAnts-v0"  # Gym environment ID
     num_env = 8                     # number of environments to run in parallel
-    total_timesteps = 4096          # total number of timesteps to train for
+    total_timesteps = 4096          # total number of timesteps to training for
 
     # Victim Config
     victim_type = "zoo"             # type supported by policy_loader.py
@@ -232,13 +238,15 @@ def train_config():
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
-    load_path = None                # path to load initial policy from
-    load_bansal = False             # policy from Bansal et al's gym_compete
+    load_policy = {                 # fine-tune this policy
+        'path': None,               # path with policy weights
+        'type': rl_algo,            # type supported by policy_loader.py
+    }
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
-    checkpoint_interval = 16384     # save weights to disk after this many timesteps
+    checkpoint_interval = 131072    # save weights to disk after this many timesteps
     log_interval = 2048             # log statistics to disk after this many timesteps
     log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly
@@ -247,10 +255,7 @@ def train_config():
     del _
 
 
-DEFAULT_CONFIGS = {
-    'multicomp/SumoHumans-v0': 'SumoHumans.json',
-    'multicomp/SumoHumansAutoContact-v0': 'SumoHumans.json'
-}
+DEFAULT_CONFIGS = {}
 
 
 def load_default(env_name, config_dir):
@@ -273,19 +278,29 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, debug):
+def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
 
+    if victim_type == 'none':
+        our_idx = 0
+    else:
+        our_idx = 1 - victim_index
+
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, pre_wrapper=pre_wrapper)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
     else:
         make_vec_env = make_dummy_vec_multi_env
-    multi_env = make_vec_env([lambda: env_fn(i) for i in range(num_env)])
+    multi_venv = make_vec_env([functools.partial(env_fn, i) for i in range(num_env)])
 
-    return multi_env
+    if victim_type == 'none':
+        assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
+    else:
+        assert multi_venv.num_agents == 2, "Need two-agent environment when victim"
+
+    return multi_venv, our_idx
 
 
 @train_ex.capture
@@ -306,8 +321,9 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
     base_policy_type = adv_noise_params.get('base_type', victim_type)
     base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
                               env=multi_venv, env_name=env_name, index=our_idx)
-    space_shape = multi_venv.action_space.spaces[0].shape
-    adv_noise_action_space = Box(-adv_noise_agent_val, adv_noise_agent_val, space_shape)
+    base_action_space = multi_venv.action_space.spaces[our_idx]
+    adv_noise_action_space = Box(low=adv_noise_agent_val * base_action_space.low,
+                                 high=adv_noise_agent_val * base_action_space.high)
     multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
                                   replace_action_space=adv_noise_action_space,
                                   merge_agent_idx=our_idx)
@@ -315,16 +331,10 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 
 @train_ex.capture
-def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_type, victim_path,
-                       victim_index, victim_noise, victim_noise_params, adv_noise_params):
-    if victim_type == 'none':
-        if multi_venv.num_agents > 1:
-            raise ValueError("Victim needed for multi-agent environments")
-        our_idx = 0
-    else:
-        assert multi_venv.num_agents == 2
-        our_idx = 1 - victim_index
-
+def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
+                       victim_path, victim_index, victim_noise, victim_noise_params,
+                       adv_noise_params):
+    if victim_type != 'none':
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params is not None:
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
@@ -341,12 +351,12 @@ def maybe_embed_victim(multi_venv, scheduler, log_callbacks, env_name, victim_ty
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                         victim_index=victim_index)
 
-    return multi_venv, our_idx
+    return multi_venv
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
-                    log_callbacks, save_callbacks):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
+                    rew_shape, rew_shape_params, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -358,6 +368,10 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
     if normalize:
+        if load_policy['type'] == 'zoo':
+            raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
+                             "implicitly. Please set normalize=False to disable VecNormalize.")
+
         normalized_venv = VecNormalize(single_venv)
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
@@ -388,9 +402,9 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    multi_venv = build_env(out_dir)
+    multi_venv, our_idx = build_env(out_dir)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv, our_idx = maybe_embed_victim(multi_venv, scheduler, log_callbacks=log_callbacks)
+    multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
 
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx,
