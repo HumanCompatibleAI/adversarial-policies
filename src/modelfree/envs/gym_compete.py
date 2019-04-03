@@ -10,6 +10,7 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
 from modelfree.common.utils import PolicyToModel, make_session
+from modelfree.transparent import TransparentLSTMPolicy
 
 pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 
@@ -105,15 +106,22 @@ def num_zoo_policies(env_name):
     return NUM_ZOO_POLICIES[env_name_to_canonical(env_name)]
 
 
-def get_policy_type_for_zoo_agent(env_name):
+def get_policy_type_for_zoo_agent(env_name, transparent_params):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
     canonical_env = env_name_to_canonical(env_name)
     lstm = (LSTMPolicy, {'normalize': True})
     mlp = (MlpPolicyValue, {'normalize': True})
+    transparent_lstm = (TransparentLSTMPolicy, {'normalize': True,
+                                                'transparent_params': transparent_params})
     if canonical_env in POLICY_STATEFUL:
-        return lstm if POLICY_STATEFUL[canonical_env] else mlp
+        if POLICY_STATEFUL[canonical_env]:
+            return transparent_lstm if transparent_params is not None else lstm
+        else:
+            if transparent_params is not None:
+                raise ValueError("Transparent policy not implemented for mlp")
+            return mlp
     else:
         msg = f"Unsupported Environment: {canonical_env}, choose from {POLICY_STATEFUL.keys()}"
         raise ValueError(msg)
@@ -141,7 +149,7 @@ def load_zoo_agent_params(tag, env_name, index):
     return pickle.loads(params_pkl)
 
 
-def load_zoo_agent(tag, env, env_name, index):
+def load_zoo_agent(tag, env, env_name, index, transparent_params):
     """Loads a gym_compete zoo agent.
     :param tag: (str) version of the zoo agent (e.g. '1', '2', '3').
     :param env: (gym.Env) the environment
@@ -161,7 +169,7 @@ def load_zoo_agent(tag, env, env_name, index):
             kwargs = dict(sess=sess, ob_space=env.observation_space.spaces[index],
                           ac_space=env.action_space.spaces[index], n_env=env.num_envs,
                           n_steps=1, n_batch=env.num_envs, scope=scope, reuse=False)
-            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name, transparent_params)
             kwargs.update(policy_kwargs)
             policy = policy_cls(**kwargs)
 

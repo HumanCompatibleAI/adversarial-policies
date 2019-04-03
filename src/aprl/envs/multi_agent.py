@@ -6,7 +6,6 @@ from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 from aprl.utils import getattr_unwrapped
-from modelfree.transparent import TransparentPolicy
 
 
 class MultiAgentEnv(Env):
@@ -408,41 +407,6 @@ class CurryVecEnv(VecMultiWrapper):
     def reset(self):
         observations = self.venv.reset()
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
-        return observations
-
-
-class TransparentCurryVecEnv(CurryVecEnv):
-    """CurryVecEnv that gives out much more info about its policy."""
-    def __init__(self, venv, policy, agent_idx=0):
-        super().__init__(venv, agent_idx)
-        if not isinstance(policy, TransparentPolicy):
-            raise TypeError("Error: policy must be transparent")
-        self._action = None
-
-        obs_aug_amount = policy.get_obs_aug_amount()
-        if obs_aug_amount > 0:
-            obs_aug_space = gym.spaces.Box(-np.inf, np.inf, obs_aug_amount)
-            self.observation_space = _tuple_space_augment(self.observation_space, agent_idx,
-                                                          augment_space=obs_aug_space)
-
-    def step_async(self, actions):
-        actions.insert(self._agent_to_fix, self._action)
-        self.venv.step_async(actions)
-
-    def step_wait(self):
-        observations, rewards, self._dones, infos = self.venv.step_wait()
-        observations = self._get_updated_obs(observations)
-        infos.update(self._data)
-        return observations, rewards, self._dones, infos
-
-    def reset(self):
-        observations = self._get_updated_obs(self.venv.reset())
-        return observations
-
-    def _get_updated_obs(self, observations):
-        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
-        self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
-                                                                     mask=self._dones)
         return observations
 
 

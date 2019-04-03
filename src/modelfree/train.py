@@ -24,15 +24,19 @@ from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
 from modelfree.training.logger import setup_logger
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
+from modelfree.transparent import TransparentCurryVecEnv
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index):
+    def __init__(self, multi_env, victim, victim_index, transparent_params):
         self.victim = victim
-        curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        if transparent_params is None:
+            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        else:
+            curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
 
         super().__init__(curried_env)
 
@@ -243,6 +247,7 @@ def train_config():
         'type': rl_algo,            # type supported by policy_loader.py
     }
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+    transparent_params = None       # param dict for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
@@ -333,7 +338,7 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 @train_ex.capture
 def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
                        victim_path, victim_index, victim_noise, victim_noise_params,
-                       adv_noise_params):
+                       adv_noise_params, transparent_params):
     if victim_type != 'none':
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params is not None:
@@ -341,7 +346,8 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
 
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                             env_name=env_name, index=victim_index)
+                             env_name=env_name, index=victim_index,
+                             transparent_params=transparent_params)
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
                                           scheduler=scheduler)
@@ -349,7 +355,8 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
 
         # Curry the victim
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                        victim_index=victim_index)
+                                        victim_index=victim_index,
+                                        transparent_params=transparent_params)
 
     return multi_venv
 
