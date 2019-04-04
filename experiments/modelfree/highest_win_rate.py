@@ -13,6 +13,7 @@ import tensorflow as tf
 
 logger = logging.getLogger('scripts.highest_win_rate')
 
+
 def event_files(path):
     for root, dirs, files in os.walk(path, followlinks=True):
         if root.endswith('tb'):  # looking for paths of form */data/baselines/*/rl/tb
@@ -41,7 +42,6 @@ def _strip_up_to(path, dirname):
     try:
         path_index = len(path_components) - 1 - path_components[::-1].index(dirname)
     except ValueError as e:
-        import pdb; pdb.set_trace()
         raise ValueError(f"Error stripping '{dirname}' in '{path_components}': {e}")
     return os.path.join(*path_components[0:path_index])
 
@@ -121,6 +121,7 @@ def main():
     with open(args.output_path, 'w') as f:  # fail fast if output_path inaccessible
         result = find_best(args.logdir, args.episode_window)
         json.dump(result, f)
+
 
 if __name__ == '__main__':
     main()

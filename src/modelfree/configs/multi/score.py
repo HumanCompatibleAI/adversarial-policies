@@ -83,7 +83,16 @@ def load_json(path):
 
 PATHS_AND_TYPES = 'env_name:agent_a_type:agent_a_path:agent_b_type:agent_b_path'
 
-ADVERSARY_PATHS = load_json(os.path.join('configs', 'multi', 'adversaries.json'))['policies']
+
+def _get_adversary_paths():
+    # Sacred named_configs execute before configs, so we can't make this a Sacred config param.
+    path = os.getenv('ADVERSARY_PATHS')
+    if path is None:
+        raise ValueError("Specify path to JSON file containing adversaries in ADVERSARY_PATHS "
+                         "environment variable. (Run 'experiments/modelfree/highest_win_rate.py'"
+                         "to generate this.)")
+    with open(path, 'r') as f:
+        return json.load(f)['policies']
 
 
 def make_configs(multi_score_ex):
@@ -126,7 +135,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', ADVERSARY_PATHS)
+                    _adversary_vs_victims('ppo2', _get_adversary_paths())
                 ),
             }
         }
