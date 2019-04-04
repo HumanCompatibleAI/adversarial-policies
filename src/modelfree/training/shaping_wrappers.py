@@ -100,28 +100,6 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         return obs, rew, done, infos
 
 
-class TransparentRewardShapingVecWrapper(RewardShapingVecWrapper):
-    def __init__(self, venv, agent_idx, shaping_params, transparent_params, reward_annealer=None):
-        super().__init__(venv, agent_idx, shaping_params, reward_annealer)
-        self.transparent_params = transparent_params
-
-    def step_wait(self):
-        # do this to take care of regular shaping and for populating logging buffers
-        obs, rew, done, infos = super().step_wait()
-
-        # now do our own reward shaping using self.transparent_params and infos.
-        # self.transparent_params.keys() are the relevant keys to seek in infos.
-        for env_num in range(self.num_envs):
-            for key in self.transparent_params.keys():
-                victim_data = infos[env_num][1 - self.agent_idx][key]  # noqa F841
-                # evaluate the goodness of victim_data. This could either be
-                # a density estimate or considering advantage function.
-                # > do_something(rew[env_num], victim_data)
-
-        # eventually returning modified rew but otherwise the same
-        return obs, rew, done, infos
-
-
 class NoisyAgentWrapper(DummyModel):
     def __init__(self, agent, noise_annealer, noise_type='gaussian'):
         """
