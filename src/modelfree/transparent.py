@@ -45,7 +45,7 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
     def step(self, obs, state=None, mask=None, deterministic=False):
         action_op = self.deterministic_action if deterministic else self.action
         action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp,
-                                                    self.pi_latent], {self.obs_ph: obs})
+                                                    self.ff_out], {self.obs_ph: obs})
         transparent_objs = (obs, ff, None)
         transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
                              if k in self.transparent_params}
