@@ -358,7 +358,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def reset(self):
         observations = self.venv.reset()
-        observations = self._get_augmented_obs(observations)
+        observations = self._get_updated_obs(observations)
         return observations
 
     def _get_updated_obs(self, observations):
