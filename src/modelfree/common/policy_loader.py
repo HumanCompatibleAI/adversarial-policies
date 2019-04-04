@@ -124,7 +124,7 @@ AGENT_LOADERS = {
 }
 
 
-def load_policy(policy_type, policy_path, env, env_name, index, transparent_params):
+def load_policy(policy_type, policy_path, env, env_name, index, transparent_params=None):
     agent_loader = AGENT_LOADERS.get(policy_type)
     if agent_loader is None:
         raise ValueError(f"Unrecognized agent type '{policy_type}'")

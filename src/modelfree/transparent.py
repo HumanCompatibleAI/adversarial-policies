@@ -25,9 +25,9 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
         """
         :param transparent_params: dict with potential keys 'obs', 'ff', 'hid'.
         If key is not present, then we don't provide this data as part of the data dict in step.
-        If key is present, value (bool) corresponds to whether we augment the observation space with it.
-        This is because TransparentCurryVecEnv needs this information to modify its observation space,
-        and we would like to keep all of the transparency-related parameters in one dictionary.
+        If key is present, value (bool) corresponds to whether we augment the observation space
+        with it. This is because TransparentCurryVecEnv needs this information to modify its
+        observation space, and we want all of the transparency-related parameters in one dict.
         """
         FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
                                    layers, net_arch, act_fun, cnn_extractor, feature_extraction,
@@ -44,8 +44,8 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         action_op = self.deterministic_action if deterministic else self.action
-        action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp, self.pi_latent],
-                                                   {self.obs_ph: obs})
+        action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp,
+                                                    self.pi_latent], {self.obs_ph: obs})
         transparent_objs = (obs, ff, None)
         transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
                              if k in self.transparent_params}
@@ -67,14 +67,13 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
         """
         :param transparent_params: dict with potential keys 'obs', 'ff', 'hid'.
         If key is not present, then we don't provide this data as part of the data dict in step.
-        If key is present, value (bool) corresponds to whether we augment the observation space with it.
-        This is because TransparentCurryVecEnv needs this information to modify its observation space,
-        and we would like to keep all of the transparency-related parameters in one dictionary.
+        If key is present, value (bool) corresponds to whether we augment the observation space
+        with it. This is because TransparentCurryVecEnv needs this information to modify its
+        observation space, and we want all of the transparency-related parameters in one dict.
         """
         LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
                             scope, reuse, normalize)
         self.transparent_params = transparent_params
-        print(transparent_params)
 
     def get_obs_aug_amount(self):
         obs_aug_amount = 0

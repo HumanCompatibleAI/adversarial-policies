@@ -113,7 +113,7 @@ class TransparentRewardShapingVecWrapper(RewardShapingVecWrapper):
         # self.transparent_params.keys() are the relevant keys to seek in infos.
         for env_num in range(self.num_envs):
             for key in self.transparent_params.keys():
-                victim_data = infos[env_num][1 - self.agent_idx][key]
+                victim_data = infos[env_num][1 - self.agent_idx][key]  # noqa F841
                 # evaluate the goodness of victim_data. This could either be
                 # a density estimate or considering advantage function.
                 # > do_something(rew[env_num], victim_data)
