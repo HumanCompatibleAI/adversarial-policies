@@ -28,7 +28,7 @@ class NormalizeModel(DummyModel):
 
 
 def load_stable_baselines(cls):
-    def f(root_dir, env, env_name, index):
+    def f(root_dir, env, env_name, index, transparent_params):
         denv = FakeSingleSpacesVec(env, agent_id=index)
         model_path = os.path.join(root_dir, 'model.pkl')
         pylog.info(f"Loading Stable Baselines policy for '{cls}' from '{model_path}'")
@@ -55,7 +55,7 @@ def load_stable_baselines(cls):
     return f
 
 
-def load_old_ppo2(root_dir, env, env_name, index):
+def load_old_ppo2(root_dir, env, env_name, index, transparent_params):
     try:
         from baselines.ppo2 import ppo2 as ppo2_old
     except ImportError as e:
@@ -101,13 +101,13 @@ def load_old_ppo2(root_dir, env, env_name, index):
     return model
 
 
-def load_zero(path, env, env_name, index):
+def load_zero(path, env, env_name, index, transparent_params):
     denv = FakeSingleSpacesVec(env, agent_id=index)
     policy = ZeroPolicy(denv)
     return PolicyToModel(policy)
 
 
-def load_random(path, env, env_name, index):
+def load_random(path, env, env_name, index, transparent_params):
     denv = FakeSingleSpacesVec(env, agent_id=index)
     policy = RandomPolicy(denv)
     return PolicyToModel(policy)
@@ -124,8 +124,8 @@ AGENT_LOADERS = {
 }
 
 
-def load_policy(policy_type, policy_path, env, env_name, index):
+def load_policy(policy_type, policy_path, env, env_name, index, transparent_params=None):
     agent_loader = AGENT_LOADERS.get(policy_type)
     if agent_loader is None:
         raise ValueError(f"Unrecognized agent type '{policy_type}'")
-    return agent_loader(policy_path, env, env_name, index)
+    return agent_loader(policy_path, env, env_name, index, transparent_params)

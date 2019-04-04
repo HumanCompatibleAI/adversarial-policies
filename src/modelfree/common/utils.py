@@ -1,6 +1,6 @@
 from collections import defaultdict
-import itertools
 import datetime
+import itertools
 import os
 from os import path as osp
 
@@ -68,7 +68,7 @@ class PolicyToModel(DummyModel):
 
         if isinstance(self.policy, TransparentPolicy):
             actions, _val, states, _neglogp, data = self.policy.step(observation, state, mask,
-                                                                    deterministic=deterministic)
+                                                                     deterministic=deterministic)
             return actions, states, data
         else:
             actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
@@ -174,7 +174,8 @@ class TrajectoryRecorder(object):
         self.num_policies = num_policies
         self.num_trajectories_to_save = num_trajectories_to_save
 
-        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)] for p in range(num_policies)]
+        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)]
+                           for p in range(num_policies)]
         self.full_traj_dicts = [defaultdict(list) for p in range(num_policies)]
         self.num_completed = 0
         self.already_saved = [False for p in range(num_policies)]
