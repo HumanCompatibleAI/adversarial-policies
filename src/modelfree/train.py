@@ -183,32 +183,17 @@ def sac(batch_size, learning_rate, **kwargs):
 
 
 @train_ex.capture
-def gail(batch_size, expert_dataset_path, env_name, victim_index, **kwargs):
+def gail(batch_size, expert_dataset_path, **kwargs):
     import matplotlib
     matplotlib.use('pdf')  # ExpertDataset needs this and we don't have tkinter
     from stable_baselines.gail.dataset.dataset import ExpertDataset
 
     num_proc = _get_mpi_num_proc()
-    expert_index = 1 - victim_index
     if expert_dataset_path is None:
-        raise ValueError("must set expert_dataset_path to use GAIL. (can also use 'default')")
-    elif expert_dataset_path == 'default':
-        dataset_map = {
-            'multicomp/SumoHumans-v0': 'SumoHumans_datasets',
-            'multicomp/SumoHumansAutoContact-v0': 'SumoHumans_datasets',
-            'multicomp/KickAndDefend-v0': 'KickAndDefend_datasets'
-        }
-        curr_path = os.path.dirname(os.path.abspath(__file__))
-        dataset_folder = dataset_map[env_name]
-        local_folder = os.path.join(curr_path, 'gail', dataset_folder)
-        if not osp.exists(local_folder):
-            sync_cmd = "aws s3 sync s3://adversarial-policies/gail/{0}/ {1}"
-            sync_cmd = sync_cmd.format(dataset_folder, local_folder)
-            subprocess.check_call(sync_cmd, shell=True)
-        expert_dataset_path = os.path.join(local_folder, f"agent_{expert_index}_traj.npz")
+        raise ValueError("must set expert_dataset_path to use GAIL.")
     expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
-    return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
+    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset, callback_key='timesteps_so_far',
                    callback_mul=1, timesteps_per_batch=batch_size // num_proc, **kwargs)
 
 
@@ -244,7 +229,7 @@ def train_config():
 
     # General
     checkpoint_interval = 131072    # save weights to disk after this many timesteps
-    log_interval = 2048
+    log_interval = 2048             # log statistics to disk after this many timesteps
     log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly
     seed = 0                        # random seed
