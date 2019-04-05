@@ -244,6 +244,7 @@ def train_config():
 
     # General
     checkpoint_interval = 131072    # save weights to disk after this many timesteps
+    log_interval = 2048
     log_output_formats = None       # custom output formats for logging
     debug = False                   # debug mode; may run more slowly
     seed = 0                        # random seed

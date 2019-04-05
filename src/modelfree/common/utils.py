@@ -174,17 +174,20 @@ def make_session(graph=None):
 
 
 class TrajectoryRecorder(object):
-    def __init__(self, num_envs, num_policies, num_trajectories_to_save):
+    def __init__(self, num_envs, num_policies, num_traj_to_save, traj_dir):
         self.num_envs = num_envs
         self.num_policies = num_policies
-        self.num_trajectories_to_save = num_trajectories_to_save
+        self.num_traj_to_save = num_traj_to_save
+        self.traj_dir = traj_dir
+        if not os.path.isdir(self.traj_dir):
+            os.makedirs(self.traj_dir)
 
         self.traj_dicts = [[defaultdict(list) for e in range(num_envs)] for p in range(num_policies)]
         self.full_traj_dicts = [defaultdict(list) for p in range(num_policies)]
         self.num_completed = 0
         self.already_saved = [False for p in range(num_policies)]
 
-    def record_trajectories(self, rewards, actions, dones, prev_observations):
+    def record_traj(self, rewards, actions, dones, prev_observations):
         data_keys = ('rewards', 'actions', 'obs')
         data_vals = (rewards, actions, prev_observations)
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
@@ -207,39 +210,40 @@ class TrajectoryRecorder(object):
                 agent_dicts[env_idx] = defaultdict(list)
                 # so as not to double-count number of episodes
                 self.num_completed += int(agent_idx == 0)
-                if self.num_completed >= self.num_trajectories_to_save:
-                    self.save_trajectories(agent_idx)
+                if self.num_completed >= self.num_traj_to_save:
+                    self.save_traj(agent_idx)
 
-    def save_trajectories(self, agent_idx):
+    def save_traj(self, agent_idx):
         if self.already_saved[agent_idx]:
             print(f'Warning: already saved trajectories for agent {agent_idx}')
-        self.full_traj_dicts[agent_idx] = {
+        dump_dict = {
             k: np.concatenate(v, axis=0)
             for k, v in self.full_traj_dicts[agent_idx].items()}
-        np.savez(f'data/agent_{agent_idx}_traj.npz',
-                 **self.full_traj_dicts[agent_idx])
+        save_path = os.path.join(self.traj_dir, f'agent_{agent_idx}.npz')
+        np.savez(save_path, **dump_dict)
         self.already_saved[agent_idx] = True
 
 
-def simulate(venv, policies, render=False, record_trajectories=False,
-             num_trajectories_to_save=None):
+def simulate(venv, policies, render=False, record_traj=False, traj_dir='data/',
+             num_traj_to_save=None):
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
     :param policies(list<BaseModel>): a policy per agent.
     :param render: true if the run should be rendered to the screen
-    :param record_trajectories: whether to save trajectory data in stable_baselines.GAIL format
-    :param num_trajectories_to_save: when to save trajectories since this function is a generator
+    :param record_traj: whether to save trajectory data in stable_baselines.GAIL format
+    :param traj_dir: where to save the trajectories
+    :param num_traj_to_save: when to save trajectories since this function is a generator
     :return: streams information about the simulation
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
     states = [None for _ in policies]
 
-    if record_trajectories:
-        if num_trajectories_to_save is None:
+    if record_traj:
+        if num_traj_to_save is None:
             raise ValueError("Must set number of trajectories to save in order to save them.")
-        recorder = TrajectoryRecorder(venv.num_envs, len(policies), num_trajectories_to_save)
+        recorder = TrajectoryRecorder(venv.num_envs, len(policies), num_traj_to_save, traj_dir)
 
     while True:
         if render:
@@ -256,8 +260,8 @@ def simulate(venv, policies, render=False, record_trajectories=False,
         states = new_states
 
         observations, rewards, dones, infos = venv.step(actions)
-        if record_trajectories:
-            recorder.record_trajectories(rewards, actions, dones, prev_observations)
+        if record_traj:
+            recorder.record_traj(rewards, actions, dones, prev_observations)
         yield observations, rewards, dones, infos
 
 
