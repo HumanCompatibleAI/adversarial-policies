@@ -50,7 +50,6 @@ def test_score_agent(config):
     if 'episodes' not in config:
         config['episodes'] = 1  # speed up tests
 
-
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
 
@@ -58,9 +57,11 @@ def test_score_agent(config):
     assert sum(outcomes) == run.config['episodes']
 
     if 'record_traj' in config:
-        traj_file_path = os.path.join(config['traj_dir'], 'agent_0.npz')
-        assert os.path.exists(traj_file_path)
-        os.remove(traj_file_path)
+        for i in range(2):
+            traj_file_path = os.path.join(config['traj_dir'], f'agent_{i}.npz')
+            assert os.path.exists(traj_file_path)
+            os.remove(traj_file_path)
+        os.rmdir(config['traj_dir'])
 
 
 TRAIN_CONFIGS = [
@@ -99,7 +100,7 @@ TRAIN_CONFIGS = [
     {
         'rl_algo': 'gail',
         'num_env': 1,
-        'expert_dataset_path': 'SumoAnts_traj/agent_0.npz',
+        'expert_dataset_path': 'tests/modelfree/SumoAnts_traj/agent_0.npz',
     },
 
 ]

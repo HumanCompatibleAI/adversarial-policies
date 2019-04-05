@@ -6,7 +6,6 @@ import logging
 import os
 import os.path as osp
 import pkgutil
-import subprocess
 
 from gym.spaces import Box
 from sacred import Experiment
@@ -193,8 +192,9 @@ def gail(batch_size, expert_dataset_path, **kwargs):
         raise ValueError("must set expert_dataset_path to use GAIL.")
     expert_dataset = ExpertDataset(expert_dataset_path)
     del kwargs['learning_rate']
-    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset, callback_key='timesteps_so_far',
-                   callback_mul=1, timesteps_per_batch=batch_size // num_proc, **kwargs)
+    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
+                   callback_key='timesteps_so_far', callback_mul=1,
+                   timesteps_per_batch=batch_size // num_proc, **kwargs)
 
 
 @train_ex.config

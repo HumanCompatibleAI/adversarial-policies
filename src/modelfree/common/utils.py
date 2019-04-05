@@ -182,7 +182,8 @@ class TrajectoryRecorder(object):
         if not os.path.isdir(self.traj_dir):
             os.makedirs(self.traj_dir)
 
-        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)] for p in range(num_policies)]
+        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)]
+                           for p in range(num_policies)]
         self.full_traj_dicts = [defaultdict(list) for p in range(num_policies)]
         self.num_completed = 0
         self.already_saved = [False for p in range(num_policies)]
