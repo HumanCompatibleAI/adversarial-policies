@@ -28,6 +28,7 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 SCORE_AGENT_CONFIGS = [
     {'agent_b_type': 'zoo', 'agent_b_path': '2', 'videos': True, 'episodes': 2},
     {'env_name': 'multicomp/KickAndDefend-v0', 'episodes': 1},
+    {'record_traj': True, 'traj_dir': 'test_dir'}
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -49,11 +50,17 @@ def test_score_agent(config):
     if 'episodes' not in config:
         config['episodes'] = 1  # speed up tests
 
+
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
 
     outcomes = [run.result[k] for k in ['ties', 'win0', 'win1']]
     assert sum(outcomes) == run.config['episodes']
+
+    if 'record_traj' in config:
+        traj_file_path = os.path.join(config['traj_dir'], 'agent_0.npz')
+        assert os.path.exists(traj_file_path)
+        os.remove(traj_file_path)
 
 
 TRAIN_CONFIGS = [
