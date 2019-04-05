@@ -95,7 +95,13 @@ TRAIN_CONFIGS = [
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',
         'adv_noise_params': {'noise_val': 0.1},
-    }
+    },
+    {
+        'rl_algo': 'gail',
+        'num_env': 1,
+        'expert_dataset_path': 'SumoAnts_traj/agent_0.npz',
+    },
+
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']
