@@ -77,12 +77,12 @@ def find_best(logdirs, episode_window):
         for event_path in event_files(logdir):
             stats = get_stats(event_path=event_path, episode_window=episode_window)
             config = get_sacred_config(event_path)
-            env_name = config['env_name']
-            opp_index = config['victim_index']
-            opp_type = config['victim_type']
+            env_name = str(config['env_name'])
+            opp_index = int(config['victim_index'])
+            opp_type = str(config['victim_type'])
             # multi_score is not set up to handle multiple victim types
             assert opp_type == 'zoo'
-            opp_path = config['victim_path']
+            opp_path = str(config['victim_path'])
 
             our_index = 1 - opp_index
             key = (env_name, opp_index, opp_path)
