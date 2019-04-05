@@ -1,7 +1,6 @@
 """Agents want to be close to 'food' but not be too crowded on a 1D line."""
 
-from gym.spaces.box import Box
-from gym.spaces.tuple_space import Tuple
+from gym.spaces import Box, Tuple
 import numpy as np
 
 from aprl.envs.multi_agent import MultiAgentEnv

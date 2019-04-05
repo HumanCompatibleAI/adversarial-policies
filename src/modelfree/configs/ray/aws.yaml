@@ -1,4 +1,4 @@
-cluster_name: adversarial-policies-aws-neel
+cluster_name: adversarial-policies-aws
 min_workers: 0
 max_workers: 10
 initial_workers: 0
@@ -6,7 +6,7 @@ target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:gail-tune
+  image: humancompatibleai/adversarial_policies:latest
   container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
@@ -29,23 +29,23 @@ auth:
   ssh_private_key: ~/.ssh/adversarial-policies
 
 head_node:
-  InstanceType: m5.24xlarge
+  InstanceType: c5.2xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
-        VolumeSize: 100
+        VolumeSize: 50
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: m5.24xlarge
+  InstanceType: c5.18xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
-        VolumeSize: 100
+        VolumeSize: 50
         VolumeType: gp2
   InstanceMarketOptions:
     MarketType: spot
@@ -56,37 +56,34 @@ setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco
   - ln -sf /home/ubuntu/ray_bootstrap_key.pem /root/ray_bootstrap_key.pem
-head_setup_commands:
-  # Get expert datasets
-  - >
-    . modelfreevenv/bin/activate &&
-    aws s3 sync s3://adversarial-policies/gail/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/gail
-worker_setup_commands:
-  # Get expert datasets
-  - >
-    . modelfreevenv/bin/activate &&
-    aws s3 sync s3://adversarial-policies/gail/ /adversarial-policies/modelfreevenv/lib/python3.6/site-packages/modelfree/gail
+head_setup_commands: []
+worker_setup_commands: []
 
 head_start_ray_commands:
   # Set up alarm for if node is left running by mistake
-  # Pretend to be ubuntu user to workaround Ray bug #4403.
   # Then (re)start Ray.
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
+    git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    pip install . &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
-    ray start --head --redis-port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml
+    ray start --head --redis-port=6379 --object-manager-port=8076 \
+              --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=4
 
 # Command to start ray on worker nodes. You don't need to change this.
 worker_start_ray_commands:
   # (Re)start spot termination monitor.
-  # Pretend to be ubuntu user to workaround Ray bug #4403.
   # Then (re)start Ray.
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
+    git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    pip install . &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&

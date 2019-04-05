@@ -7,13 +7,14 @@ from aprl.utils import getattr_unwrapped
 
 
 class MultiMonitor(Monitor):
-    def __init__(self, env, filename, allow_early_resets=False,
+    def __init__(self, env, filename, our_idx=None, allow_early_resets=False,
                  reset_keywords=(), info_keywords=()):
         num_agents = getattr_unwrapped(env, 'num_agents')
         extra_rks = tuple("r{:d}".format(i) for i in range(num_agents))
         super().__init__(env, filename, allow_early_resets=allow_early_resets,
                          reset_keywords=reset_keywords,
                          info_keywords=extra_rks + info_keywords)
+        self.our_idx = our_idx
         self.info_keywords = info_keywords
 
     def step(self, action):
@@ -30,10 +31,11 @@ class MultiMonitor(Monitor):
         if done:
             self.needs_reset = True
             eplen = len(self.rewards)
-            ep_info = {"r": float('nan'),
+            ep_rew = np.asarray(self.rewards).sum(axis=0).round(6)
+            our_rew = float('nan') if self.our_idx is None else ep_rew[self.our_idx]
+            ep_info = {"r": our_rew,
                        "l": eplen,
                        "t": round(time.time() - self.t_start, 6)}
-            ep_rew = np.asarray(self.rewards).sum(axis=0).round(6)
             for i, rew in enumerate(ep_rew):
                 ep_info["r{:d}".format(i)] = rew
             for key in self.info_keywords:
