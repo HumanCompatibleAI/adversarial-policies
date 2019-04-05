@@ -1,6 +1,0 @@
-{
-    "metric": "length",
-    "window_size": 100,
-    "min_wait": 100,
-    "thresh": 100
-}
