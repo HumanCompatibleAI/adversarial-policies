@@ -12,7 +12,7 @@ TRANSPARENCY_KEYS = ('obs', 'ff', 'hid')
 
 
 class TransparentPolicy(ABC):
-    def __init__(self, transparent_params, policy):
+    def __init__(self, transparent_params, policy=None):
         self.transparent_params = transparent_params
         self.policy = policy
 
@@ -36,7 +36,7 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
         FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
                                    layers, net_arch, act_fun, cnn_extractor, feature_extraction,
                                    **kwargs)
-        TransparentPolicy.__init__(self, transparent_params, policy)
+        TransparentPolicy.__init__(self, transparent_params, policy=policy)
 
     def get_obs_aug_amount(self):
         obs_aug_amount = 0
@@ -129,7 +129,9 @@ class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, policy, agent_idx)
-        self.underlying_policy = policy.policy.policy
+
+        # this is super annoying. Need to make general solution for stable_baselines/gym_compete.
+        self.underlying_policy = policy.policy
         if not isinstance(self.underlying_policy, TransparentPolicy):
             raise TypeError("Error: policy must be transparent")
         self._action = None

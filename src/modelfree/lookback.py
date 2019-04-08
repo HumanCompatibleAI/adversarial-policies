@@ -80,7 +80,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         # the same things as our policy. self._pseudo_lb_state comes from seeing only self._obs
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones, return_data=False)
-        #print(lb_action)
         new_baseline_dict.data['state'] = self._new_lb_state
         new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
@@ -103,15 +102,15 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 # get info for lookback victim
                 lb_victim_info = lb_dict.data['info'][self.victim_index]
                 # get obsfor victim for our venv
-                #vic = infos[env_idx][self.victim_index]['obs'][env_idx]
+                vic = infos[env_idx][self.victim_index]['ff']['policy'][0][env_idx]
                 # get obs for lookback victim
-                #lb_vic = lb_victim_info[self.victim_index]['obs'][env_idx]
-                #diff_ff = vic - lb_vic
-                #concat = np.stack([vic, lb_vic, diff_ff])
-                #print(np.linalg.norm(diff_ff), i)
+                lb_vic = lb_victim_info[self.victim_index]['ff']['policy'][0][env_idx]
+                diff_ff = vic - lb_vic
+                concat = np.stack([vic, lb_vic, diff_ff])
+                print(round(np.linalg.norm(diff_ff), 4), i)
 
                 diff_reward = rewards[env_idx] - lb_dict.data['reward'][env_idx]
-                print(diff_reward)
+                #print(diff_reward)
                 #print('diff:', "{:8.6f}".format(diff_reward),
                 #      'base:', "{:8.6f}".format(lb_dict.data['reward'][env_idx]),
                 #      'rew:', "{:8.6f}".format(rewards[env_idx]),
@@ -157,6 +156,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         curry_obs = self._get_curry_obs()
         action, state = self._policy.predict(truncated_obs, state=None, mask=None, return_data=False)
         initial_env_states = self.venv.unwrapped.env_method('get_state', env_idx)
+        initial_env_radii = self.venv.unwrapped.env_method('get_radius', env_idx)
         for lb_dict in self.lb_dicts:
             if env_idx is None:
                 # this gets called only in self.reset()
@@ -179,6 +179,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             envs_iter = range(self.num_envs) if env_idx is None else (0,)
             for env_to_set in envs_iter:
                 lb_dict.venv.unwrapped.env_method('set_state', env_to_set, initial_env_states[env_to_set])
+                lb_dict.venv.unwrapped.env_method('set_radius', env_to_set, initial_env_radii[env_to_set])
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""

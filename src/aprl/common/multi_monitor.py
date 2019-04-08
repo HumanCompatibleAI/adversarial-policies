@@ -61,3 +61,13 @@ class MultiMonitor(Monitor):
         """Pass through to a ResettableEnv"""
         assert isinstance(self.env, ResettableEnv)
         return self.env.set_state(x)
+
+    def get_radius(self):
+        """Pass through to a ResettableEnv"""
+        assert isinstance(self.env, ResettableEnv)
+        return self.env.get_radius()
+
+    def set_radius(self, r):
+        """Pass through to a ResettableEnv"""
+        assert isinstance(self.env, ResettableEnv)
+        return self.env.set_radius(r)
