@@ -12,6 +12,10 @@ TRANSPARENCY_KEYS = ('obs', 'ff', 'hid')
 
 
 class TransparentPolicy(ABC):
+    def __init__(self, transparent_params, policy):
+        self.transparent_params = transparent_params
+        self.policy = policy
+
     @abstractmethod
     def get_obs_aug_amount(self):
         raise NotImplementedError()
@@ -21,7 +25,7 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
     """FeedForwardPolicy which is also transparent."""
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  reuse=False, layers=None, net_arch=None, act_fun=tf.tanh,
-                 cnn_extractor=nature_cnn, feature_extraction="cnn", **kwargs):
+                 cnn_extractor=nature_cnn, feature_extraction="cnn", policy=None, **kwargs):
         """
         :param transparent_params: dict with potential keys 'obs', 'ff', 'hid'.
         If key is not present, then we don't provide this data as part of the data dict in step.
@@ -32,7 +36,7 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
         FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
                                    layers, net_arch, act_fun, cnn_extractor, feature_extraction,
                                    **kwargs)
-        self.transparent_params = transparent_params
+        TransparentPolicy.__init__(self, transparent_params, policy)
 
     def get_obs_aug_amount(self):
         obs_aug_amount = 0
@@ -43,13 +47,33 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
         return obs_aug_amount
 
     def step(self, obs, state=None, mask=None, deterministic=False):
+        actor = self.policy if self.policy is not None else self
         action_op = self.deterministic_action if deterministic else self.action
         action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp,
                                                     self.ff_out], {self.obs_ph: obs})
         transparent_objs = (obs, ff, None)
         transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
                              if k in self.transparent_params}
-        return action, value, self.initial_state, neglogp, transparency_dict
+        return action, value, actor.initial_state, neglogp, transparency_dict
+
+
+class TransparentMlpPolicyWrapper(TransparentFeedForwardPolicy):
+    def __init__(self, policy, transparent_params):
+        self.policy = policy
+        self.policy.transparent_params = transparent_params
+        self.transparent_params = transparent_params
+
+    def get_obs_aug_amount(self):
+        return 0
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        return TransparentFeedForwardPolicy.step(self.policy, obs, state, mask, deterministic)
+
+    def proba_step(self, obs, state=None, mask=None):
+        return TransparentFeedForwardPolicy.proba_step(self.policy, obs, state, mask)
+
+    def value(self, obs, state=None, mask=None):
+        return TransparentFeedForwardPolicy.value(self.policy, obs, state, mask)
 
 
 class TransparentMlpPolicy(TransparentFeedForwardPolicy):
@@ -73,7 +97,7 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
         """
         LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
                             scope, reuse, normalize)
-        self.transparent_params = transparent_params
+        TransparentPolicy.__init__(self, transparent_params)
 
     def get_obs_aug_amount(self):
         obs_aug_amount = 0
@@ -105,7 +129,7 @@ class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, policy, agent_idx)
-        self.underlying_policy = policy.policy
+        self.underlying_policy = policy.policy.policy
         if not isinstance(self.underlying_policy, TransparentPolicy):
             raise TypeError("Error: policy must be transparent")
         self._action = None
@@ -117,13 +141,16 @@ class TransparentCurryVecEnv(CurryVecEnv):
                                                           augment_space=obs_aug_space)
 
     def step_async(self, actions):
+        self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
+                                                                     mask=self._dones)
         actions.insert(self._agent_to_fix, self._action)
         self.venv.step_async(actions)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
         observations = self._get_updated_obs(observations)
-        infos[self._agent_to_fix].update(self._data)
+        for env_idx in range(self.num_envs):
+            infos[env_idx][self._agent_to_fix].update(self._data)
         return observations, rewards, self._dones, infos
 
     def reset(self):
