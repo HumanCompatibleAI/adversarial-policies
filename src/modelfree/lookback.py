@@ -50,9 +50,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                                  env_name=env_name, index=victim_index,
                                  transparent_params=self.transparent_params)
 
-            #if victim_type == 'ppo2' and not isinstance(victim.policy.policy, TransparentPolicy):
-            #    victim.policy.policy = TransparentMlpPolicyWrapper(victim.policy, self.transparent_params)
-
             multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                             victim_index=victim_index,
                                             transparent_params=self.transparent_params)

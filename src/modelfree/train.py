@@ -327,15 +327,12 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 
 
 @train_ex.capture
-def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type,
-                        transparent_params):
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type):
     adv_noise_agent_val = adv_noise_params['noise_val']
     base_policy_path = adv_noise_params.get('base_path', victim_path)
     base_policy_type = adv_noise_params.get('base_type', victim_type)
     base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
                               env=multi_venv, env_name=env_name, index=our_idx)
-    if base_policy_type == 'ppo2' and not isinstance(base_policy.policy.policy, TransparentPolicy):
-        base_policy.policy.policy = TransparentMlpPolicyWrapper(base_policy.policy, transparent_params)
 
     base_action_space = multi_venv.action_space.spaces[our_idx]
     adv_noise_action_space = Box(low=adv_noise_agent_val * base_action_space.low,
@@ -359,10 +356,6 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
                              env_name=env_name, index=victim_index,
                              transparent_params=transparent_params)
-
-        if transparent_params is not None:
-            if victim_type == 'ppo2' and not isinstance(victim.policy.policy, TransparentPolicy):
-                victim.policy.policy = TransparentMlpPolicyWrapper(victim.policy, transparent_params)
 
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
