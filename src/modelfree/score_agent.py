@@ -8,7 +8,7 @@ from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
 from modelfree.common.policy_loader import load_policy
-from modelfree.common.utils import VideoWrapper, make_env, simulate
+from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 
 score_ex = Experiment('score')
@@ -24,8 +24,7 @@ def announce_winner(sim_stream):
                 yield game_outcome(info)
 
 
-def get_empirical_score(_run, env, agents, episodes, render=False,
-                        record_traj=False, traj_dir='data/'):
+def get_empirical_score(_run, env, agents, episodes, render=False):
     """Computes number of wins for each agent and ties.
 
     :param env: (gym.Env) environment
@@ -39,8 +38,7 @@ def get_empirical_score(_run, env, agents, episodes, render=False,
     # This tells sacred about the intermediate computation so it
     # updates the result as the experiment is running
     _run.result = result
-    sim_stream = simulate(env, agents, render=render, record_traj=record_traj,
-                          traj_dir=traj_dir, num_traj_to_save=episodes)
+    sim_stream = simulate(env, agents, render=render)
     for ep, winner in enumerate(announce_winner(sim_stream)):
         if winner is None:
             result['ties'] += 1
@@ -60,7 +58,7 @@ def default_score_config():
     agent_b_type = 'zoo'   # type supported by policy_loader.py
     agent_b_path = '2'     # path or other unique identifier
     record_traj = False    # record trajectories in stable_baselines.GAIL format
-    traj_dir = 'data/'     # directory to save trajectories to
+    traj_dir = 'data/experts'     # directory to save trajectories to
     num_env = 1            # number of environments to run in parallel
     episodes = 20          # number of episodes to evaluate
     render = True          # display on screen (warning: slow)
@@ -87,6 +85,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     else:
         venv = make_dummy_vec_multi_env(env_fns)
 
+    if record_traj:
+        venv = TrajectoryRecorder(venv, traj_dir)
+
     if venv.num_agents == 1 and agent_b_path != 'none':
         raise ValueError("Set agent_b_path to 'none' if environment only uses one agent.")
 
@@ -96,8 +97,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agents = [load_policy(policy_type, policy_path, venv, env_name, i)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
-    score = get_empirical_score(_run, venv, agents, episodes, render=render,
-                                record_traj=record_traj, traj_dir=traj_dir)
+    score = get_empirical_score(_run, venv, agents, episodes, render=render)
+    if record_traj:
+        venv.save_traj(agent_indices=0)
+
     for agent in agents:
         if agent.sess is not None:
             agent.sess.close()

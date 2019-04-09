@@ -10,11 +10,10 @@ from gym.monitoring import VideoRecorder
 import numpy as np
 from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
-from stable_baselines.logger import KVWriter
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
-from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti
+from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
 
 
 class DummyModel(BaseRLModel):
@@ -155,17 +154,6 @@ class VideoWrapper(Wrapper):
         )
 
 
-class ReporterOutputFormat(KVWriter):
-    """Key-value logging plugin for Stable Baselines that writes to a Ray Tune StatusReporter."""
-    def __init__(self, reporter):
-        self.last_kvs = dict()
-        self.reporter = reporter
-
-    def writekvs(self, kvs):
-        self.last_kvs = kvs
-        self.reporter(**kvs)
-
-
 def make_session(graph=None):
     tf_config = tf.ConfigProto()
     tf_config.gpu_options.allow_growth = True
@@ -173,24 +161,36 @@ def make_session(graph=None):
     return sess
 
 
-class TrajectoryRecorder(object):
-    def __init__(self, num_envs, num_policies, num_traj_to_save, traj_dir):
-        self.num_envs = num_envs
-        self.num_policies = num_policies
-        self.num_traj_to_save = num_traj_to_save
+class TrajectoryRecorder(VecMultiWrapper):
+    def __init__(self, venv, traj_dir):
+        VecMultiWrapper.__init__(self, venv)
         self.traj_dir = traj_dir
-        if not os.path.isdir(self.traj_dir):
-            os.makedirs(self.traj_dir)
+        os.makedirs(self.traj_dir, exist_ok=True)
 
-        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)]
-                           for p in range(num_policies)]
-        self.full_traj_dicts = [defaultdict(list) for p in range(num_policies)]
-        self.num_completed = 0
-        self.already_saved = [False for p in range(num_policies)]
+        self.traj_dicts = [[defaultdict(list) for e in range(self.num_envs)]
+                           for p in range(self.num_agents)]
+        self.full_traj_dicts = [defaultdict(list) for p in range(self.num_agents)]
+        self.prev_obs = None
+        self.actions = None
 
-    def record_traj(self, rewards, actions, dones, prev_observations):
+    def step_async(self, actions):
+        self.actions = actions
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        observations, rewards, dones, infos = self.venv.step_wait()
+        self.record_traj(self.prev_obs, self.actions, rewards, dones)
+        self.prev_obs = observations
+        return observations, rewards, dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        self.prev_obs = observations
+        return observations
+
+    def record_traj(self, prev_obs, actions, rewards, dones):
         data_keys = ('rewards', 'actions', 'obs')
-        data_vals = (rewards, actions, prev_observations)
+        data_vals = (rewards, actions, prev_obs)
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
         for (agent_idx, agent_dicts), env_idx in iter_space:
@@ -209,42 +209,32 @@ class TrajectoryRecorder(object):
                     episode_key_data = np.array(agent_dicts[env_idx][key])
                     self.full_traj_dicts[agent_idx][key].append(episode_key_data)
                 agent_dicts[env_idx] = defaultdict(list)
-                # so as not to double-count number of episodes
-                self.num_completed += int(agent_idx == 0)
-                if self.num_completed >= self.num_traj_to_save:
-                    self.save_traj(agent_idx)
 
-    def save_traj(self, agent_idx):
-        if self.already_saved[agent_idx]:
-            print(f'Warning: already saved trajectories for agent {agent_idx}')
-        dump_dict = {
-            k: np.concatenate(v, axis=0)
-            for k, v in self.full_traj_dicts[agent_idx].items()}
-        save_path = os.path.join(self.traj_dir, f'agent_{agent_idx}.npz')
-        np.savez(save_path, **dump_dict)
-        self.already_saved[agent_idx] = True
+    def save_traj(self, agent_indices=None):
+        if agent_indices is None:
+            agent_indices = range(self.num_agents)
+        elif isinstance(agent_indices, int):
+            agent_indices = [agent_indices]
+
+        for agent_idx in agent_indices:
+            dump_dict = {
+                k: np.concatenate(v, axis=0)
+                for k, v in self.full_traj_dicts[agent_idx].items()}
+            save_path = os.path.join(self.traj_dir, f'agent_{agent_idx}.npz')
+            np.savez(save_path, **dump_dict)
 
 
-def simulate(venv, policies, render=False, record_traj=False, traj_dir='data/',
-             num_traj_to_save=None):
+def simulate(venv, policies, render=False):
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
     :param policies(list<BaseModel>): a policy per agent.
     :param render: true if the run should be rendered to the screen
-    :param record_traj: whether to save trajectory data in stable_baselines.GAIL format
-    :param traj_dir: where to save the trajectories
-    :param num_traj_to_save: when to save trajectories since this function is a generator
     :return: streams information about the simulation
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
     states = [None for _ in policies]
-
-    if record_traj:
-        if num_traj_to_save is None:
-            raise ValueError("Must set number of trajectories to save in order to save them.")
-        recorder = TrajectoryRecorder(venv.num_envs, len(policies), num_traj_to_save, traj_dir)
 
     while True:
         if render:
@@ -252,7 +242,6 @@ def simulate(venv, policies, render=False, record_traj=False, traj_dir='data/',
 
         actions = []
         new_states = []
-        prev_observations = observations
         for idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
             act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
@@ -261,8 +250,6 @@ def simulate(venv, policies, render=False, record_traj=False, traj_dir='data/',
         states = new_states
 
         observations, rewards, dones, infos = venv.step(actions)
-        if record_traj:
-            recorder.record_traj(rewards, actions, dones, prev_observations)
         yield observations, rewards, dones, infos
 
 

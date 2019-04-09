@@ -56,7 +56,7 @@ def test_score_agent(config):
     outcomes = [run.result[k] for k in ['ties', 'win0', 'win1']]
     assert sum(outcomes) == run.config['episodes']
 
-    if 'record_traj' in config:
+    if config.get('record_traj', False):
         for i in range(2):
             traj_file_path = os.path.join(config['traj_dir'], f'agent_{i}.npz')
             assert os.path.exists(traj_file_path)
