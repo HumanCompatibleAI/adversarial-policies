@@ -9,22 +9,22 @@ from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import make_env
 from modelfree.envs.gym_compete import GymCompeteToOurs
-from modelfree.transparent import TransparentMlpPolicyWrapper, TransparentPolicy
 
-LookbackDict = namedtuple('LookbackDict', ['curry', 'venv', 'data'])
+LookbackTuple = namedtuple('LookbackTuple', ['curry', 'venv', 'data'])
 
 
 class LookbackRewardVecWrapper(VecEnvWrapper):
     """Retains information about prior episodes and rollouts to be used in k-lookback whitebox attacks"""
-    def __init__(self, venv, lookback_num, env_name, use_dummy, victim_index,
+    def __init__(self, venv, lookback_params, env_name, use_dummy, victim_index,
                  victim_path, victim_type, transparent_params, lookback_space=1):
         super().__init__(venv)
-        self.lookback_num = lookback_num
+        self.lookback_num = lookback_params['num_lb']
         self.lookback_space = lookback_space
         self.transparent_params = transparent_params
         self.victim_index = victim_index
 
-        self._policy = self.venv.venv.get_policy()
+        self._policy = load_policy(lookback_params['type'], lookback_params['path'], self.venv.venv.venv.venv.venv,
+                                   env_name, 1 - victim_index, transparent_params=None)
         self._action = None
         self._obs = None
         self._state = None
@@ -33,9 +33,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.ep_lens = np.zeros(self.num_envs).astype(int)
         self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_index,
                                               victim_path, victim_type)
-        self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
+        #self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
         self.venv.venv.venv.venv.debug_file = self.debug_files[0]
-
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_index, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -60,7 +59,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             single_venv = FlattenSingletonVecEnv(multi_venv)
             data_dict = {'state': None, 'action': None, 'reward': np.zeros(self.num_envs),
                          'info': defaultdict(dict)}
-            lb_dicts.append(LookbackDict(curry=multi_venv.venv, venv=single_venv, data=data_dict))
+            lb_dicts.append(LookbackTuple(curry=multi_venv.venv, venv=single_venv, data=data_dict))
         return lb_dicts
 
     def step_async(self, actions):
@@ -77,7 +76,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
         for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
-            lb_dict.curry.debug_file = self.debug_files[i + 2]
+            #lb_dict.curry.debug_file = self.debug_files[i + 2]
             lb_dict.venv.step_async(lb_dict.data['action'])
 
         # the baseline policy's state is what it would have been if it had observed all of
@@ -85,7 +84,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones, return_data=False)
         new_baseline_dict.data['state'] = self._new_lb_state
-        new_baseline_dict.curry.debug_file = self.debug_files[1]
+        #new_baseline_dict.curry.debug_file = self.debug_files[1]
         new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
         self.ep_lens += 1
@@ -109,6 +108,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 if 'ff' in self.transparent_params:
                     diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
                     env_diff_reward += np.linalg.norm(diff_ff)
+                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
 
                 if 'obs' in self.transparent_params:
                     diff_obs = victim_info['obs'][env_idx] - lb_victim_info['obs'][env_idx]
@@ -168,7 +168,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 if state is None:
                     lb_dict.data['state'] = None
                 else:
-                    lb_dict.data['state'][:, env_idx, :] = state[:, env_idx, :]
+                    lb_dict.data['state'][env_idx, :, :] = state[env_idx, :, :]
                 lb_dict.data['reward'][env_idx] = 0
                 #lb_dict.data['info'][env_idx] = {}
                 lb_dict.curry.set_obs(curry_obs, env_idx)

@@ -253,7 +253,11 @@ def train_config():
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
     transparent_params = None       # param dict for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
-    num_lookback = 0                # activates LookbackRewardVecWrapper and uses num_lookback venvs
+    lookback_params = {             # parameters for doing lookback white-box attacks
+        'num_lb': 0,                # number of lookback venvs
+        'path': None,               # path of lookback base policy
+        'type': rl_algo,            # type of lookback base policy
+    }
 
     # General
     checkpoint_interval = 131072    # save weights to disk after this many timesteps
@@ -288,9 +292,9 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug, num_lookback):
+def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug, lookback_params):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
-    resettable = num_lookback > 0
+    resettable = lookback_params['num_lb'] > 0
 
     if victim_type == 'none':
         our_idx = 0
@@ -373,7 +377,7 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
 @train_ex.capture
 def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
                     victim_index, victim_path, victim_type, debug, env_name, load_policy,
-                    num_lookback, transparent_params, log_callbacks, save_callbacks):
+                    lookback_params, transparent_params, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -384,8 +388,8 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
             if scheduler.is_conditional(anneal_type):
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
-    if num_lookback > 0:
-        lookback_venv = LookbackRewardVecWrapper(single_venv, num_lookback, env_name, debug,
+    if lookback_params['num_lb'] > 0:
+        lookback_venv = LookbackRewardVecWrapper(single_venv, lookback_params, env_name, debug,
                                                  victim_index, victim_path, victim_type,
                                                  transparent_params)
         single_venv = lookback_venv
@@ -416,7 +420,7 @@ NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac', 'gail']
 
 
 @train_ex.main
-def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats, num_lookback):
+def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats, lookback_params):
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
@@ -430,7 +434,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
     multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
 
     single_venv = FlattenSingletonVecEnv(multi_venv)
-    single_venv = single_wrappers(single_venv, scheduler, our_idx, num_lookback=num_lookback,
+    single_venv = single_wrappers(single_venv, scheduler, our_idx, lookback_params=lookback_params,
                                   log_callbacks=log_callbacks, save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
