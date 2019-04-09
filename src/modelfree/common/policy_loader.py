@@ -36,10 +36,7 @@ def load_stable_baselines(cls):
         # TODO: REMOVE THIS! Backwards compatibility hack.
         # Renamed modelfree.scheduling->modelfree.training.scheduling.
         # But old pickled policies still expect modelfree.scheduling to exist.
-        import modelfree.training.scheduling  # noqa: F401
-        sys.modules['modelfree.scheduling'] = sys.modules['modelfree.training.scheduling']
-        model = cls.load(model_path, env=denv)
-        del sys.modules['modelfree.scheduling']
+        model = load_backward_compatible_model(cls, model_path, denv)
 
         try:
             vec_normalize = VecNormalize(denv, training=False)
@@ -129,3 +126,14 @@ def load_policy(policy_type, policy_path, env, env_name, index, transparent_para
     if agent_loader is None:
         raise ValueError(f"Unrecognized agent type '{policy_type}'")
     return agent_loader(policy_path, env, env_name, index, transparent_params)
+
+
+def load_backward_compatible_model(cls, model_path, denv=None, **kwargs):
+    import modelfree.training.scheduling
+    sys.modules['modelfree.scheduling'] = sys.modules['modelfree.training.scheduling']
+    if 'env' in kwargs:
+        denv = kwargs['env']
+        del kwargs['env']
+    model = cls.load(model_path, env=denv, **kwargs)
+    del sys.modules['modelfree.scheduling']
+    return model

@@ -18,7 +18,7 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.common.policy_loader import load_policy
+from modelfree.common.policy_loader import load_policy, load_backward_compatible_model
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.lookback import LookbackRewardVecWrapper
@@ -116,7 +116,7 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
     if load_policy['path'] is not None:
         if load_policy['type'] == our_type:
             # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
-            model = cls.load(load_policy['path'], **kwargs)
+            model = load_backward_compatible_model(cls, load_policy['path'], **kwargs)
         elif load_policy['type'] == 'zoo':
             policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
             kwargs['policy_kwargs'] = policy_kwargs
@@ -281,7 +281,7 @@ def load_default(env_name, config_dir):
 
 @train_ex.config
 def wrappers_config(env_name):
-    rew_shape = False  # enable reward shaping
+    rew_shape = True  # enable reward shaping
     rew_shape_params = load_default(env_name, 'rew')  # parameters for reward shaping
 
     victim_noise = False  # enable adding noise to victim
@@ -400,6 +400,9 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
                              "implicitly. Please set normalize=False to disable VecNormalize.")
 
         normalized_venv = VecNormalize(single_venv)
+        if load_policy['path'] is not None:
+            normalized_venv.load_running_average(load_policy['path'].split('/')[0])
+
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
 

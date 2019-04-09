@@ -23,7 +23,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.transparent_params = transparent_params
         self.victim_index = victim_index
 
-        self._policy = load_policy(lookback_params['type'], lookback_params['path'], self.venv.venv.venv.venv.venv,
+        self._policy = load_policy(lookback_params['type'], lookback_params['path'], self.venv.venv.venv.venv.venv.venv,
                                    env_name, 1 - victim_index, transparent_params=None)
         self._action = None
         self._obs = None
@@ -34,7 +34,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_index,
                                               victim_path, victim_type)
         #self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
-        self.venv.venv.venv.venv.debug_file = self.debug_files[0]
+        #self.venv.venv.venv.venv.debug_file = self.debug_files[0]
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_index, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -108,12 +108,10 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 if 'ff' in self.transparent_params:
                     diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
                     env_diff_reward += np.linalg.norm(diff_ff)
-                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
 
                 if 'obs' in self.transparent_params:
                     diff_obs = victim_info['obs'][env_idx] - lb_victim_info['obs'][env_idx]
-
-            rewards[env_idx] += env_diff_reward
+            rewards[env_idx] += 0.05 * env_diff_reward
         return observations, rewards, self._dones, infos
 
     def reset(self):
@@ -123,7 +121,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         return observations
 
     def _get_curry_obs(self):
-        return self.venv.venv.venv.get_obs()
+        return self.venv.venv.venv.venv.get_obs()
 
     def _process_own_obs(self, observations):
         """Record action, state and observations of our policy"""
