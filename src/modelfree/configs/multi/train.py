@@ -354,6 +354,23 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
+    def finetune_gentle_youshallnotpass(train):
+        """Finetune gym_compete policy on YouShallNotPassHumans.
+        This is the only environment that I saw some improvement on.
+        Same hyperparams as finetune_gentle_mlp, but greater total number of timesteps."""
+        train = dict(train)
+        _sparse_reward(train)
+        _finetune_train(train)
+        _best_guess_train(train)
+        train['batch_size'] = 32768
+        train['learning_rate'] = 1e-4
+        train['total_timesteps'] = int(40e6)
+        spec = _finetune_spec(envs=['multicomp/YouShallNotPassHumans-v0'])
+        exp_name = 'finetune_gentle_youshallnotpass'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
     def finetune_gentle_lstm(train):
         """Finetuning gym_compete LSTM policies with lower learning rate / larger batch size.
         This more closely emulates the hyperparameters they were originally trained with."""
@@ -398,6 +415,7 @@ def make_configs(multi_train_ex):
     # Adversarial noise ball
     @multi_train_ex.named_config
     def noise_ball_search(train):
+        """Random search of size of allowed noise ball."""
         train = dict(train)
         _sparse_reward(train)
         _best_guess_train(train)
@@ -425,5 +443,32 @@ def make_configs(multi_train_ex):
             'num_samples': 10,
         }
         exp_name = 'noise_ball_search'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def noise_ball(train):
+        """Test adversarial noise ball policy in a range of environments."""
+        train = dict(train)
+        _sparse_reward(train)
+        _best_guess_train(train)
+        train['adv_noise_params'] = {
+            'base_type': 'zoo',
+            'noise_val': 1.0,
+        }
+        spec = {
+            'config': {
+                'env_name:victim_path': tune.grid_search(_env_victim(
+                    ['multicomp/SumoHumansAutoContact-v0', 'multicomp/RunToGoalHumans-v0'],
+                )),
+                'adv_noise_params': {
+                    'base_path': tune.sample_from(
+                        lambda spec: spec.config['env_name:victim_path'][1],
+                    )
+                },
+                'seed': tune.grid_search([0, 1, 2]),
+            },
+        }
+        exp_name = 'noise_ball'
         _ = locals()  # quieten flake8 unused variable warning
         del _
