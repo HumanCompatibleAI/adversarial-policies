@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 
 import gym
-from gym_compete.policy import LSTMPolicy
+from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
-
+import pickle
 from aprl.envs.multi_agent import CurryVecEnv, _tuple_pop, _tuple_space_augment
 
 TRANSPARENCY_KEYS = ('obs', 'ff', 'hid')
@@ -125,6 +125,35 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
         return a, v, state, neglogp, transparency_dict
 
 
+class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 hiddens=None, scope="input", reuse=False, normalize=False):
+        """
+        :param transparent_params: dict with potential keys 'obs', 'ff', 'hid'.
+        If key is not present, then we don't provide this data as part of the data dict in step.
+        If key is present, value (bool) corresponds to whether we augment the observation space
+        with it. This is because TransparentCurryVecEnv needs this information to modify its
+        observation space, and we want all of the transparency-related parameters in one dict.
+        """
+        MlpPolicyValue.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
+                            scope, reuse, normalize)
+        TransparentPolicy.__init__(self, transparent_params)
+
+    def get_obs_aug_amount(self):
+        obs_aug_amount = 0
+        obs_sizes = (self.ob_space.shape[0], sum(self.hiddens), None)
+        for key, val in list(zip(TRANSPARENCY_KEYS, obs_sizes)):
+            if self.transparent_params.get(key):
+                obs_aug_amount += val
+        return obs_aug_amount
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        action = self.deterministic_action if deterministic else self.action
+        outputs = [action, self._value, self.neglogp, self.ff_out]
+        a, v, neglogp, ff = self.sess.run(outputs, {self.obs_ph: obs})
+        return a, v, self.initial_state, neglogp, ff
+
+
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that gives out much more info about its policy."""
     def __init__(self, venv, policy, agent_idx=0):
@@ -135,6 +164,9 @@ class TransparentCurryVecEnv(CurryVecEnv):
         if not isinstance(self.underlying_policy, TransparentPolicy):
             raise TypeError("Error: policy must be transparent")
         self._action = None
+        self.debug_file = None
+        self.debug_dict = {}
+        self.t = 0
 
         obs_aug_amount = self.underlying_policy.get_obs_aug_amount()
         if obs_aug_amount > 0:
@@ -146,21 +178,22 @@ class TransparentCurryVecEnv(CurryVecEnv):
         self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
                                                                      mask=self._dones)
         actions.insert(self._agent_to_fix, self._action)
+        if self.debug_file is not None:
+            self.debug_dict.update({'actions': actions, 'env': 'curry', 't': self.t})
         self.venv.step_async(actions)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
-        observations = self._get_updated_obs(observations)
+        observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
+        if self.debug_file is not None:
+            self.debug_dict.update({'obs': observations, 'rewards': rewards})
+            pickle.dump(self.debug_dict, self.debug_file)
+            self.t += 1
         for env_idx in range(self.num_envs):
             infos[env_idx][self._agent_to_fix].update(self._data)
         return observations, rewards, self._dones, infos
 
     def reset(self):
-        observations = self._get_updated_obs(self.venv.reset())
-        return observations
-
-    def _get_updated_obs(self, observations):
+        observations = self.venv.reset()
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
-        self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
-                                                                     mask=self._dones)
         return observations

@@ -10,7 +10,7 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
 from modelfree.common.utils import PolicyToModel, make_session
-from modelfree.transparent import TransparentLSTMPolicy
+from modelfree.transparent import TransparentLSTMPolicy, TransparentMlpPolicyValue
 
 pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 
@@ -115,13 +115,13 @@ def get_policy_type_for_zoo_agent(env_name, transparent_params):
     mlp = (MlpPolicyValue, {'normalize': True})
     transparent_lstm = (TransparentLSTMPolicy, {'normalize': True,
                                                 'transparent_params': transparent_params})
+    transparent_mlp = (TransparentMlpPolicyValue, {'normalize': True,
+                                                   'transparent_params': transparent_params})
     if canonical_env in POLICY_STATEFUL:
         if POLICY_STATEFUL[canonical_env]:
             return transparent_lstm if transparent_params is not None else lstm
         else:
-            if transparent_params is not None:
-                raise ValueError("Transparent policy not implemented for mlp")
-            return mlp
+            return transparent_mlp if transparent_params is not None else mlp
     else:
         msg = f"Unsupported Environment: {canonical_env}, choose from {POLICY_STATEFUL.keys()}"
         raise ValueError(msg)

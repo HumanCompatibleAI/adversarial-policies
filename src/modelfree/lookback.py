@@ -33,6 +33,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.ep_lens = np.zeros(self.num_envs).astype(int)
         self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_index,
                                               victim_path, victim_type)
+        self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
+        self.venv.venv.venv.venv.debug_file = self.debug_files[0]
+
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_index, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -72,8 +75,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         for env_idx in range(self.num_envs):
             new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx])
 
-        for lb_dict in self.lb_dicts[1:]:
+        for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
+            lb_dict.curry.debug_file = self.debug_files[i + 2]
             lb_dict.venv.step_async(lb_dict.data['action'])
 
         # the baseline policy's state is what it would have been if it had observed all of
@@ -81,6 +85,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones, return_data=False)
         new_baseline_dict.data['state'] = self._new_lb_state
+        new_baseline_dict.curry.debug_file = self.debug_files[1]
         new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
         self.ep_lens += 1
@@ -103,21 +108,21 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_victim_info = lb_dict.data['info'][self.victim_index]
                 # get obsfor victim for our venv
                 vic = infos[env_idx][self.victim_index]['ff']['policy'][0][env_idx]
+                vic_obs = infos[env_idx][self.victim_index]['obs'][env_idx]
                 # get obs for lookback victim
                 lb_vic = lb_victim_info[self.victim_index]['ff']['policy'][0][env_idx]
+                lb_vic_obs = lb_victim_info[self.victim_index]['obs'][env_idx]
                 diff_ff = vic - lb_vic
                 concat = np.stack([vic, lb_vic, diff_ff])
-                print(round(np.linalg.norm(diff_ff), 4), i)
+                #print(round(np.linalg.norm(diff_ff), 4), i, self.ep_lens[env_idx])
+                #print(np.linalg.norm(self.venv.unwrapped.envs[0].env.unwrapped.agents[1].get_cfrc_ext()),
+                np.linalg.norm(lb_dict.venv.unwrapped.envs[0].env.unwrapped.agents[1].get_cfrc_ext())
+                if np.linalg.norm(diff_ff) > 1:
+                    print(round(np.linalg.norm(diff_ff), 4), i, self.ep_lens[env_idx])
 
-                diff_reward = rewards[env_idx] - lb_dict.data['reward'][env_idx]
-                #print(diff_reward)
-                #print('diff:', "{:8.6f}".format(diff_reward),
-                #      'base:', "{:8.6f}".format(lb_dict.data['reward'][env_idx]),
-                #      'rew:', "{:8.6f}".format(rewards[env_idx]),
-                #      'ids', env_idx, i, self.ep_lens[env_idx])
-
-                pass
             rewards[env_idx] += env_diff_reward
+        #self.venv.render()
+        #self.lb_dicts[1].venv.render()
         return observations, rewards, self._dones, infos
 
     def reset(self):

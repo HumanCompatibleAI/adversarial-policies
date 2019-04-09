@@ -4,6 +4,7 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
 from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+import pickle
 
 from aprl.utils import getattr_unwrapped
 
@@ -345,15 +346,24 @@ class MergeAgentVecEnv(VecMultiWrapper):
         self._state = None
         self._obs = None
         self._dones = [False] * venv.num_envs
+        self.debug_file = None
+        self.debug_dict = {}
+        self.t = 0
 
     def step_async(self, actions):
         new_action = actions[self._agent_to_merge] + self._action
         actions = _tuple_replace(actions, self._agent_to_merge, new_action)
+        if self.debug_file is not None:
+            self.debug_dict.update({'actions': actions, 'env': 'curry', 't': self.t})
         self.venv.step_async(actions)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
         observations = self._get_updated_obs(observations)
+        if self.debug_file is not None:
+            self.debug_dict.update({'obs': observations, 'rewards': rewards})
+            pickle.dump(self.debug_dict, self.debug_file)
+            self.t += 1
         return observations, rewards, self._dones, infos
 
     def reset(self):
