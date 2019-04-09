@@ -103,26 +103,17 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 self._reset_state_data(observations, env_idx)
             valid_lb_dicts = self.lb_dicts[:self.ep_lens[env_idx]]
             env_diff_reward = 0
+            victim_info = infos[env_idx][self.victim_index]
             for i, lb_dict in enumerate(valid_lb_dicts):
-                # get info for lookback victim
-                lb_victim_info = lb_dict.data['info'][self.victim_index]
-                # get obsfor victim for our venv
-                vic = infos[env_idx][self.victim_index]['ff']['policy'][0][env_idx]
-                vic_obs = infos[env_idx][self.victim_index]['obs'][env_idx]
-                # get obs for lookback victim
-                lb_vic = lb_victim_info[self.victim_index]['ff']['policy'][0][env_idx]
-                lb_vic_obs = lb_victim_info[self.victim_index]['obs'][env_idx]
-                diff_ff = vic - lb_vic
-                concat = np.stack([vic, lb_vic, diff_ff])
-                #print(round(np.linalg.norm(diff_ff), 4), i, self.ep_lens[env_idx])
-                #print(np.linalg.norm(self.venv.unwrapped.envs[0].env.unwrapped.agents[1].get_cfrc_ext()),
-                np.linalg.norm(lb_dict.venv.unwrapped.envs[0].env.unwrapped.agents[1].get_cfrc_ext())
-                if np.linalg.norm(diff_ff) > 1:
-                    print(round(np.linalg.norm(diff_ff), 4), i, self.ep_lens[env_idx])
+                lb_victim_info = lb_dict.data['info'][env_idx][self.victim_index]
+                if 'ff' in self.transparent_params:
+                    diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
+                    env_diff_reward += np.linalg.norm(diff_ff)
+
+                if 'obs' in self.transparent_params:
+                    diff_obs = victim_info['obs'][env_idx] - lb_victim_info['obs'][env_idx]
 
             rewards[env_idx] += env_diff_reward
-        #self.venv.render()
-        #self.lb_dicts[1].venv.render()
         return observations, rewards, self._dones, infos
 
     def reset(self):
