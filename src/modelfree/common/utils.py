@@ -162,14 +162,19 @@ def make_session(graph=None):
 
 
 class TrajectoryRecorder(VecMultiWrapper):
-    def __init__(self, venv, traj_dir):
+    def __init__(self, venv, save_dir, use_gail_format=False, agent_indices=None):
         VecMultiWrapper.__init__(self, venv)
-        self.traj_dir = traj_dir
-        os.makedirs(self.traj_dir, exist_ok=True)
+        self.save_dir = save_dir
+        self.use_gail_format = use_gail_format
+        if agent_indices is None:
+            self.agent_indices = range(self.num_agents)
+        elif isinstance(agent_indices, int):
+            self.agent_indices = [agent_indices]
+        os.makedirs(self.save_dir, exist_ok=True)
 
         self.traj_dicts = [[defaultdict(list) for e in range(self.num_envs)]
-                           for p in range(self.num_agents)]
-        self.full_traj_dicts = [defaultdict(list) for p in range(self.num_agents)]
+                           for p in self.agent_indices]
+        self.full_traj_dicts = [defaultdict(list) for p in self.agent_indices]
         self.prev_obs = None
         self.actions = None
 
@@ -179,7 +184,7 @@ class TrajectoryRecorder(VecMultiWrapper):
 
     def step_wait(self):
         observations, rewards, dones, infos = self.venv.step_wait()
-        self.record_traj(self.prev_obs, self.actions, rewards, dones)
+        self.record_traj(self.prev_obs, self.actions, rewards, dones, infos)
         self.prev_obs = observations
         return observations, rewards, dones, infos
 
@@ -188,39 +193,52 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
-    def record_traj(self, prev_obs, actions, rewards, dones):
+    def record_traj(self, prev_obs, actions, rewards, dones, infos):
         data_keys = ('rewards', 'actions', 'obs')
         data_vals = (rewards, actions, prev_obs)
+        transparency_keys = ('ff', 'hid')  # we already record observations
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
-        for (agent_idx, agent_dicts), env_idx in iter_space:
+        for (dict_idx, agent_dicts), env_idx in iter_space:
+            # in dict number dict_idx, record trajectories for agent number agent_idx
+            agent_idx = self.agent_indices[dict_idx]
             for key, val in zip(data_keys, data_vals):
+                # data_vals always have data for all agents
                 agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
+
+            for key in transparency_keys:
+                # infos also always have data for all agents
+                if key not in infos[env_idx][agent_idx]:
+                    continue
+                agent_dicts[env_idx][key].append(infos[env_idx][agent_idx][key])
             if dones[env_idx]:
-                ep_len = len(agent_dicts[env_idx]['rewards'])
-                ep_starts = [True] + [False] * (ep_len - 1)
-                self.full_traj_dicts[agent_idx]['episode_starts'].append(np.array(ep_starts))
+                if self.use_gail_format:
+                    ep_len = len(agent_dicts[env_idx]['rewards'])
+                    # used to index episodes since they are flattened in gail format.
+                    ep_starts = [True] + [False] * (ep_len - 1)
+                    self.full_traj_dicts[dict_idx]['episode_starts'].append(np.array(ep_starts))
 
                 ep_ret = sum(agent_dicts[env_idx]['rewards'])
-                self.full_traj_dicts[agent_idx]['episode_returns'].append(np.array([ep_ret]))
+                self.full_traj_dicts[dict_idx]['episode_returns'].append(np.array([ep_ret]))
 
-                for key in data_keys:
+                for key in itertools.chain(data_keys, transparency_keys):
+                    if key not in agent_dicts[env_idx]:
+                        continue
                     # consolidate episode data and append to long-term data dict
                     episode_key_data = np.array(agent_dicts[env_idx][key])
-                    self.full_traj_dicts[agent_idx][key].append(episode_key_data)
+                    self.full_traj_dicts[dict_idx][key].append(episode_key_data)
                 agent_dicts[env_idx] = defaultdict(list)
 
-    def save_traj(self, agent_indices=None):
-        if agent_indices is None:
-            agent_indices = range(self.num_agents)
-        elif isinstance(agent_indices, int):
-            agent_indices = [agent_indices]
-
-        for agent_idx in agent_indices:
+    def save_traj(self):
+        for dict_idx, agent_idx in enumerate(self.agent_indices):
+            # gail expects array of all episodes flattened together delineated by
+            # 'episode_starts' array. To be more efficient, we just keep the additional axis.
+            # We use np.asarray instead of np.stack because episodes have heterogenous lengths.
+            agg_function = np.concatenate if self.use_gail_format else np.asarray
             dump_dict = {
-                k: np.concatenate(v, axis=0)
-                for k, v in self.full_traj_dicts[agent_idx].items()}
-            save_path = os.path.join(self.traj_dir, f'agent_{agent_idx}.npz')
+                k: agg_function(v)
+                for k, v in self.full_traj_dicts[dict_idx].items()}
+            save_path = os.path.join(self.save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)
 
 

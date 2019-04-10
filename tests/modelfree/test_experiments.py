@@ -28,7 +28,10 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 SCORE_AGENT_CONFIGS = [
     {'agent_b_type': 'zoo', 'agent_b_path': '2', 'videos': True, 'episodes': 2},
     {'env_name': 'multicomp/KickAndDefend-v0', 'episodes': 1},
-    {'record_traj': True, 'traj_dir': 'test_dir'}
+    {
+        'record_traj': True,
+        'record_traj_params': {'save_dir': 'test_dir', 'use_gail_format': True},
+    }
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -58,10 +61,11 @@ def test_score_agent(config):
 
     if config.get('record_traj', False):
         for i in range(2):
-            traj_file_path = os.path.join(config['traj_dir'], f'agent_{i}.npz')
+            traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
+                                          f'agent_{i}.npz')
             assert os.path.exists(traj_file_path)
             os.remove(traj_file_path)
-        os.rmdir(config['traj_dir'])
+        os.rmdir(config['record_traj_params']['save_dir'])
 
 
 TRAIN_CONFIGS = [
