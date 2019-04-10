@@ -101,7 +101,7 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out_dir,
             total_timesteps, policy, load_policy, rl_args, victim_index, debug, logger,
             log_callbacks, save_callbacks, log_interval, checkpoint_interval, **kwargs):
-    kwargs = {k: v for k, v in kwargs if k not in rl_args}
+    kwargs = {k: v for k, v in kwargs.items() if k not in rl_args}
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
@@ -183,7 +183,7 @@ def sac(batch_size, learning_rate, **kwargs):
 
 
 @train_ex.capture
-def gail(batch_size, expert_dataset_path, **kwargs):
+def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
     import matplotlib
     matplotlib.use('pdf')  # ExpertDataset needs this and we don't have tkinter
     from stable_baselines.gail.dataset.dataset import ExpertDataset
@@ -192,9 +192,8 @@ def gail(batch_size, expert_dataset_path, **kwargs):
     if expert_dataset_path is None:
         raise ValueError("must set expert_dataset_path to use GAIL.")
     expert_dataset = ExpertDataset(expert_dataset_path)
-    kwargs['d_stepsize'] = kwargs['learning_rate']
-    kwargs['vf_stepsize'] = kwargs['learning_rate']
-    del kwargs['learning_rate']
+    kwargs['d_stepsize'] = learning_rate(1)
+    kwargs['vf_stepsize'] = learning_rate(1)
     return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
                    callback_key='timesteps_so_far', callback_mul=1,
                    timesteps_per_batch=batch_size // num_proc, **kwargs)
