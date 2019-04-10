@@ -12,6 +12,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import GAIL, PPO1, PPO2, SAC
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
+from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -184,10 +185,6 @@ def sac(batch_size, learning_rate, **kwargs):
 
 @train_ex.capture
 def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
-    import matplotlib
-    matplotlib.use('pdf')  # ExpertDataset needs this and we don't have tkinter
-    from stable_baselines.gail.dataset.dataset import ExpertDataset
-
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("must set expert_dataset_path to use GAIL.")

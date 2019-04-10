@@ -203,7 +203,7 @@ class TrajectoryRecorder(VecMultiWrapper):
             # in dict number dict_idx, record trajectories for agent number agent_idx
             agent_idx = self.agent_indices[dict_idx]
             for key, val in zip(data_keys, data_vals):
-                # data_vals always have data for all agents
+                # data_vals always have data for all agents (use agent_idx not dict_idx)
                 agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
 
             for key in transparency_keys:
