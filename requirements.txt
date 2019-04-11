@@ -14,3 +14,4 @@ git+git://github.com/HumanCompatibleAI/ilqr.git#egg=ilqr
 ray[debug]>=0.6.4
 boto3>=1.9
 awscli>=1.16
+sklearn>=0.0
