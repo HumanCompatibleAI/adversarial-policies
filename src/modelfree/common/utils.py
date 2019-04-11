@@ -13,8 +13,7 @@ from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
-from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti
-from modelfree.transparent import TransparentPolicy
+from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
 
 
 class DummyModel(BaseRLModel):
@@ -167,74 +166,98 @@ def make_session(graph=None):
     return sess
 
 
-class TrajectoryRecorder(object):
-    def __init__(self, num_envs, num_policies, num_trajectories_to_save):
-        self.num_envs = num_envs
-        self.num_policies = num_policies
-        self.num_trajectories_to_save = num_trajectories_to_save
+class TrajectoryRecorder(VecMultiWrapper):
+    def __init__(self, venv, save_dir, use_gail_format=False, agent_indices=None):
+        VecMultiWrapper.__init__(self, venv)
+        self.save_dir = save_dir
+        self.use_gail_format = use_gail_format
+        if agent_indices is None:
+            self.agent_indices = range(self.num_agents)
+        elif isinstance(agent_indices, int):
+            self.agent_indices = [agent_indices]
+        os.makedirs(self.save_dir, exist_ok=True)
 
-        self.traj_dicts = [[defaultdict(list) for e in range(num_envs)]
-                           for p in range(num_policies)]
-        self.full_traj_dicts = [defaultdict(list) for p in range(num_policies)]
-        self.num_completed = 0
-        self.already_saved = [False for p in range(num_policies)]
+        self.traj_dicts = [[defaultdict(list) for e in range(self.num_envs)]
+                           for p in self.agent_indices]
+        self.full_traj_dicts = [defaultdict(list) for p in self.agent_indices]
+        self.prev_obs = None
+        self.actions = None
 
-    def record_trajectories(self, rewards, actions, dones, prev_observations):
+    def step_async(self, actions):
+        self.actions = actions
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        observations, rewards, dones, infos = self.venv.step_wait()
+        self.record_traj(self.prev_obs, self.actions, rewards, dones, infos)
+        self.prev_obs = observations
+        return observations, rewards, dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        self.prev_obs = observations
+        return observations
+
+    def record_traj(self, prev_obs, actions, rewards, dones, infos):
         data_keys = ('rewards', 'actions', 'obs')
-        data_vals = (rewards, actions, prev_observations)
+        data_vals = (rewards, actions, prev_obs)
+        transparency_keys = ('ff', 'hid')  # we already record observations
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
-        for (agent_idx, agent_dicts), env_idx in iter_space:
+        for (dict_idx, agent_dicts), env_idx in iter_space:
+            # in dict number dict_idx, record trajectories for agent number agent_idx
+            agent_idx = self.agent_indices[dict_idx]
             for key, val in zip(data_keys, data_vals):
+                # data_vals always have data for all agents (use agent_idx not dict_idx)
                 agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
+
+            for key in transparency_keys:
+                # infos also always have data for all agents
+                if key not in infos[env_idx][agent_idx]:
+                    continue
+                agent_dicts[env_idx][key].append(infos[env_idx][agent_idx][key])
             if dones[env_idx]:
-                ep_len = len(agent_dicts[env_idx]['rewards'])
-                ep_starts = [True] + [False] * (ep_len - 1)
-                self.full_traj_dicts[agent_idx]['episode_starts'].append(np.array(ep_starts))
+                if self.use_gail_format:
+                    ep_len = len(agent_dicts[env_idx]['rewards'])
+                    # used to index episodes since they are flattened in gail format.
+                    ep_starts = [True] + [False] * (ep_len - 1)
+                    self.full_traj_dicts[dict_idx]['episode_starts'].append(np.array(ep_starts))
 
                 ep_ret = sum(agent_dicts[env_idx]['rewards'])
-                self.full_traj_dicts[agent_idx]['episode_returns'].append(np.array([ep_ret]))
+                self.full_traj_dicts[dict_idx]['episode_returns'].append(np.array([ep_ret]))
 
-                for key in data_keys:
+                for key in itertools.chain(data_keys, transparency_keys):
+                    if key not in agent_dicts[env_idx]:
+                        continue
                     # consolidate episode data and append to long-term data dict
                     episode_key_data = np.array(agent_dicts[env_idx][key])
-                    self.full_traj_dicts[agent_idx][key].append(episode_key_data)
+                    self.full_traj_dicts[dict_idx][key].append(episode_key_data)
                 agent_dicts[env_idx] = defaultdict(list)
-                # so as not to double-count number of episodes
-                self.num_completed += int(agent_idx == 0)
-                if self.num_completed >= self.num_trajectories_to_save:
-                    self.save_trajectories(agent_idx)
 
-    def save_trajectories(self, agent_idx):
-        if self.already_saved[agent_idx]:
-            print(f'Warning: already saved trajectories for agent {agent_idx}')
-        self.full_traj_dicts[agent_idx] = {
-            k: np.concatenate(v, axis=0)
-            for k, v in self.full_traj_dicts[agent_idx].items()}
-        np.savez(f'data/agent_{agent_idx}_traj.npz',
-                 **self.full_traj_dicts[agent_idx])
-        self.already_saved[agent_idx] = True
+    def save_traj(self):
+        for dict_idx, agent_idx in enumerate(self.agent_indices):
+            # gail expects array of all episodes flattened together delineated by
+            # 'episode_starts' array. To be more efficient, we just keep the additional axis.
+            # We use np.asarray instead of np.stack because episodes have heterogenous lengths.
+            agg_function = np.concatenate if self.use_gail_format else np.asarray
+            dump_dict = {
+                k: agg_function(v)
+                for k, v in self.full_traj_dicts[dict_idx].items()}
+            save_path = os.path.join(self.save_dir, f'agent_{agent_idx}.npz')
+            np.savez(save_path, **dump_dict)
 
 
-def simulate(venv, policies, render=False, record_trajectories=False,
-             num_trajectories_to_save=None):
+def simulate(venv, policies, render=False):
     """
     Run Environment env with the agents in agents
     :param venv(VecEnv): vector environment.
     :param policies(list<BaseModel>): a policy per agent.
     :param render: true if the run should be rendered to the screen
-    :param record_trajectories: whether to save trajectory data in stable_baselines.GAIL format
-    :param num_trajectories_to_save: when to save trajectories since this function is a generator
     :return: streams information about the simulation
     """
     observations = venv.reset()
     dones = [False] * venv.num_envs
     states = [None for _ in policies]
-
-    if record_trajectories:
-        if num_trajectories_to_save is None:
-            raise ValueError("Must set number of trajectories to save in order to save them.")
-        recorder = TrajectoryRecorder(venv.num_envs, len(policies), num_trajectories_to_save)
 
     while True:
         if render:
@@ -242,7 +265,6 @@ def simulate(venv, policies, render=False, record_trajectories=False,
 
         actions = []
         new_states = []
-        prev_observations = observations
         for idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
             act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
@@ -251,8 +273,6 @@ def simulate(venv, policies, render=False, record_trajectories=False,
         states = new_states
 
         observations, rewards, dones, infos = venv.step(actions)
-        if record_trajectories:
-            recorder.record_trajectories(rewards, actions, dones, prev_observations)
         yield observations, rewards, dones, infos
 
 

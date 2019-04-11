@@ -13,6 +13,7 @@ import tensorflow as tf
 
 logger = logging.getLogger('scripts.highest_win_rate')
 
+
 def event_files(path):
     for root, dirs, files in os.walk(path, followlinks=True):
         if root.endswith('tb'):  # looking for paths of form */data/baselines/*/rl/tb
@@ -41,7 +42,6 @@ def _strip_up_to(path, dirname):
     try:
         path_index = len(path_components) - 1 - path_components[::-1].index(dirname)
     except ValueError as e:
-        import pdb; pdb.set_trace()
         raise ValueError(f"Error stripping '{dirname}' in '{path_components}': {e}")
     return os.path.join(*path_components[0:path_index])
 
@@ -77,12 +77,12 @@ def find_best(logdirs, episode_window):
         for event_path in event_files(logdir):
             stats = get_stats(event_path=event_path, episode_window=episode_window)
             config = get_sacred_config(event_path)
-            env_name = config['env_name']
-            opp_index = config['victim_index']
-            opp_type = config['victim_type']
+            env_name = str(config['env_name'])
+            opp_index = int(config['victim_index'])
+            opp_type = str(config['victim_type'])
             # multi_score is not set up to handle multiple victim types
             assert opp_type == 'zoo'
-            opp_path = config['victim_path']
+            opp_path = str(config['victim_path'])
 
             our_index = 1 - opp_index
             key = (env_name, opp_index, opp_path)
@@ -121,6 +121,7 @@ def main():
     with open(args.output_path, 'w') as f:  # fail fast if output_path inaccessible
         result = find_best(args.logdir, args.episode_window)
         json.dump(result, f)
+
 
 if __name__ == '__main__':
     main()

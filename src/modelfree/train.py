@@ -12,6 +12,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import GAIL, PPO1, PPO2, SAC
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
+from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -105,6 +106,7 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out_dir,
             total_timesteps, policy, load_policy, rl_args, victim_index, debug, logger,
             log_callbacks, save_callbacks, log_interval, checkpoint_interval, **kwargs):
+    kwargs = {k: v for k, v in kwargs.items() if k not in rl_args}
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,
@@ -186,37 +188,16 @@ def sac(batch_size, learning_rate, **kwargs):
 
 
 @train_ex.capture
-def gail(batch_size, expert_dataset_path, env_name, victim_index, **kwargs):
-    import matplotlib
-    matplotlib.use('pdf')  # ExpertDataset needs this and we don't have tkinter
-    from stable_baselines.gail.dataset.dataset import ExpertDataset
-
+def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
     num_proc = _get_mpi_num_proc()
-    expert_index = 1 - victim_index
     if expert_dataset_path is None:
-        raise ValueError("must set expert_dataset_path to use GAIL. (can also use 'default')")
-    elif expert_dataset_path == 'default':
-        dataset_map = {
-            'multicomp/SumoHumans-v0': 'SumoHumans_datasets',
-            'multicomp/SumoHumansAutoContact-v0': 'SumoHumans_datasets',
-            'multicomp/KickAndDefend-v0': 'KickAndDefend_datasets'
-        }
-        curr_path = os.path.dirname(os.path.abspath(__file__))
-        dataset_folder = dataset_map[env_name]
-        local_folder = os.path.join(curr_path, dataset_folder)
-        if not osp.exists(local_folder):
-            sync_cmd = "aws s3 sync s3://adversarial-policies/gail/{0}/ {1}"
-            sync_cmd = sync_cmd.format(dataset_folder, local_folder)
-            try:
-                print(sync_cmd)
-                os.system(sync_cmd)
-            except OSError:
-                raise OSError("expert_dataset was None and could not fetch dataset from S3.")
-        expert_dataset_path = os.path.join(local_folder, f"agent_{expert_index}_traj.npz")
+        raise ValueError("must set expert_dataset_path to use GAIL.")
     expert_dataset = ExpertDataset(expert_dataset_path)
-    del kwargs['learning_rate']
-    return _stable(GAIL, expert_dataset=expert_dataset, callback_key='timesteps_so_far',
-                   callback_mul=1, timesteps_per_batch=batch_size // num_proc, **kwargs)
+    kwargs['d_stepsize'] = learning_rate(1)
+    kwargs['vf_stepsize'] = learning_rate(1)
+    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
+                   callback_key='timesteps_so_far', callback_mul=1,
+                   timesteps_per_batch=batch_size // num_proc, **kwargs)
 
 
 @train_ex.config
