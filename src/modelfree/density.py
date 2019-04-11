@@ -31,6 +31,26 @@ class ActivationDensityModeler(object):
         return self.model.score_samples(samples)
 
 
+def kick_and_defend_ex():
+    base_config = dict(transparent_params={'ff_policy': False, 'ff_value': False},
+                       record_traj_params={'agent_indices': 0},
+                       num_env=8, record_traj=True, episodes=500, render=False)
+    dir_names = ('kad-zoo', 'kad-rand', 'kad-adv')
+    # TODO: get path for kad-adv
+    paths = ('1', None, None)
+    types = ('zoo', 'random', 'ppo2')
+    for dir_name, path, agent_type in zip(dir_names, paths, types):
+        config_copy = base_config.copy()
+        config_copy['record_traj_params']['save_dir'] = f'data/{dir_name}'
+        config_copy.update({'agent_a_type': agent_type, 'agent_a_path': path})
+        run = score_ex.run(config_updates=config_copy)
+        assert run.status == 'COMPLETED'
+
+    path_str = 'data/{}/agent_0.npz'
+    density_modelers = [ActivationDensityModeler(path_str.format(s)) for s in dir_names]
+    for modeler in density_modelers:
+        modeler.get_density_model('ff_policy')
+
 
 
 
