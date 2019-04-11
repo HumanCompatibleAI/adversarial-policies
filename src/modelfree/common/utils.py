@@ -8,12 +8,15 @@ import gym
 from gym import Wrapper
 from gym.monitoring import VideoRecorder
 import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KernelDensity
 from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
+from modelfree.transparent import TransparentPolicy
 
 
 class DummyModel(BaseRLModel):
@@ -166,6 +169,32 @@ def make_session(graph=None):
     return sess
 
 
+class ActivationDensityModeler(object):
+    def __init__(self, traj_dataset_path):
+        self.data_keys = ('obs', 'ff_policy', 'ff_value')
+        self.data = self._load_data(traj_dataset_path)
+        self.model = KernelDensity()
+
+    def _load_data(self, traj_dataset_path):
+        """
+        Load data from data saved with TrajectoryRecorder with use_gail_format=False
+        Note: only works with policies in which there is exactly one hidden layer
+        """
+        traj_data = np.load(traj_dataset_path)
+        return {k: np.concatenate(traj_data[k].tolist()) for k in self.data_keys}
+
+    def get_density_model(self, data_key, pca_dim=None):
+        data = self.data[data_key]
+        if pca_dim is not None:
+            pca = PCA(n_components=pca_dim)
+            data = pca.fit_transform(data)
+        self.model.fit(data)
+        return self.model.get_params()
+
+    def score_samples(self, samples):
+        return self.model.score_samples(samples)
+
+
 class TrajectoryRecorder(VecMultiWrapper):
     def __init__(self, venv, save_dir, use_gail_format=False, agent_indices=None):
         VecMultiWrapper.__init__(self, venv)
@@ -189,7 +218,7 @@ class TrajectoryRecorder(VecMultiWrapper):
 
     def step_wait(self):
         observations, rewards, dones, infos = self.venv.step_wait()
-        self.record_traj(self.prev_obs, self.actions, rewards, dones, infos)
+        self.record_traj(self.prev_obs, self.actions, rewards, dones)
         self.prev_obs = observations
         return observations, rewards, dones, infos
 
@@ -198,12 +227,19 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
-    def record_traj(self, prev_obs, actions, rewards, dones, infos):
+    def record_transparent_data(self, data, agent_idx):
+        # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
+        agent_dicts = [self.traj_dicts[i] for i in range(len(self.agent_indices)) if
+                       self.agent_indices[i] == agent_idx][0]
+        for env_idx in range(self.num_envs):
+            for key in data.keys():
+                agent_dicts[env_idx][key].append(np.squeeze(data[key][env_idx]))
+
+    def record_traj(self, prev_obs, actions, rewards, dones):
         data_keys = ('rewards', 'actions', 'obs')
         data_vals = (rewards, actions, prev_obs)
-        transparency_keys = ('ff', 'hid')  # we already record observations
-        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
+        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         for (dict_idx, agent_dicts), env_idx in iter_space:
             # in dict number dict_idx, record trajectories for agent number agent_idx
             agent_idx = self.agent_indices[dict_idx]
@@ -211,11 +247,6 @@ class TrajectoryRecorder(VecMultiWrapper):
                 # data_vals always have data for all agents (use agent_idx not dict_idx)
                 agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
 
-            for key in transparency_keys:
-                # infos also always have data for all agents
-                if key not in infos[env_idx][agent_idx]:
-                    continue
-                agent_dicts[env_idx][key].append(infos[env_idx][agent_idx][key])
             if dones[env_idx]:
                 if self.use_gail_format:
                     ep_len = len(agent_dicts[env_idx]['rewards'])
@@ -226,7 +257,7 @@ class TrajectoryRecorder(VecMultiWrapper):
                 ep_ret = sum(agent_dicts[env_idx]['rewards'])
                 self.full_traj_dicts[dict_idx]['episode_returns'].append(np.array([ep_ret]))
 
-                for key in itertools.chain(data_keys, transparency_keys):
+                for key in itertools.chain(data_keys, ('ff_policy', 'ff_value', 'hid')):
                     if key not in agent_dicts[env_idx]:
                         continue
                     # consolidate episode data and append to long-term data dict
@@ -266,7 +297,12 @@ def simulate(venv, policies, render=False):
         actions = []
         new_states = []
         for idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
-            act, new_state = policy.predict(obs, state=state, mask=dones)
+            if isinstance(policy.policy, TransparentPolicy):
+                act, new_state, data = policy.predict(obs, state=state, mask=dones)
+                if isinstance(venv, TrajectoryRecorder):
+                    venv.record_transparent_data(data, idx)  # e.g. activations, hidden states
+            else:
+                act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
             new_states.append(new_state)
         actions = tuple(actions)

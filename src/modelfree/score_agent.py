@@ -63,6 +63,7 @@ def default_score_config():
         'use_gail_format': False,   # use gail format (less space-efficient)
         'agent_indices': None,      # which agent trajectories to save
     }
+    transparent_params = None       # whether to make the agents transparent
     num_env = 1                     # number of environments to run in parallel
     episodes = 20                   # number of episodes to evaluate
     render = True                   # display on screen (warning: slow)
@@ -75,7 +76,8 @@ def default_score_config():
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
+                record_traj, record_traj_params, transparent_params,
+                num_env, episodes, render, videos, video_dir):
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     def env_fn(i):
@@ -99,7 +101,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agent_types = [agent_a_type, agent_b_type]
     zipped = list(zip(agent_types, agent_paths))
 
-    agents = [load_policy(policy_type, policy_path, venv, env_name, i)
+    agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
     if record_traj:
