@@ -202,7 +202,11 @@ class TrajectoryRecorder(VecMultiWrapper):
     def record_transparent_data(self, data, agent_idx):
         # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
         agent_dicts = [self.traj_dicts[i] for i in range(len(self.agent_indices)) if
-                       self.agent_indices[i] == agent_idx][0]
+                       self.agent_indices[i] == agent_idx]
+        if len(agent_dicts) == 0:
+            return
+        else:
+            agent_dicts = agent_dicts[0]
         for env_idx in range(self.num_envs):
             for key in data.keys():
                 agent_dicts[env_idx][key].append(np.squeeze(data[key][env_idx]))
