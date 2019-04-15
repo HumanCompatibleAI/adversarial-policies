@@ -61,15 +61,35 @@ class DensityRewardVecWrapper(VecEnvWrapper):
         super().__init__(venv)
         self.agent_idx = agent_idx
         # {transparency_key: path_to_density_model}
-        self.density_params = density_params
+        self.density_models = self.load_density_models(density_params)
+
+    def load_density_models(self, density_params):
+        models = {}
+        for density_key, path in density_params.items():
+            with open(path, 'rb') as mf:
+                model = pickle.load(mf)
+            pca = None
+            pca_path = path + '.pca'
+            if os.path.isfile(pca_path):
+                with open(pca_path, 'rb') as pf:
+                    pca = pickle.load(pf)
+            models[density_key] = {'density': model, 'pca': pca}
+        return models
+
+    def reset(self):
+        return self.venv.reset()
 
     def step_wait(self):
         obs, rew, dones, infos = self.venv.step_wait()
         # now we know that infos[env_idx][agent_idx] has the goods
         for env_idx in range(self.num_envs):
-            for density_key, path in self.density_params.items():
-                pass
-
+            data_dict = infos[env_idx][self.agent_idx]
+            for key, model_dict in self.density_models.items():
+                sample = data_dict[key][env_idx].reshape(1, -1)
+                if model_dict['pca'] is not None:
+                    sample = model_dict['pca'].transform(sample)
+                density = model_dict['density'].score(sample)
+                rew[env_idx] += density
         return obs, rew, dones, infos
 
 
