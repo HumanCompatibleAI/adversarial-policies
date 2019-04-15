@@ -1,5 +1,6 @@
 import argparse
 import itertools
+import os
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -71,11 +72,15 @@ def kick_and_defend_ex(pca_dim, episodes, skip_scoring):
 
     results = np.zeros((2, 3, 3))
     keys = ('ff_policy', 'ff_value')
+
+    os.makedirs('data/densities', exist_ok=True)
     for i, j, k in itertools.product(range(2), range(3), range(3)):
         fit_model = density_modelers[j]
         data_model = density_modelers[k]
         samples = data_model.get_data(keys[i])
         score = fit_model.score(keys[i], samples)
+        individual_score = fit_model.score_samples(keys[i], samples)
+        np.save(f'data/densities/{i}-{j}-{k}', individual_score)
         results[i, j, k] = score
         print(i, j, k, score)
     print(results)
