@@ -1,10 +1,12 @@
 import argparse
 import itertools
+import pickle
 import os
 
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KernelDensity
+from stable_baselines.common.vec_env import VecEnvWrapper
 
 from modelfree.score_agent import score_ex
 
@@ -46,6 +48,30 @@ class ActivationDensityModeler(object):
     def get_data(self, data_key):
         return self.data[data_key]
 
+    def save_model(self, data_key, path_str):
+        with open(path_str, 'wb') as f:
+            pickle.dump(self.models[data_key], f)
+        if self.pcas[data_key] is not None:
+            with open(path_str + '.pca', 'wb') as pf:
+                pickle.dump(self.pcas[data_key], pf)
+
+
+class DensityRewardVecWrapper(VecEnvWrapper):
+    def __init__(self, venv, agent_idx, density_params):
+        super().__init__(venv)
+        self.agent_idx = agent_idx
+        # {transparency_key: path_to_density_model}
+        self.density_params = density_params
+
+    def step_wait(self):
+        obs, rew, dones, infos = self.venv.step_wait()
+        # now we know that infos[env_idx][agent_idx] has the goods
+        for env_idx in range(self.num_envs):
+            for density_key, path in self.density_params.items():
+                pass
+
+        return obs, rew, dones, infos
+
 
 def kick_and_defend_ex(pca_dim, episodes, skip_scoring):
     base_config = dict(transparent_params={'ff_policy': False, 'ff_value': False},
@@ -64,16 +90,17 @@ def kick_and_defend_ex(pca_dim, episodes, skip_scoring):
             assert run.status == 'COMPLETED'
 
     path_str = 'data/{}/agent_0.npz'
+    os.makedirs('data/densities', exist_ok=True)
     density_modelers = [ActivationDensityModeler(path_str.format(s)) for s in dir_names]
     for i, modeler in enumerate(density_modelers):
         modeler.get_density_model('ff_policy', pca_dim=pca_dim)
+        modeler.save_model('ff_policy', f'data/densities/{dir_names[i]}-policy.model')
         modeler.get_density_model('ff_value', pca_dim=pca_dim)
         print(f'fit model {i}')
 
     results = np.zeros((2, 3, 3))
     keys = ('ff_policy', 'ff_value')
 
-    os.makedirs('data/densities', exist_ok=True)
     for i, j, k in itertools.product(range(2), range(3), range(3)):
         fit_model = density_modelers[j]
         data_model = density_modelers[k]
