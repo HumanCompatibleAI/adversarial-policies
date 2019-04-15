@@ -33,8 +33,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.ep_lens = np.zeros(self.num_envs).astype(int)
         self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_index,
                                               victim_path, victim_type)
-        #self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
-        #self.venv.venv.venv.venv.debug_file = self.debug_files[0]
+        self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
+        self.venv.venv.venv.venv.venv.debug_file = self.debug_files[0]
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_index, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -64,6 +64,12 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def step_async(self, actions):
         current_states = self.venv.unwrapped.env_method('get_state')
+        full_state = self.venv.unwrapped.env_method('get_full_state')[0]
+
+        keys = ['actuator_force', 'actuator_length', 'actuator_moment', 'actuator_velocity', 'cfrc_ext', 'cfrc_int', 'cinert', 'cvel',
+                'qfrc_actuator', 'qfrc_actuator', 'qfrc_applied', 'qfrc_bias', 'qfrc_unc']
+        #x_dict = {k: getattr(full_state, k) for k in keys}
+        x_dict = full_state
 
         # cycle the lb_venvs and step all but the first. Then reset the first one with self.venv.
         self.lb_dicts = [self.lb_dicts[-1]] + self.lb_dicts[:-1]
@@ -72,11 +78,12 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         curry_obs = self._get_curry_obs()
         new_baseline_dict.curry.set_obs(curry_obs)
         for env_idx in range(self.num_envs):
-            new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx])
+            new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx], x_dict=x_dict)
+            #new_baseline_dict.venv.unwrapped.env_method('set_arbitrary_state', env_idx, x_dict)
 
         for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
-            #lb_dict.curry.debug_file = self.debug_files[i + 2]
+            lb_dict.curry.debug_file = self.debug_files[i + 2]
             lb_dict.venv.step_async(lb_dict.data['action'])
 
         # the baseline policy's state is what it would have been if it had observed all of
@@ -84,7 +91,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones, return_data=False)
         new_baseline_dict.data['state'] = self._new_lb_state
-        #new_baseline_dict.curry.debug_file = self.debug_files[1]
+        new_baseline_dict.curry.debug_file = self.debug_files[1]
         new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
         self.ep_lens += 1
@@ -107,6 +114,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_victim_info = lb_dict.data['info'][env_idx][self.victim_index]
                 if 'ff' in self.transparent_params:
                     diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
+                    if np.linalg.norm(diff_ff) > 0.1:
+                        print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
 
                 if 'obs' in self.transparent_params:

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from multiprocessing import Pipe, Process
 
 import gym
+import numpy as np
 from stable_baselines.common.vec_env import CloudpickleWrapper
 
 from aprl.common.mujoco import MujocoState
@@ -37,18 +38,44 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
         gym.Wrapper.__init__(self, env)
         self.sim = env.unwrapped.env_scene
 
+    def get_full_state(self):
+        return self.sim.data
+
     def get_state(self):
         """Serializes the qpos and qvel state of the MuJoCo emulator."""
-        return MujocoState.from_mjdata(self.sim.data).flatten()
+        state = MujocoState.from_mjdata(self.sim.data).flatten()
+        return state
 
     def get_radius(self):
         return self.env.env.RADIUS
 
-    def set_state(self, x):
+    def set_state(self, x, x_dict=None, forward=True):
         """Restores qpos and qvel, calling forward() to derive other values."""
         state = MujocoState.from_flattened(x, self.sim)
         state.set_mjdata(self.sim.data, old_mujoco=True)
-        self.sim.model.forward()  # put mjData in consistent state
+        if x_dict is not None:
+            self.set_arbitrary_state(x_dict)
+            pass
+        if forward:
+            self.sim.model.forward()  # put mjData in consistent state
+
+#    def set_arbitrary_state(self, x_dict):
+#        for k, v in x_dict.items():
+#            if np.linalg.norm(getattr(self.sim.data, k) - v) > 0.1:
+#                pass
+#                #print(k, np.linalg.norm(getattr(self.sim.data, k) - v))
+#            setattr(self.sim.data, k, v)
+#        #self.sim.model.forward()
+
+    def set_arbitrary_state(self, x_dict):
+        for k, v in type(x_dict._wrapped.contents).__dict__['_fields_']:
+            if k != 'contact':
+                pass
+                #real_v = getattr(x_dict, k)  # wtf why does this take so long? ctypes?
+                #old_v = getattr(self.sim.data, k)
+                #setattr(self.sim.data, k, real_v)
+                #print('diff', np.linalg.norm(old_v - getattr(self.sim.data, k)))  # diffs are nonzero
+                #print(k)  # cannot getattr 'contact'
 
     def set_radius(self, r):
         self.env.env.RADIUS = r

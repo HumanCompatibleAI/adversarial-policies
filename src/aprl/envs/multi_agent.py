@@ -352,9 +352,11 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def step_async(self, actions):
         new_action = actions[self._agent_to_merge] + self._action
+        old_actions = [actions[0], self._action]
         actions = _tuple_replace(actions, self._agent_to_merge, new_action)
+        all_state_data = self.venv.unwrapped.env_method('get_full_state')[0]
         if self.debug_file is not None:
-            self.debug_dict.update({'actions': actions, 'env': 'curry', 't': self.t})
+            self.debug_dict.update({'actions': old_actions, 'env': 'curry', 't': self.t})
         self.venv.step_async(actions)
 
     def step_wait(self):

@@ -178,8 +178,9 @@ class TransparentCurryVecEnv(CurryVecEnv):
         self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
                                                                      mask=self._dones)
         actions.insert(self._agent_to_fix, self._action)
+        all_state_data = self.venv.unwrapped.env_method('get_full_state')[0]
         if self.debug_file is not None:
-            self.debug_dict.update({'actions': actions, 'env': 'curry', 't': self.t})
+            self.debug_dict.update({'actions': actions, 'env': 'curry', 't': self.t, 'data': self._data})
         self.venv.step_async(actions)
 
     def step_wait(self):
