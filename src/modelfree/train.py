@@ -144,10 +144,7 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
     model.learn(total_timesteps=total_timesteps, log_interval=1, seed=_seed, callback=callback)
     final_path = osp.join(out_dir, 'final_model')
     _save(model, final_path, save_callbacks)
-    if isinstance(model, GAIL):
-        model.trpo.sess.close()
-    else:
-        model.sess.close()
+    model.sess.close()
     return final_path
 
 
