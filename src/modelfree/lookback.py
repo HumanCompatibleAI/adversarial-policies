@@ -66,10 +66,11 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         current_states = self.venv.unwrapped.env_method('get_state')
         full_state = self.venv.unwrapped.env_method('get_full_state')[0]
 
-        keys = ['actuator_force', 'actuator_length', 'actuator_moment', 'actuator_velocity', 'cfrc_ext', 'cfrc_int', 'cinert', 'cvel',
-                'qfrc_actuator', 'qfrc_actuator', 'qfrc_applied', 'qfrc_bias', 'qfrc_unc']
-        #x_dict = {k: getattr(full_state, k) for k in keys}
-        x_dict = full_state
+        # keys = ['actuator_force', 'actuator_length', 'actuator_moment', 'actuator_velocity',
+        #         'cfrc_ext', 'cfrc_int', 'cinert', 'cvel', 'qfrc_actuator', 'qfrc_actuator',
+        #         'qfrc_applied', 'qfrc_bias', 'qfrc_unc']
+        # sim_data = {k: getattr(full_state, k) for k in keys}
+        sim_data = full_state
 
         # cycle the lb_venvs and step all but the first. Then reset the first one with self.venv.
         self.lb_dicts = [self.lb_dicts[-1]] + self.lb_dicts[:-1]
@@ -78,8 +79,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         curry_obs = self._get_curry_obs()
         new_baseline_dict.curry.set_obs(curry_obs)
         for env_idx in range(self.num_envs):
-            new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx], x_dict=x_dict)
-            #new_baseline_dict.venv.unwrapped.env_method('set_arbitrary_state', env_idx, x_dict)
+            new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx], sim_data=sim_data)
 
         for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
@@ -114,8 +114,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_victim_info = lb_dict.data['info'][env_idx][self.victim_index]
                 if 'ff' in self.transparent_params:
                     diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
-                    if np.linalg.norm(diff_ff) > 0.1:
-                        print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
+                    # if np.linalg.norm(diff_ff) > 0.1:
+                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
 
                 if 'obs' in self.transparent_params:
@@ -177,7 +177,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 else:
                     lb_dict.data['state'][env_idx, :, :] = state[env_idx, :, :]
                 lb_dict.data['reward'][env_idx] = 0
-                #lb_dict.data['info'][env_idx] = {}
                 lb_dict.curry.set_obs(curry_obs, env_idx)
             envs_iter = range(self.num_envs) if env_idx is None else (0,)
             for env_to_set in envs_iter:

@@ -49,33 +49,33 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
     def get_radius(self):
         return self.env.env.RADIUS
 
-    def set_state(self, x, x_dict=None, forward=True):
+    def set_state(self, x, sim_data=None, forward=True):
         """Restores qpos and qvel, calling forward() to derive other values."""
         state = MujocoState.from_flattened(x, self.sim)
         state.set_mjdata(self.sim.data, old_mujoco=True)
-        if x_dict is not None:
-            self.set_arbitrary_state(x_dict)
-            pass
+        if sim_data is not None:
+            # set more than just qacc, qvel, qpos
+            self.set_arbitrary_state(sim_data)
         if forward:
             self.sim.model.forward()  # put mjData in consistent state
 
-#    def set_arbitrary_state(self, x_dict):
-#        for k, v in x_dict.items():
+#    def set_arbitrary_state(self, sim_data):
+#        for k, v in sim_data.items():
 #            if np.linalg.norm(getattr(self.sim.data, k) - v) > 0.1:
 #                pass
-#                #print(k, np.linalg.norm(getattr(self.sim.data, k) - v))
+#                # print(k, np.linalg.norm(getattr(self.sim.data, k) - v))
 #            setattr(self.sim.data, k, v)
 #        #self.sim.model.forward()
 
-    def set_arbitrary_state(self, x_dict):
-        for k, v in type(x_dict._wrapped.contents).__dict__['_fields_']:
+    def set_arbitrary_state(self, sim_data):
+        for k, v in type(sim_data._wrapped.contents).__dict__['_fields_']:
             if k != 'contact':
                 pass
-                #real_v = getattr(x_dict, k)  # wtf why does this take so long? ctypes?
-                #old_v = getattr(self.sim.data, k)
+                #real_v = getattr(sim_data, k)  # wtf why does this take so long? ctypes?
+                # old_v = getattr(self.sim.data, k)
                 #setattr(self.sim.data, k, real_v)
-                #print('diff', np.linalg.norm(old_v - getattr(self.sim.data, k)))  # diffs are nonzero
-                #print(k)  # cannot getattr 'contact'
+                # print('diff', np.linalg.norm(old_v - getattr(self.sim.data, k)))  # diffs are nonzero
+                # print(k)  # cannot getattr 'contact'
 
     def set_radius(self, r):
         self.env.env.RADIUS = r

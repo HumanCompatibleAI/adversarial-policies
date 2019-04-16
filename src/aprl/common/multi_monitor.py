@@ -60,10 +60,10 @@ class MultiMonitor(Monitor):
     def get_full_state(self):
         return self.env.get_full_state()
 
-    def set_state(self, x, x_dict=None, forward=True):
+    def set_state(self, x, sim_data=None, forward=True):
         """Pass through to a ResettableEnv"""
         assert isinstance(self.env, ResettableEnv)
-        return self.env.set_state(x, x_dict=x_dict, forward=forward)
+        return self.env.set_state(x, sim_data=sim_data, forward=forward)
 
     def get_radius(self):
         """Pass through to a ResettableEnv"""
@@ -75,5 +75,5 @@ class MultiMonitor(Monitor):
         assert isinstance(self.env, ResettableEnv)
         return self.env.set_radius(r)
 
-    def set_arbitrary_state(self, x_dict):
-        return self.env.set_arbitrary_state(x_dict)
+    def set_arbitrary_state(self, sim_data):
+        return self.env.set_arbitrary_state(sim_data)
