@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+import pickle
 
 import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
@@ -9,6 +10,48 @@ from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import make_env
 from modelfree.envs.gym_compete import GymCompeteToOurs
+
+
+class DebugVenv(VecEnvWrapper):
+    def __init__(self, venv):
+        super().__init__(venv)
+        self.num_agents = 2
+        self.debug_file = None
+        self.debug_dict = {}
+
+    def step_async(self, actions):
+        self.debug_dict['actions'] = actions
+        state_data = self.unwrapped.envs[0].env.sim.data
+        keys = [t[0] for t in type(state_data._wrapped.contents).__dict__['_fields_']]
+        for k in keys:
+            if k != 'contact':
+                val = getattr(state_data, k)
+                if isinstance(val, np.ndarray) and val.size > 0:
+                    if k == 'buffer':
+                        print(np.linalg.norm(val))
+                        pass
+                    self.debug_dict.update({k: val})
+
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        obs, rew, dones, infos = self.venv.step_wait()
+        self.debug_dict.update({'next_obs': obs, 'rewards': rew})
+        pickle.dump(self.debug_dict, self.debug_file)
+        self.debug_dict = {}
+        return obs, rew, dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        self.debug_dict['prev_obs'] = observations
+        return observations
+
+    def set_debug_file(self, f):
+        self.debug_file = f
+
+    def get_debug_venv(self):
+        return self
+
 
 LookbackTuple = namedtuple('LookbackTuple', ['curry', 'venv', 'data'])
 
@@ -34,7 +77,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_index,
                                               victim_path, victim_type)
         self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
-        self.venv.venv.venv.venv.venv.debug_file = self.debug_files[0]
+        main_debug = self.get_debug_venv()
+        main_debug.set_debug_file(self.debug_files[0])
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_index, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -46,6 +90,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         for _ in range(self.lookback_num):
             make_vec_env = make_dummy_vec_multi_env if use_dummy else make_subproc_vec_multi_env
             multi_venv = make_vec_env([lambda: env_fn(i) for i in range(self.num_envs)])
+            multi_venv = DebugVenv(multi_venv)
 
             # this needs to be a TransparentPolicy.
             victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
@@ -79,11 +124,12 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         curry_obs = self._get_curry_obs()
         new_baseline_dict.curry.set_obs(curry_obs)
         for env_idx in range(self.num_envs):
-            new_baseline_dict.venv.unwrapped.env_method('set_state', env_idx, current_states[env_idx], sim_data=sim_data)
+            new_baseline_dict.venv.unwrapped.env_method('set_state', current_states[env_idx], indices=env_idx, sim_data=sim_data)
 
         for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
-            lb_dict.curry.debug_file = self.debug_files[i + 2]
+            lb_debug = lb_dict.venv.get_debug_venv()
+            lb_debug.set_debug_file(self.debug_files[i + 2])
             lb_dict.venv.step_async(lb_dict.data['action'])
 
         # the baseline policy's state is what it would have been if it had observed all of
@@ -91,7 +137,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones, return_data=False)
         new_baseline_dict.data['state'] = self._new_lb_state
-        new_baseline_dict.curry.debug_file = self.debug_files[1]
+        new_baseline_debug = new_baseline_dict.venv.get_debug_venv()
+        new_baseline_debug.set_debug_file(self.debug_files[1])
         new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
         self.ep_lens += 1
@@ -115,7 +162,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 if 'ff' in self.transparent_params:
                     diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
                     # if np.linalg.norm(diff_ff) > 0.1:
-                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
+                    # print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
 
                 if 'obs' in self.transparent_params:
@@ -158,8 +205,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         truncated_obs = self._get_truncated_obs(initial_observations)
         curry_obs = self._get_curry_obs()
         action, state = self._policy.predict(truncated_obs, state=None, mask=None, return_data=False)
-        initial_env_states = self.venv.unwrapped.env_method('get_state', env_idx)
-        initial_env_radii = self.venv.unwrapped.env_method('get_radius', env_idx)
+        initial_env_states = self.venv.unwrapped.env_method('get_state', indices=env_idx)
+        initial_env_full_state = self.venv.unwrapped.env_method('get_full_state')[0]
+        initial_env_radii = self.venv.unwrapped.env_method('get_radius', indices=env_idx)
         for lb_dict in self.lb_dicts:
             if env_idx is None:
                 # this gets called only in self.reset()
@@ -180,8 +228,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_dict.curry.set_obs(curry_obs, env_idx)
             envs_iter = range(self.num_envs) if env_idx is None else (0,)
             for env_to_set in envs_iter:
-                lb_dict.venv.unwrapped.env_method('set_state', env_to_set, initial_env_states[env_to_set])
-                lb_dict.venv.unwrapped.env_method('set_radius', env_to_set, initial_env_radii[env_to_set])
+                lb_dict.venv.unwrapped.env_method('set_state', initial_env_states[env_to_set],
+                                                  indices=env_to_set, sim_data=initial_env_full_state)
+                lb_dict.venv.unwrapped.env_method('set_radius', initial_env_radii[env_to_set], indices=env_to_set)
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""

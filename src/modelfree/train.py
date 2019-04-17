@@ -21,7 +21,7 @@ from modelfree.common import utils
 from modelfree.common.policy_loader import load_policy, load_backward_compatible_model
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
-from modelfree.lookback import LookbackRewardVecWrapper
+from modelfree.lookback import LookbackRewardVecWrapper, DebugVenv
 from modelfree.training.logger import setup_logger
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
@@ -310,6 +310,7 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debu
     else:
         make_vec_env = make_dummy_vec_multi_env
     multi_venv = make_vec_env([functools.partial(env_fn, i) for i in range(num_env)])
+    multi_venv = DebugVenv(multi_venv)
 
     if victim_type == 'none':
         assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
