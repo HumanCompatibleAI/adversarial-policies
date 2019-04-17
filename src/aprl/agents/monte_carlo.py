@@ -57,7 +57,9 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
             # set more than just qacc, qvel, qpos
             self.set_arbitrary_state(sim_data)
         if forward:
+            print('buffer_before', np.linalg.norm(self.sim.data.buffer))
             self.sim.model.forward()  # put mjData in consistent state
+            print('buffer_after', np.linalg.norm(self.sim.data.buffer))
 
 #    def set_arbitrary_state(self, sim_data):
 #        for k, v in sim_data.items():
@@ -69,12 +71,18 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
 
     def set_arbitrary_state(self, sim_data):
         for k, v in type(sim_data._wrapped.contents).__dict__['_fields_']:
-            if k != 'contact':
+            if k not in ['contact']:
                 pass
-                #real_v = getattr(sim_data, k)  # wtf why does this take so long? ctypes?
-                # old_v = getattr(self.sim.data, k)
-                #setattr(self.sim.data, k, real_v)
-                # print('diff', np.linalg.norm(old_v - getattr(self.sim.data, k)))  # diffs are nonzero
+                real_v = getattr(sim_data, k)  # wtf why does this take so long? ctypes?
+                if isinstance(real_v, np.ndarray):
+                    real_v = np.copy(real_v)
+                old_v = getattr(self.sim.data, k)
+                setattr(self.sim.data, k, real_v)
+                new_v = getattr(self.sim.data, k)
+                if k == 'buffer':
+                    x = 3
+                    #print('diff', np.linalg.norm(old_v - getattr(self.sim.data, k)))  # diffs are nonzero
+                    pass
                 # print(k)  # cannot getattr 'contact'
 
     def set_radius(self, r):
