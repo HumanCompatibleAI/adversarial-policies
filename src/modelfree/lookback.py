@@ -22,15 +22,12 @@ class DebugVenv(VecEnvWrapper):
     def step_async(self, actions):
         self.debug_dict['actions'] = actions
         state_data = self.unwrapped.envs[0].env.sim.data
-        keys = [t[0] for t in type(state_data._wrapped.contents).__dict__['_fields_']]
-        for k in keys:
-            if k != 'contact':
-                val = getattr(state_data, k)
-                if isinstance(val, np.ndarray) and val.size > 0:
-                    if k == 'buffer':
-                        print(np.linalg.norm(val))
-                        pass
-                    self.debug_dict.update({k: val})
+        fields = type(state_data._wrapped.contents).__dict__['_fields_']
+        keys = [t[0] for t in fields if t[0] != 'contact']
+        #for k in keys:
+        #    val = getattr(state_data, k)
+        #    if isinstance(val, np.ndarray) and val.size > 0:
+        #        self.debug_dict[k] = val
 
         self.venv.step_async(actions)
 
@@ -109,14 +106,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def step_async(self, actions):
         current_states = self.venv.unwrapped.env_method('get_state')
-        full_state = self.venv.unwrapped.env_method('get_full_state')[0]
-
-        # keys = ['actuator_force', 'actuator_length', 'actuator_moment', 'actuator_velocity',
-        #         'cfrc_ext', 'cfrc_int', 'cinert', 'cvel', 'qfrc_actuator', 'qfrc_actuator',
-        #         'qfrc_applied', 'qfrc_bias', 'qfrc_unc']
-        # sim_data = {k: getattr(full_state, k) for k in keys}
-        sim_data = full_state
-
         # cycle the lb_venvs and step all but the first. Then reset the first one with self.venv.
         self.lb_dicts = [self.lb_dicts[-1]] + self.lb_dicts[:-1]
 
@@ -124,7 +113,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         curry_obs = self._get_curry_obs()
         new_baseline_dict.curry.set_obs(curry_obs)
         for env_idx in range(self.num_envs):
-            new_baseline_dict.venv.unwrapped.env_method('set_state', current_states[env_idx], indices=env_idx, sim_data=sim_data)
+            new_baseline_dict.venv.unwrapped.env_method('set_state', current_states[env_idx],
+                                                        indices=env_idx, forward=False)
 
         for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
@@ -162,7 +152,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 if 'ff' in self.transparent_params:
                     diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
                     # if np.linalg.norm(diff_ff) > 0.1:
-                    # print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
+                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
 
                 if 'obs' in self.transparent_params:
@@ -228,9 +218,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_dict.curry.set_obs(curry_obs, env_idx)
             envs_iter = range(self.num_envs) if env_idx is None else (0,)
             for env_to_set in envs_iter:
-                lb_dict.venv.unwrapped.env_method('set_state', initial_env_states[env_to_set],
-                                                  indices=env_to_set, sim_data=initial_env_full_state)
                 lb_dict.venv.unwrapped.env_method('set_radius', initial_env_radii[env_to_set], indices=env_to_set)
+                lb_dict.venv.unwrapped.env_method('set_state', initial_env_states[env_to_set],
+                                                  indices=env_to_set, sim_data=initial_env_full_state, forward=False)
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""
