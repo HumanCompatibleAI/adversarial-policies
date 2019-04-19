@@ -162,13 +162,11 @@ def make_session(graph=None):
 
 
 class TrajectoryRecorder(VecMultiWrapper):
-    def __init__(self, venv, save_dir, use_gail_format=False, agent_indices=None):
+    def __init__(self, venv, agent_indices=None):
         super().__init__(venv)
 
-        self.save_dir = save_dir
-        self.use_gail_format = use_gail_format
         if agent_indices is None:
-            self.agent_indices = list(range(self.num_agents))
+            self.agent_indices = range(self.num_agents)
         elif isinstance(agent_indices, int):
             self.agent_indices = [agent_indices]
 
@@ -177,8 +175,6 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.full_traj_dicts = [defaultdict(list) for _ in self.agent_indices]
         self.prev_obs = None
         self.actions = None
-
-        os.makedirs(self.save_dir, exist_ok=True)
 
     def step_async(self, actions):
         self.actions = actions
@@ -215,12 +211,6 @@ class TrajectoryRecorder(VecMultiWrapper):
                 agent_dicts[env_idx][key].append(infos[env_idx][agent_idx][key])
 
             if dones[env_idx]:
-                if self.use_gail_format:
-                    ep_len = len(agent_dicts[env_idx]['rewards'])
-                    # used to index episodes since they are flattened in gail format.
-                    ep_starts = [True] + [False] * (ep_len - 1)
-                    self.full_traj_dicts[dict_idx]['episode_starts'].append(np.array(ep_starts))
-
                 ep_ret = sum(agent_dicts[env_idx]['rewards'])
                 self.full_traj_dicts[dict_idx]['episode_returns'].append(np.array([ep_ret]))
 
@@ -232,15 +222,40 @@ class TrajectoryRecorder(VecMultiWrapper):
                     self.full_traj_dicts[dict_idx][key].append(episode_key_data)
                 agent_dicts[env_idx] = defaultdict(list)
 
-    def save_traj(self):
+    def save_traj(self, save_dir, use_gail_format=False):
+        """Save trajectories to save_dir in NumPy compressed-array format, per-agent.
+
+        Our default format consists of a dictionary with keys -- e.g. 'observations', 'actions'
+        and 'rewards' -- containing lists of NumPy arrays, one for each episode.
+
+        If GAIL compatibility is enabled with `use_gail_format`, then the arrays of all episodes
+        are flattened together, and an additional `episode_starts` key is introduced containing
+        True at the start of each episode and False otherwise. This is inefficient for
+        heterogeneous length episodes and is not recommended unless compatibility is needed.
+
+        :param save_dir: (str) path to save trajectories; will create directory if needed.
+        :param use_gail_format: (bool) enable GAIL compatibility mode.
+        :return None
+        """
+        os.makedirs(save_dir, exist_ok=True)
         for dict_idx, agent_idx in enumerate(self.agent_indices):
-            # gail expects array of all episodes flattened together delineated by
-            # 'episode_starts' array. To be more efficient, we just keep the additional axis.
-            # We use np.asarray instead of np.stack because episodes have heterogenous lengths.
-            agg_function = np.concatenate if self.use_gail_format else np.asarray
-            dump_dict = {
-                k: agg_function(v)
-                for k, v in self.full_traj_dicts[dict_idx].items()}
+            # GAIL expects array of all episodes flattened together delineated by
+            # 'episode_starts' array. This is inefficient for heterogeneous length episodes.
+            # Our default format keeps the aditional axis, using np.asarray.
+            # For GAIL compatibility, we use np.concatenate.
+            agg_function = np.concatenate if use_gail_format else np.asarray
+            agent_dicts = self.full_traj_dicts[dict_idx]
+            dump_dict = {k: agg_function(v) for k, v in agent_dicts.items()}
+
+            if use_gail_format:
+                episode_starts = []
+                for reward_dict in agent_dicts['rewards']:
+                    ep_len = len(reward_dict['rewards'])
+                    # used to index episodes since they are flattened in GAIL format.
+                    ep_starts = [True] + [False] * (ep_len - 1)
+                    episode_starts.append(np.array(ep_starts))
+                dump_dict['episode_starts'] = np.concatenate(episode_starts)
+
             save_path = os.path.join(self.save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)
 

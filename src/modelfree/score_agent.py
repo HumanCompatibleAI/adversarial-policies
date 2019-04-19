@@ -90,7 +90,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         venv = make_dummy_vec_multi_env(env_fns)
 
     if record_traj:
-        venv = TrajectoryRecorder(venv, **record_traj_params)
+        venv = TrajectoryRecorder(venv, record_traj_params['agent_indices'])
 
     if venv.num_agents == 1 and agent_b_path != 'none':
         raise ValueError("Set agent_b_path to 'none' if environment only uses one agent.")
@@ -104,7 +104,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
     if record_traj:
-        venv.save_traj()
+        venv.save_traj(save_dir=record_traj_params['save_dir'],
+                       use_gail_format=record_traj_params['use_gail_format'])
 
     for agent in agents:
         if agent.sess is not None:
