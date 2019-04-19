@@ -163,20 +163,22 @@ def make_session(graph=None):
 
 class TrajectoryRecorder(VecMultiWrapper):
     def __init__(self, venv, save_dir, use_gail_format=False, agent_indices=None):
-        VecMultiWrapper.__init__(self, venv)
+        super().__init__(venv)
+
         self.save_dir = save_dir
         self.use_gail_format = use_gail_format
         if agent_indices is None:
-            self.agent_indices = range(self.num_agents)
+            self.agent_indices = list(range(self.num_agents))
         elif isinstance(agent_indices, int):
             self.agent_indices = [agent_indices]
-        os.makedirs(self.save_dir, exist_ok=True)
 
-        self.traj_dicts = [[defaultdict(list) for e in range(self.num_envs)]
-                           for p in self.agent_indices]
-        self.full_traj_dicts = [defaultdict(list) for p in self.agent_indices]
+        self.traj_dicts = [[defaultdict(list) for _ in range(self.num_envs)]
+                           for _ in self.agent_indices]
+        self.full_traj_dicts = [defaultdict(list) for _ in self.agent_indices]
         self.prev_obs = None
         self.actions = None
+
+        os.makedirs(self.save_dir, exist_ok=True)
 
     def step_async(self, actions):
         self.actions = actions
@@ -194,8 +196,8 @@ class TrajectoryRecorder(VecMultiWrapper):
         return observations
 
     def record_traj(self, prev_obs, actions, rewards, dones, infos):
-        data_keys = ('rewards', 'actions', 'obs')
-        data_vals = (rewards, actions, prev_obs)
+        data_keys = ('observations', 'actions', 'rewards')
+        data_vals = (prev_obs, rewards, actions)
         transparency_keys = ('ff', 'hid')  # we already record observations
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
@@ -211,6 +213,7 @@ class TrajectoryRecorder(VecMultiWrapper):
                 if key not in infos[env_idx][agent_idx]:
                     continue
                 agent_dicts[env_idx][key].append(infos[env_idx][agent_idx][key])
+
             if dones[env_idx]:
                 if self.use_gail_format:
                     ep_len = len(agent_dicts[env_idx]['rewards'])
@@ -260,7 +263,7 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
-        for idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
+        for policy, obs, state in zip(policies, observations, states):
             act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
             new_states.append(new_state)

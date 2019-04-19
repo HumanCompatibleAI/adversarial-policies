@@ -159,6 +159,19 @@ def _get_mpi_num_proc():
 
 
 @train_ex.capture
+def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
+    num_proc = _get_mpi_num_proc()
+    if expert_dataset_path is None:
+        raise ValueError("Must set expert_dataset_path to use GAIL.")
+    expert_dataset = ExpertDataset(expert_dataset_path)
+    kwargs['d_stepsize'] = learning_rate(1)
+    kwargs['vf_stepsize'] = learning_rate(1)
+    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
+                   callback_key='timesteps_so_far', callback_mul=1,
+                   timesteps_per_batch=batch_size // num_proc, **kwargs)
+
+
+@train_ex.capture
 def ppo1(batch_size, learning_rate, **kwargs):
     num_proc = _get_mpi_num_proc()
     pylog.warning('Assuming constant learning rate schedule for PPO1')
@@ -178,19 +191,6 @@ def ppo2(batch_size, num_env, learning_rate, **kwargs):
 def sac(batch_size, learning_rate, **kwargs):
     return _stable(SAC, our_type='sac', callback_key='step', callback_mul=1,
                    batch_size=batch_size, learning_rate=learning_rate, **kwargs)
-
-
-@train_ex.capture
-def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
-    num_proc = _get_mpi_num_proc()
-    if expert_dataset_path is None:
-        raise ValueError("must set expert_dataset_path to use GAIL.")
-    expert_dataset = ExpertDataset(expert_dataset_path)
-    kwargs['d_stepsize'] = learning_rate(1)
-    kwargs['vf_stepsize'] = learning_rate(1)
-    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
-                   callback_key='timesteps_so_far', callback_mul=1,
-                   timesteps_per_batch=batch_size // num_proc, **kwargs)
 
 
 @train_ex.config
@@ -216,11 +216,13 @@ def train_config():
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
+    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+
+    # RL Algorithm Policies/Demonstrations
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by policy_loader.py
     }
-    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
@@ -358,16 +360,16 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
 
 
 RL_ALGOS = {
+    'gail': gail,
     'ppo1': ppo1,
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
     'sac': sac,
-    'gail': gail,
 }
 
 
 # True for Stable Baselines as of 2019-03
-NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac', 'gail']
+NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 
 
 @train_ex.main

@@ -60,12 +60,14 @@ def test_score_agent(config):
     assert sum(outcomes) == run.config['episodes']
 
     if config.get('record_traj', False):
-        for i in range(2):
-            traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
-                                          f'agent_{i}.npz')
-            assert os.path.exists(traj_file_path)
-            os.remove(traj_file_path)
-        os.rmdir(config['record_traj_params']['save_dir'])
+        try:
+            for i in range(2):
+                traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
+                                              f'agent_{i}.npz')
+                assert os.path.exists(traj_file_path)
+                os.remove(traj_file_path)
+        finally:
+            os.rmdir(config['record_traj_params']['save_dir'])
 
 
 TRAIN_CONFIGS = [
