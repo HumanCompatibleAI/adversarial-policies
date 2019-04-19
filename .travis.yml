@@ -9,6 +9,7 @@ matrix:
     before_install: []
     install:
       - pip install flake8 isort
+      - travis_wait 90 mvn install
     script:
       - ci/code_checks.sh
     after_success: []
@@ -29,7 +30,6 @@ before_install:
     docker build --cache-from humancompatibleai/adversarial_policies \
                  --build-arg MUJOCO_KEY=${MUJOCO_KEY} \
                  -t humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER .
-install: travis_wait 90 mvn install
 script:
   - ci_env=`bash <(curl -s https://codecov.io/env)`
   - >
