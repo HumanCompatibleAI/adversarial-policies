@@ -108,6 +108,13 @@ TRAIN_CONFIGS = [
         'num_env': 1,
         'expert_dataset_path': 'tests/modelfree/SumoAnts_traj/agent_0.npz',
     },
+    {
+        'transparent_params': {'ff_policy': False, 'hid': True},
+    },
+    # {
+    #     'env_name': 'multicomp/YouShallNotPassHumans-v0',
+    #     'transparent_params': {'ff_policy': False},
+    # }
 
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
