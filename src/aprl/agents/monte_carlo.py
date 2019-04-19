@@ -39,7 +39,11 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
         self.sim = env.unwrapped.env_scene
 
     def get_full_state(self):
-        return self.sim.data
+        state_dict = {}
+        for k, v in type(self.sim.data._wrapped.contents).__dict__['_fields_']:
+            if k not in ['contact', 'buffer']:
+                state_dict[k] = getattr(self.sim.data, k)
+        return state_dict
 
     def get_state(self):
         """Serializes the qpos and qvel state of the MuJoCo emulator."""
@@ -60,13 +64,8 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
             self.sim.model.forward()  # put mjData in consistent state
 
     def set_arbitrary_state(self, sim_data):
-        for k, v in type(sim_data._wrapped.contents).__dict__['_fields_']:
-            if k not in ['contact', 'buffer']:
-                # calculate old buffer
-                real_v = getattr(sim_data, k)
-                setattr(self.sim.data, k, real_v)
-                # calculate new buffer
-                # print if
+        for k, v in sim_data.items():
+            setattr(self.sim.data, k, v)
 
     def set_radius(self, r):
         self.env.env.RADIUS = r

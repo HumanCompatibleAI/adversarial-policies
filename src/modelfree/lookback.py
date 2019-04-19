@@ -21,9 +21,9 @@ class DebugVenv(VecEnvWrapper):
 
     def step_async(self, actions):
         self.debug_dict['actions'] = actions
-        state_data = self.unwrapped.envs[0].env.sim.data
-        fields = type(state_data._wrapped.contents).__dict__['_fields_']
-        keys = [t[0] for t in fields if t[0] != 'contact']
+        #state_data = self.unwrapped.envs[0].env.sim.data
+        #fields = type(state_data._wrapped.contents).__dict__['_fields_']
+        #keys = [t[0] for t in fields if t[0] != 'contact']
         #for k in keys:
         #    val = getattr(state_data, k)
         #    if isinstance(val, np.ndarray) and val.size > 0:
