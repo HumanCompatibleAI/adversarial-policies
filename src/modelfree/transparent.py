@@ -23,6 +23,9 @@ class TransparentPolicy(ABC):
     def __init__(self, transparent_params):
         if transparent_params is None:
             raise ValueError("TransparentPolicy requires transparent_params.")
+        for key in transparent_params:
+            if key not in TRANSPARENCY_KEYS:
+                raise KeyError(f"Unrecognized transparency key: {key}")
         self.transparent_params = transparent_params
 
     @abstractmethod
@@ -52,7 +55,7 @@ class TransparentPolicy(ABC):
         :param transparent_objs: (tuple<np.ndarray,None>) values for keys in TRANSPARENCY_KEYS
         :return: (dict[str, np.ndarray]) dict with all exposed data
         """
-        transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
+        transparency_dict = {k: np.squeeze(v) for k, v in zip(TRANSPARENCY_KEYS, transparent_objs)
                              if k in self.transparent_params}
         return transparency_dict
 
@@ -112,7 +115,10 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
         state = np.array(state)
         state = np.transpose(state, (1, 0, 2))
 
-        transparent_objs = (obs, np.concatenate(ff['policy']), np.concatenate(ff['value']), state)
+        # right now 'hid' only supports hidden state of policy
+        # which is the last of the four state vectors
+        transparent_objs = (obs, np.concatenate(ff['policy']),
+                            np.concatenate(ff['value']), state[:, -1, :])
         transparency_dict = self.get_transparency_dict(transparent_objs)
         return a, v, state, neglogp, transparency_dict
 
@@ -121,9 +127,9 @@ class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
     """gym_compete MlpPolicyValue which is also transparent."""
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  hiddens=None, scope="input", reuse=False, normalize=False):
-        MlpPolicyValue.__init__(sess, ob_space, ac_space, n_env, n_steps, n_batch,
+        MlpPolicyValue.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch,
                                 hiddens=hiddens, scope=scope, reuse=reuse, normalize=normalize)
-        TransparentPolicy.__init__(transparent_params)
+        TransparentPolicy.__init__(self, transparent_params)
 
     def get_obs_sizes(self):
         return self.ob_space.shape[0], sum(self.hiddens), sum(self.hiddens), None
@@ -139,7 +145,7 @@ class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
 
 
 class TransparentCurryVecEnv(CurryVecEnv):
-    """CurryVecEnv that gives out much more info about its policy."""
+    """CurryVecEnv that provides transparency data about its policy in its infos dicts."""
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, policy, agent_idx)
         self.underlying_policy = policy.policy
@@ -149,7 +155,7 @@ class TransparentCurryVecEnv(CurryVecEnv):
 
         obs_aug_amount = self.underlying_policy.get_obs_aug_amount()
         if obs_aug_amount > 0:
-            obs_aug_space = gym.spaces.Box(-np.inf, np.inf, obs_aug_amount)
+            obs_aug_space = gym.spaces.Box(-np.inf, np.inf, (obs_aug_amount,))
             self.observation_space = _tuple_space_augment(self.observation_space, agent_idx,
                                                           augment_space=obs_aug_space)
 
@@ -160,7 +166,9 @@ class TransparentCurryVecEnv(CurryVecEnv):
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
         observations = self._get_updated_obs(observations)
-        infos[self._agent_to_fix].update(self._data)
+        for env_idx in range(self.num_envs):
+            env_data = {k: v[env_idx] for k, v in self._data.items()}
+            infos[env_idx][self._agent_to_fix].update(env_data)
         return observations, rewards, self._dones, infos
 
     def reset(self):
@@ -171,4 +179,11 @@ class TransparentCurryVecEnv(CurryVecEnv):
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
         self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
                                                                      mask=self._dones)
-        return observations
+        # we assume that there is only one other agent in the MultiEnv.
+        assert len(observations) == 1
+
+        obs_copy = observations[0]
+        for k in TRANSPARENCY_KEYS:
+            if k in self._data and self.underlying_policy.transparent_params.get(k):
+                obs_copy = np.concatenate([obs_copy, self._data[k]], -1)
+        return tuple(obs_copy,)
