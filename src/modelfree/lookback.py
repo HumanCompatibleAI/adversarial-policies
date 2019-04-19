@@ -60,10 +60,12 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         super().__init__(venv)
         self.lookback_num = lookback_params['num_lb']
         self.lookback_space = lookback_space
+        if transparent_params is None:
+            raise ValueError("LookbackRewardVecWrapper assumes transparent policies and venvs.")
         self.transparent_params = transparent_params
         self.victim_index = victim_index
 
-        self._policy = load_policy(lookback_params['type'], lookback_params['path'], self.venv.venv.venv.venv.venv.venv,
+        self._policy = load_policy(lookback_params['type'], lookback_params['path'], self.get_base_venv(),
                                    env_name, 1 - victim_index, transparent_params=None)
         self._action = None
         self._obs = None
@@ -110,7 +112,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.lb_dicts = [self.lb_dicts[-1]] + self.lb_dicts[:-1]
 
         new_baseline_dict = self.lb_dicts[0]
-        curry_obs = self._get_curry_obs()
+        curry_obs = self.get_curry_venv().get_obs()
         new_baseline_dict.curry.set_obs(curry_obs)
         for env_idx in range(self.num_envs):
             new_baseline_dict.venv.unwrapped.env_method('set_state', current_states[env_idx],
@@ -166,9 +168,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self._reset_state_data(observations)
         return observations
 
-    def _get_curry_obs(self):
-        return self.venv.venv.venv.venv.get_obs()
-
     def _process_own_obs(self, observations):
         """Record action, state and observations of our policy"""
         self._obs = self._get_truncated_obs(observations)
@@ -193,10 +192,10 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
     def _reset_state_data(self, initial_observations, env_idx=None):
         """Reset lb_venv states when self.venv resets. Also reset data for baseline policy."""
         truncated_obs = self._get_truncated_obs(initial_observations)
-        curry_obs = self._get_curry_obs()
+        curry_obs = self.get_curry_venv().get_obs()
         action, state = self._policy.predict(truncated_obs, state=None, mask=None, return_data=False)
         initial_env_states = self.venv.unwrapped.env_method('get_state', indices=env_idx)
-        initial_env_full_state = self.venv.unwrapped.env_method('get_full_state')[0]
+        initial_env_full_state = self.venv.unwrapped.env_method('get_full_state', indices=env_idx)
         initial_env_radii = self.venv.unwrapped.env_method('get_radius', indices=env_idx)
         for lb_dict in self.lb_dicts:
             if env_idx is None:
@@ -206,7 +205,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_dict.data['state'] = state
                 lb_dict.data['reward'] *= 0
                 lb_dict.data['info'] = defaultdict(dict)
-                lb_dict.curry.set_obs(curry_obs)
             else:
                 # this gets called when an episode ends in one of the environments
                 lb_dict.data['action'][env_idx] = action[env_idx]
@@ -214,13 +212,14 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                     lb_dict.data['state'] = None
                 else:
                     lb_dict.data['state'][env_idx, :, :] = state[env_idx, :, :]
-                lb_dict.data['reward'][env_idx] = 0
-                lb_dict.curry.set_obs(curry_obs, env_idx)
-            envs_iter = range(self.num_envs) if env_idx is None else (0,)
-            for env_to_set in envs_iter:
-                lb_dict.venv.unwrapped.env_method('set_radius', initial_env_radii[env_to_set], indices=env_to_set)
-                lb_dict.venv.unwrapped.env_method('set_state', initial_env_states[env_to_set],
-                                                  indices=env_to_set, sim_data=initial_env_full_state, forward=False)
+                lb_dict.data['reward'][env_idx] *= 0
+            lb_dict.curry.set_obs(curry_obs, env_idx)
+            envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
+            for i, env_to_set in enumerate(envs_iter):
+                lb_dict.venv.unwrapped.env_method('set_radius', initial_env_radii[i], indices=env_to_set)
+                lb_dict.venv.unwrapped.env_method('set_state', initial_env_states[i],
+                                                  indices=env_to_set, sim_data=initial_env_full_state[i],
+                                                  forward=False)
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""

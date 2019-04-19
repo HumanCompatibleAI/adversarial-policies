@@ -245,6 +245,9 @@ class _ActionTranspose(VecMultiWrapper):
         rews = rews.T
         return obs, rews, done, info
 
+    def get_base_venv(self):
+        return self
+
 
 def _make_vec_multi_env(cls):
     def f(env_fns):
@@ -382,6 +385,9 @@ class MergeAgentVecEnv(VecMultiWrapper):
         new_obs = np.concatenate([self._obs, self._action], axis=1)
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
 
+    def get_merge_venv(self):
+        return self
+
 
 class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
@@ -423,6 +429,9 @@ class CurryVecEnv(VecMultiWrapper):
 
     def get_policy(self):
         return self._policy
+
+    def get_curry_venv(self):
+        return self
 
     def set_obs(self, obs, env_idx=None):
         if env_idx is None:

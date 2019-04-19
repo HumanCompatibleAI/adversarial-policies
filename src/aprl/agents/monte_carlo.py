@@ -62,8 +62,11 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
     def set_arbitrary_state(self, sim_data):
         for k, v in type(sim_data._wrapped.contents).__dict__['_fields_']:
             if k not in ['contact', 'buffer']:
+                # calculate old buffer
                 real_v = getattr(sim_data, k)
                 setattr(self.sim.data, k, real_v)
+                # calculate new buffer
+                # print if
 
     def set_radius(self, r):
         self.env.env.RADIUS = r
