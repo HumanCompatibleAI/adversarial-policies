@@ -103,7 +103,6 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out_dir,
             total_timesteps, policy, load_policy, rl_args, victim_index, debug, logger,
             log_callbacks, save_callbacks, log_interval, checkpoint_interval, **kwargs):
-    kwargs = {k: v for k, v in kwargs.items() if k not in rl_args}
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
                   **kwargs,

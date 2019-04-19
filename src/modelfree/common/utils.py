@@ -172,6 +172,14 @@ def make_session(graph=None):
 
 
 class TrajectoryRecorder(VecMultiWrapper):
+    """Class for recording and saving trajectories in numpy.npz format.
+    For each episode, we record observations, actions, rewards and optionally network activations
+    for the agents specified by agent_indices.
+
+    :param venv: (VecEnv) environment to wrap
+    :param agent_indices: (list,int) indices of agents whose trajectories to record
+    """
+
     def __init__(self, venv, agent_indices=None):
         super().__init__(venv)
 
@@ -202,6 +210,17 @@ class TrajectoryRecorder(VecMultiWrapper):
         return observations
 
     def record_traj(self, prev_obs, actions, rewards, dones, infos):
+        """Record observations, actions, rewards, and (optionally) network activations
+        of one timestep in dict for current episode. Completed episode trajectories are
+        collected in a list in preparation for being saved to disk.
+
+        :param prev_obs: (np.ndarray<float>) observations from previous timestep
+        :param actions: (np.ndarray<float>) actions taken after observing prev_obs
+        :param rewards: (np.ndarray<float>) rewards from actions
+        :param dones: ([bool]) whether episode ended (not recorded)
+        :param infos: ([dict]) dicts with network activations if networks are transparent
+        :return: None
+        """
         data_keys = ('observations', 'actions', 'rewards')
         data_vals = (prev_obs, actions, rewards)
         transparency_keys = ('ff', 'hid')  # we already record observations
