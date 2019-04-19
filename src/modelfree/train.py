@@ -8,6 +8,7 @@ import os.path as osp
 import pkgutil
 
 from gym.spaces import Box
+import numpy as np
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from stable_baselines import GAIL, PPO1, PPO2, SAC
@@ -158,12 +159,41 @@ def _get_mpi_num_proc():
     return num_proc
 
 
+class ExpertDatasetOurFormat(ExpertDataset):
+    """GAIL Expert Dataset. Loads in our format, rather than the GAIL default.
+
+    In particular, GAIL expects a dict of flattened arrays, with episodes concatenated together.
+    The episode start is delineated by an `episode_starts` array.
+
+    By contrast, our format consists of a list of NumPy arrays, one for each episode."""
+    def __init__(self, expert_path, **kwargs):
+        traj_data = np.load(expert_path)
+
+        # Add in episode starts
+        episode_starts = []
+        for reward_dict in traj_data['rewards']:
+            ep_len = len(reward_dict)
+            # used to index episodes since they are flattened in GAIL format.
+            ep_starts = [True] + [False] * (ep_len - 1)
+            episode_starts.append(np.array(ep_starts))
+
+        # Flatten arrays
+        traj_data = {k: np.concatenate(v) for k, v in traj_data.items()}
+        traj_data['episode_starts'] = np.concatenate(episode_starts)
+
+        # Rename observations->obs
+        traj_data['obs'] = traj_data['observations']
+        del traj_data['observations']
+
+        super().__init__(traj_data=traj_data, **kwargs)
+
+
 @train_ex.capture
 def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("Must set expert_dataset_path to use GAIL.")
-    expert_dataset = ExpertDataset(expert_dataset_path)
+    expert_dataset = ExpertDatasetOurFormat(expert_dataset_path)
     kwargs['d_stepsize'] = learning_rate(1)
     kwargs['vf_stepsize'] = learning_rate(1)
     return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,

@@ -30,7 +30,7 @@ SCORE_AGENT_CONFIGS = [
     {'env_name': 'multicomp/KickAndDefend-v0', 'episodes': 1},
     {
         'record_traj': True,
-        'record_traj_params': {'save_dir': 'test_dir', 'use_gail_format': True},
+        'record_traj_params': {'save_dir': 'test_dir'},
     }
 ]
 SCORE_AGENT_CONFIGS += [

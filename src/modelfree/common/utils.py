@@ -203,7 +203,7 @@ class TrajectoryRecorder(VecMultiWrapper):
 
     def record_traj(self, prev_obs, actions, rewards, dones, infos):
         data_keys = ('observations', 'actions', 'rewards')
-        data_vals = (prev_obs, rewards, actions)
+        data_vals = (prev_obs, actions, rewards)
         transparency_keys = ('ff', 'hid')  # we already record observations
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
@@ -232,39 +232,19 @@ class TrajectoryRecorder(VecMultiWrapper):
                     self.full_traj_dicts[dict_idx][key].append(episode_key_data)
                 agent_dicts[env_idx] = defaultdict(list)
 
-    def save_traj(self, save_dir, use_gail_format=False):
+    def save_traj(self, save_dir):
         """Save trajectories to save_dir in NumPy compressed-array format, per-agent.
 
-        Our default format consists of a dictionary with keys -- e.g. 'observations', 'actions'
+        Our format consists of a dictionary with keys -- e.g. 'observations', 'actions'
         and 'rewards' -- containing lists of NumPy arrays, one for each episode.
 
-        If GAIL compatibility is enabled with `use_gail_format`, then the arrays of all episodes
-        are flattened together, and an additional `episode_starts` key is introduced containing
-        True at the start of each episode and False otherwise. This is inefficient for
-        heterogeneous length episodes and is not recommended unless compatibility is needed.
-
         :param save_dir: (str) path to save trajectories; will create directory if needed.
-        :param use_gail_format: (bool) enable GAIL compatibility mode.
         :return None
         """
         os.makedirs(save_dir, exist_ok=True)
         for dict_idx, agent_idx in enumerate(self.agent_indices):
-            # GAIL expects array of all episodes flattened together delineated by
-            # 'episode_starts' array. This is inefficient for heterogeneous length episodes.
-            # Our default format keeps the aditional axis, using np.asarray.
-            # For GAIL compatibility, we use np.concatenate.
-            agg_function = np.concatenate if use_gail_format else np.asarray
             agent_dicts = self.full_traj_dicts[dict_idx]
-            dump_dict = {k: agg_function(v) for k, v in agent_dicts.items()}
-
-            if use_gail_format:
-                episode_starts = []
-                for reward_dict in agent_dicts['rewards']:
-                    ep_len = len(reward_dict)
-                    # used to index episodes since they are flattened in GAIL format.
-                    ep_starts = [True] + [False] * (ep_len - 1)
-                    episode_starts.append(np.array(ep_starts))
-                dump_dict['episode_starts'] = np.concatenate(episode_starts)
+            dump_dict = {k: np.asarray(v) for k, v in agent_dicts.items()}
 
             save_path = os.path.join(save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)

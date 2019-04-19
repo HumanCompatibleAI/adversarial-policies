@@ -60,7 +60,6 @@ def default_score_config():
     record_traj = False                 # whether to record trajectories
     record_traj_params = {              # parameters for recording trajectories
         'save_dir': 'data/experts',     # directory to save trajectories to
-        'use_gail_format': False,       # use gail format (less space-efficient)
         'agent_indices': None,          # which agent trajectories to save
     }
     num_env = 1                         # number of environments to run in parallel
@@ -104,8 +103,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
     if record_traj:
-        venv.save_traj(save_dir=record_traj_params['save_dir'],
-                       use_gail_format=record_traj_params['use_gail_format'])
+        venv.save_traj(save_dir=record_traj_params['save_dir'])
 
     for agent in agents:
         if agent.sess is not None:
