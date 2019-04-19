@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 import gym
-from gym_compete.policy import LSTMPolicy
+from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
@@ -12,44 +12,71 @@ TRANSPARENCY_KEYS = ('obs', 'ff_policy', 'ff_value', 'hid')
 
 
 class TransparentPolicy(ABC):
-    @abstractmethod
-    def get_obs_aug_amount(self):
-        raise NotImplementedError()
+    """Policy which returns its observations and/or activations in its call to self.predict
 
-
-class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
-    """FeedForwardPolicy which is also transparent."""
-    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
-                 reuse=False, layers=None, net_arch=None, act_fun=tf.tanh,
-                 cnn_extractor=nature_cnn, feature_extraction="cnn", **kwargs):
-        """
-        :param transparent_params: dict with potential keys 'obs', 'ff', 'hid'.
-        If key is not present, then we don't provide this data as part of the data dict in step.
-        If key is present, value (bool) corresponds to whether we augment the observation space
-        with it. This is because TransparentCurryVecEnv needs this information to modify its
-        observation space, and we want all of the transparency-related parameters in one dict.
-        """
-        FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
-                                   layers, net_arch, act_fun, cnn_extractor, feature_extraction,
-                                   **kwargs)
+    :param transparent_params: dict with potential keys in TRANSPARENCY_KEYS
+    - If key is not present, then we don't provide this data as part of the data dict in step.
+    - If key is present, value (bool) corresponds to whether we augment the observation space
+    with it. This is because TransparentCurryVecEnv needs this information to modify its
+    observation space, and we want all of the transparency-related parameters in one dict.
+    """
+    def __init__(self, transparent_params):
+        if transparent_params is None:
+            raise ValueError("TransparentPolicy requires transparent_params.")
         self.transparent_params = transparent_params
 
+    @abstractmethod
+    def get_obs_sizes(self):
+        """List of dimensionalities of different data that could be appended to an observation.
+        Specifically (observations, (concatenated) policy acts., value acts., and hidden state)
+
+        This is used in get_obs_aug_amount, which has the common logic for all subclasses.
+        If class does not support a key, its value should be None.
+
+        :return: (list<int,None>) sizes of data from TRANSPARENCY_KEYS for this policy.
+        """
+        raise NotImplementedError()
+
     def get_obs_aug_amount(self):
+        """Execute loop for calculating amount by which to augment observations"""
         obs_aug_amount = 0
-        obs_sizes = (self.ob_space.shape[0], sum(self.layers), None)
+        obs_sizes = self.get_obs_sizes()
         for key, val in list(zip(TRANSPARENCY_KEYS, obs_sizes)):
             if self.transparent_params.get(key):
                 obs_aug_amount += val
         return obs_aug_amount
 
+    def get_transparency_dict(self, transparent_objs):
+        """Construct dictionary of transparent data
+
+        :param transparent_objs: (tuple<np.ndarray,None>) values for keys in TRANSPARENCY_KEYS
+        :return: (dict[str, np.ndarray]) dict with all exposed data
+        """
+        transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
+                             if k in self.transparent_params}
+        return transparency_dict
+
+
+class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
+    """stable_baselines FeedForwardPolicy which is also transparent."""
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 reuse=False, layers=None, net_arch=None, act_fun=tf.tanh,
+                 cnn_extractor=nature_cnn, feature_extraction="cnn", **kwargs):
+        FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
+                                   layers, net_arch, act_fun, cnn_extractor, feature_extraction,
+                                   **kwargs)
+        TransparentPolicy.__init__(self, transparent_params)
+
+    def get_obs_sizes(self):
+        return self.ob_space.shape[0], sum(self.layers), sum(self.layers), None
+
     def step(self, obs, state=None, mask=None, deterministic=False):
         action_op = self.deterministic_action if deterministic else self.action
         action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp,
                                                     self.ff_out], {self.obs_ph: obs})
-        transparent_objs = (obs, np.squeeze(np.stack(ff['policy'])),
-                            np.squeeze(np.stack(ff['value'])), None)
-        transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
-                             if k in self.transparent_params}
+
+        transparent_objs = (obs, np.concatenate(ff['policy']), np.concatenate(ff['value']), None)
+        transparency_dict = self.get_transparency_dict(transparent_objs)
         return action, value, self.initial_state, neglogp, transparency_dict
 
 
@@ -62,27 +89,16 @@ class TransparentMlpPolicy(TransparentFeedForwardPolicy):
 
 
 class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
-    """LSTMPolicy which also gives information about itself as outputs."""
+    """gym_compete LSTMPolicy which also transparent."""
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  hiddens=None, scope="input", reuse=False, normalize=False):
-        """
-        :param transparent_params: dict with potential keys 'obs', 'ff', 'hid'.
-        If key is not present, then we don't provide this data as part of the data dict in step.
-        If key is present, value (bool) corresponds to whether we augment the observation space
-        with it. This is because TransparentCurryVecEnv needs this information to modify its
-        observation space, and we want all of the transparency-related parameters in one dict.
-        """
         LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
                             scope, reuse, normalize)
-        self.transparent_params = transparent_params
+        TransparentPolicy.__init__(self, transparent_params)
 
-    def get_obs_aug_amount(self):
-        obs_aug_amount = 0
-        obs_sizes = (self.ob_space.shape[0], self.hiddens[-2], self.hiddens[-2], self.hiddens[-1])
-        for key, val in list(zip(TRANSPARENCY_KEYS, obs_sizes)):
-            if self.transparent_params.get(key):
-                obs_aug_amount += val
-        return obs_aug_amount
+    def get_obs_sizes(self):
+        ff_size = sum(self.hiddens[:-1])
+        return self.ob_space.shape[0], ff_size, ff_size, self.hiddens[-1]
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         action = self.deterministic_action if deterministic else self.action
@@ -96,11 +112,30 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
         state = np.array(state)
         state = np.transpose(state, (1, 0, 2))
 
-        transparent_objs = (obs, np.squeeze(np.stack(ff['policy'])),
-                            np.stack(np.squeeze(ff['value'])), state)
-        transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
-                             if k in self.transparent_params}
+        transparent_objs = (obs, np.concatenate(ff['policy']), np.concatenate(ff['value']), state)
+        transparency_dict = self.get_transparency_dict(transparent_objs)
         return a, v, state, neglogp, transparency_dict
+
+
+class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
+    """gym_compete MlpPolicyValue which is also transparent."""
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 hiddens=None, scope="input", reuse=False, normalize=False):
+        MlpPolicyValue.__init__(sess, ob_space, ac_space, n_env, n_steps, n_batch,
+                                hiddens=hiddens, scope=scope, reuse=reuse, normalize=normalize)
+        TransparentPolicy.__init__(transparent_params)
+
+    def get_obs_sizes(self):
+        return self.ob_space.shape[0], sum(self.hiddens), sum(self.hiddens), None
+
+    def step(self, obs, state=None, mask=None, deterministic=False):
+        action = self.deterministic_action if deterministic else self.action
+        outputs = [action, self._value, self.neglogp, self.ff_out]
+        a, v, neglogp, ff = self.sess.run(outputs, {self.obs_ph: obs})
+
+        transparent_objs = (obs, np.concatenate(ff['policy']), np.concatenate(ff['value']), None)
+        transparency_dict = self.get_transparency_dict(transparent_objs)
+        return a, v, self.initial_state, neglogp, transparency_dict
 
 
 class TransparentCurryVecEnv(CurryVecEnv):
