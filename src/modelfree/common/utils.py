@@ -73,12 +73,18 @@ class OpenAIToStablePolicy(BasePolicy):
     """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
     def __init__(self, old_policy):
         self.old = old_policy
-        self.initial_state = old_policy.initial_state
         self.sess = old_policy.sess
+
+    @property
+    def initial_state(self):
+        return self.old.initial_state
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         stochastic = not deterministic
         return self.old.step(obs, S=state, M=mask, stochastic=stochastic)
+
+    def proba_step(self, obs, state=None, mask=None):
+        raise NotImplementedError()
 
 
 class ConstantPolicy(BasePolicy):
@@ -92,11 +98,13 @@ class ConstantPolicy(BasePolicy):
                          n_steps=1,
                          n_batch=1)
         self.constant = constant
-        self.initial_state = None
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         actions = np.array([self.constant] * self.n_env)
         return actions, None, None, None
+
+    def proba_step(self, obs, state=None, mask=None):
+        return self.step(obs, state=state, mask=mask)
 
 
 class ZeroPolicy(ConstantPolicy):
@@ -113,11 +121,13 @@ class RandomPolicy(BasePolicy):
                          n_env=env.num_envs,
                          n_steps=1,
                          n_batch=1)
-        self.initial_state = None
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         actions = np.array([self.ac_space.sample() for _ in range(self.n_env)])
         return actions, None, None, None
+
+    def proba_step(self, obs, state=None, mask=None):
+        raise NotImplementedError()
 
 
 class VideoWrapper(Wrapper):
@@ -250,13 +260,13 @@ class TrajectoryRecorder(VecMultiWrapper):
             if use_gail_format:
                 episode_starts = []
                 for reward_dict in agent_dicts['rewards']:
-                    ep_len = len(reward_dict['rewards'])
+                    ep_len = len(reward_dict)
                     # used to index episodes since they are flattened in GAIL format.
                     ep_starts = [True] + [False] * (ep_len - 1)
                     episode_starts.append(np.array(ep_starts))
                 dump_dict['episode_starts'] = np.concatenate(episode_starts)
 
-            save_path = os.path.join(self.save_dir, f'agent_{agent_idx}.npz')
+            save_path = os.path.join(save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)
 
 
