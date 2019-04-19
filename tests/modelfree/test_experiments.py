@@ -28,6 +28,10 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 SCORE_AGENT_CONFIGS = [
     {'agent_b_type': 'zoo', 'agent_b_path': '2', 'videos': True, 'episodes': 2},
     {'env_name': 'multicomp/KickAndDefend-v0', 'episodes': 1},
+    {
+        'record_traj': True,
+        'record_traj_params': {'save_dir': 'test_dir'},
+    }
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -54,6 +58,16 @@ def test_score_agent(config):
 
     outcomes = [run.result[k] for k in ['ties', 'win0', 'win1']]
     assert sum(outcomes) == run.config['episodes']
+
+    if config.get('record_traj', False):
+        try:
+            for i in range(2):
+                traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
+                                              f'agent_{i}.npz')
+                assert os.path.exists(traj_file_path)
+                os.remove(traj_file_path)
+        finally:
+            os.rmdir(config['record_traj_params']['save_dir'])
 
 
 TRAIN_CONFIGS = [
@@ -88,7 +102,13 @@ TRAIN_CONFIGS = [
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',
         'adv_noise_params': {'noise_val': 0.1},
-    }
+    },
+    {
+        'rl_algo': 'gail',
+        'num_env': 1,
+        'expert_dataset_path': 'tests/modelfree/SumoAnts_traj/agent_0.npz',
+    },
+
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']

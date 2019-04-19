@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from aprl.envs.multi_agent import CurryVecEnv, _tuple_pop, _tuple_space_augment
 
-TRANSPARENCY_KEYS = ('obs', 'ff', 'hid')
+TRANSPARENCY_KEYS = ('obs', 'ff_policy', 'ff_value', 'hid')
 
 
 class TransparentPolicy(ABC):
@@ -46,7 +46,8 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
         action_op = self.deterministic_action if deterministic else self.action
         action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp,
                                                     self.ff_out], {self.obs_ph: obs})
-        transparent_objs = (obs, ff, None)
+        transparent_objs = (obs, np.squeeze(np.stack(ff['policy'])),
+                            np.squeeze(np.stack(ff['value'])), None)
         transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
                              if k in self.transparent_params}
         return action, value, self.initial_state, neglogp, transparency_dict
@@ -77,7 +78,7 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
 
     def get_obs_aug_amount(self):
         obs_aug_amount = 0
-        obs_sizes = (self.ob_space.shape[0], self.hiddens[-2], self.hiddens[-1])
+        obs_sizes = (self.ob_space.shape[0], self.hiddens[-2], self.hiddens[-2], self.hiddens[-1])
         for key, val in list(zip(TRANSPARENCY_KEYS, obs_sizes)):
             if self.transparent_params.get(key):
                 obs_aug_amount += val
@@ -95,7 +96,8 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
         state = np.array(state)
         state = np.transpose(state, (1, 0, 2))
 
-        transparent_objs = (obs, ff, state)
+        transparent_objs = (obs, np.squeeze(np.stack(ff['policy'])),
+                            np.stack(np.squeeze(ff['value'])), state)
         transparency_dict = {k: v for k, v in list(zip(TRANSPARENCY_KEYS, transparent_objs))
                              if k in self.transparent_params}
         return a, v, state, neglogp, transparency_dict
