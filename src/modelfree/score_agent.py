@@ -103,7 +103,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
     if record_traj:
-        venv.save_traj(save_dir=record_traj_params['save_dir'])
+        venv.save(save_dir=record_traj_params['save_dir'])
 
     for agent in agents:
         if agent.sess is not None:

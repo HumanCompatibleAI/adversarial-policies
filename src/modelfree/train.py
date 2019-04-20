@@ -158,11 +158,12 @@ def _get_mpi_num_proc():
     return num_proc
 
 
-class ExpertDatasetOurFormat(ExpertDataset):
+class ExpertDatasetFromOurFormat(ExpertDataset):
     """GAIL Expert Dataset. Loads in our format, rather than the GAIL default.
 
     In particular, GAIL expects a dict of flattened arrays, with episodes concatenated together.
-    The episode start is delineated by an `episode_starts` array.
+    The episode start is delineated by an `episode_starts` array. See `ExpertDataset` base class
+    for more information.
 
     By contrast, our format consists of a list of NumPy arrays, one for each episode."""
     def __init__(self, expert_path, **kwargs):
@@ -192,7 +193,7 @@ def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("Must set expert_dataset_path to use GAIL.")
-    expert_dataset = ExpertDatasetOurFormat(expert_dataset_path)
+    expert_dataset = ExpertDatasetFromOurFormat(expert_dataset_path)
     kwargs['d_stepsize'] = learning_rate(1)
     kwargs['vf_stepsize'] = learning_rate(1)
     return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,

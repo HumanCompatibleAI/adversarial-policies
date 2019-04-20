@@ -4,6 +4,7 @@ Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
 import os
 
+import numpy as np
 import pytest
 from ray.tune.trial import Trial
 
@@ -48,10 +49,8 @@ def test_score_agent(config):
     """Smoke test for score agent to check it runs with some different configs."""
     config = dict(config)
     if 'episodes' not in config:
-        config['episodes'] = 1
-    config['render'] = False  # faster without, test_experiment already tests with render
-    if 'episodes' not in config:
         config['episodes'] = 1  # speed up tests
+    config['render'] = False  # faster without, test_experiment already tests with render
 
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
@@ -64,7 +63,10 @@ def test_score_agent(config):
             for i in range(2):
                 traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
                                               f'agent_{i}.npz')
-                assert os.path.exists(traj_file_path)
+                traj_data = np.load(traj_file_path)
+                assert set(traj_data.keys()).contains(['observations', 'actions', 'rewards'])
+                for k, ep_data in traj_data.items():
+                    assert len(ep_data) == config['episodes'], f"unexpected array length at '{k}'"
                 os.remove(traj_file_path)
         finally:
             os.rmdir(config['record_traj_params']['save_dir'])
