@@ -64,7 +64,7 @@ def test_score_agent(config):
                 traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
                                               f'agent_{i}.npz')
                 traj_data = np.load(traj_file_path)
-                assert set(traj_data.keys()).contains(['observations', 'actions', 'rewards'])
+                assert set(traj_data.keys()).issuperset(['observations', 'actions', 'rewards'])
                 for k, ep_data in traj_data.items():
                     assert len(ep_data) == config['episodes'], f"unexpected array length at '{k}'"
                 os.remove(traj_file_path)
