@@ -151,8 +151,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             victim_info = infos[env_idx][self.victim_index]
             for i, lb_dict in enumerate(valid_lb_dicts):
                 lb_victim_info = lb_dict.data['info'][env_idx][self.victim_index]
-                if 'ff' in self.transparent_params:
-                    diff_ff = victim_info['ff']['policy'][0][env_idx] - lb_victim_info['ff']['policy'][0][env_idx]
+                if 'ff_policy' in self.transparent_params:
+                    diff_ff = victim_info['ff_policy'] - lb_victim_info['ff_policy']
                     # if np.linalg.norm(diff_ff) > 0.1:
                     print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
