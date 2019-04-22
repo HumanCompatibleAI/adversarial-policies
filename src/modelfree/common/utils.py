@@ -2,6 +2,7 @@ from collections import defaultdict
 import datetime
 import itertools
 import os
+import shutil
 from os import path as osp
 import warnings
 
@@ -135,6 +136,8 @@ class VideoWrapper(Wrapper):
     def __init__(self, env, directory):
         super(VideoWrapper, self).__init__(env)
         self.directory = osp.abspath(directory)
+        if os.path.exists(self.directory):
+            shutil.rmtree(self.directory)
         os.makedirs(self.directory, exist_ok=True)
         self.episode_id = 0
         self.video_recorder = None
