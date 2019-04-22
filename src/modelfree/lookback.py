@@ -33,14 +33,16 @@ class DebugVenv(VecEnvWrapper):
 
     def step_wait(self):
         obs, rew, dones, infos = self.venv.step_wait()
-        self.debug_dict.update({'next_obs': obs, 'rewards': rew})
-        pickle.dump(self.debug_dict, self.debug_file)
+        if self.debug_file is not None:
+            self.debug_dict.update({'next_obs': obs, 'rewards': rew})
+            pickle.dump(self.debug_dict, self.debug_file)
         self.debug_dict = {}
         return obs, rew, dones, infos
 
     def reset(self):
         observations = self.venv.reset()
-        self.debug_dict['prev_obs'] = observations
+        if self.debug_file is not None:
+            self.debug_dict['prev_obs'] = observations
         return observations
 
     def set_debug_file(self, f):
@@ -76,9 +78,11 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.ep_lens = np.zeros(self.num_envs).astype(int)
         self.lb_dicts = self._create_lb_dicts(env_name, use_dummy, victim_index,
                                               victim_path, victim_type)
-        self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
-        main_debug = self.get_debug_venv()
-        main_debug.set_debug_file(self.debug_files[0])
+        self.use_dummy = use_dummy
+        if self.use_dummy:
+            self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
+            main_debug = self.get_debug_venv()
+            main_debug.set_debug_file(self.debug_files[0])
 
     def _create_lb_dicts(self, env_name, use_dummy, victim_index, victim_path, victim_type):
         from modelfree.train import EmbedVictimWrapper
@@ -121,8 +125,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
         for i, lb_dict in enumerate(self.lb_dicts[1:]):
             # lb_action is calculated from reset() or the most recent step_wait()
-            lb_debug = lb_dict.venv.get_debug_venv()
-            lb_debug.set_debug_file(self.debug_files[i + 2])
+            if self.use_dummy:
+                lb_debug = lb_dict.venv.get_debug_venv()
+                lb_debug.set_debug_file(self.debug_files[i + 2])
             lb_dict.venv.step_async(lb_dict.data['action'])
 
         # the baseline policy's state is what it would have been if it had observed all of
@@ -130,8 +135,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
                                                              mask=self._dones, return_data=False)
         new_baseline_dict.data['state'] = self._new_lb_state
-        new_baseline_debug = new_baseline_dict.venv.get_debug_venv()
-        new_baseline_debug.set_debug_file(self.debug_files[1])
+        if self.use_dummy:
+            new_baseline_debug = new_baseline_dict.venv.get_debug_venv()
+            new_baseline_debug.set_debug_file(self.debug_files[1])
         new_baseline_dict.venv.step_async(lb_action)
         self.venv.step_async(actions)
         self.ep_lens += 1
