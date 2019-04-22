@@ -2,7 +2,11 @@
 
 import functools
 import os.path as osp
-
+import os
+import glob
+import shutil
+import re
+from collections import defaultdict
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
@@ -49,6 +53,27 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 
     return result
 
+def _clean_video_directory_structure(observer_obj):
+    basedir = observer_obj.dir
+    video_files = glob.glob("{}/*.mp4".format(basedir))
+    ptn = re.compile('env_(\d*)_video.(\d*)')
+    env_dict = defaultdict(list)
+    for video_file in video_files:
+        search_result = ptn.search(video_file)
+        if search_result is None:
+            continue
+        env_id, episode_id = search_result.groups()
+        env_dict[env_id].append({'video_file': video_file,
+                                 'new_name': "episode_{}_recording.mp4".format(int(episode_id))})
+
+    new_video_dir = os.path.join(basedir, "videos")
+    os.mkdir(new_video_dir)
+    for env_id in env_dict:
+        env_path = os.path.join(new_video_dir, "env_{}".format(env_id))
+        os.mkdir(env_path)
+        for video_dict in env_dict[env_id]:
+            os.rename(video_dict['video_file'], os.path.join(env_path, video_dict['new_name']))
+
 
 @score_ex.config
 def default_score_config():
@@ -65,9 +90,9 @@ def default_score_config():
     }
     transparent_params = None       # whether to make the agents transparent
     num_env = 1                     # number of environments to run in parallel
-    episodes = 20                   # number of episodes to evaluate
-    render = True                   # display on screen (warning: slow)
-    videos = False                  # generate videos
+    episodes = 2               # number of episodes to evaluate
+    render = False                   # display on screen (warning: slow)
+    videos = True                  # generate videos
     video_dir = 'videos/'           # video directory
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
@@ -75,7 +100,8 @@ def default_score_config():
 
 
 @score_ex.main
-def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
+def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path,
+                agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params,
                 num_env, episodes, render, videos, video_dir):
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
@@ -86,6 +112,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
+    video_dirs = [osp.join(video_dir, str(i)) for i in range(num_env)]
     if num_env > 1:
         venv = make_subproc_vec_multi_env(env_fns)
     else:
@@ -107,9 +134,19 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     if record_traj:
         venv.save_traj()
 
+    for video_dir in video_dirs:
+        print(video_dir)
+        for video_file_path in os.listdir(video_dir):
+            if 'mp4' in video_file_path:
+                env_number = video_dir.split("/")[-1]
+                sacred_name = "env_{}_{}".format(env_number, video_file_path)
+                score_ex.add_artifact(filename=os.path.join(video_dir, video_file_path),
+                                      name=sacred_name)
+
     for agent in agents:
         if agent.sess is not None:
             agent.sess.close()
+
     venv.close()
 
     return score
@@ -119,6 +156,7 @@ def main():
     observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
     score_ex.observers.append(observer)
     score_ex.run_commandline()
+    _clean_video_directory_structure(observer)
 
 
 if __name__ == '__main__':
