@@ -111,10 +111,10 @@ TRAIN_CONFIGS = [
     {
         'transparent_params': {'ff_policy': False, 'hid': True},
     },
-    # {
-    #     'env_name': 'multicomp/YouShallNotPassHumans-v0',
-    #     'transparent_params': {'ff_policy': False},
-    # }
+    {
+        'env_name': 'multicomp/YouShallNotPassHumans-v0',
+        'transparent_params': {'ff_policy': False},
+    }
 
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
