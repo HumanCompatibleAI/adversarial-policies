@@ -4,6 +4,7 @@ Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
 import os
 
+import numpy as np
 import pytest
 from ray.tune.trial import Trial
 
@@ -28,6 +29,10 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 SCORE_AGENT_CONFIGS = [
     {'agent_b_type': 'zoo', 'agent_b_path': '2', 'videos': True, 'episodes': 2},
     {'env_name': 'multicomp/KickAndDefend-v0', 'episodes': 1},
+    {
+        'record_traj': True,
+        'record_traj_params': {'save_dir': 'test_dir'},
+    }
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -43,15 +48,28 @@ SCORE_AGENT_CONFIGS += [
 def test_score_agent(config):
     """Smoke test for score agent to check it runs with some different configs."""
     config = dict(config)
-    config['render'] = False  # faster without, test_experiment already tests with render
     if 'episodes' not in config:
         config['episodes'] = 1  # speed up tests
+    config['render'] = False  # faster without, test_experiment already tests with render
 
     run = score_ex.run(config_updates=config)
     assert run.status == 'COMPLETED'
 
     outcomes = [run.result[k] for k in ['ties', 'win0', 'win1']]
     assert sum(outcomes) == run.config['episodes']
+
+    if config.get('record_traj', False):
+        try:
+            for i in range(2):
+                traj_file_path = os.path.join(config['record_traj_params']['save_dir'],
+                                              f'agent_{i}.npz')
+                traj_data = np.load(traj_file_path)
+                assert set(traj_data.keys()).issuperset(['observations', 'actions', 'rewards'])
+                for k, ep_data in traj_data.items():
+                    assert len(ep_data) == config['episodes'], f"unexpected array length at '{k}'"
+                os.remove(traj_file_path)
+        finally:
+            os.rmdir(config['record_traj_params']['save_dir'])
 
 
 TRAIN_CONFIGS = [
@@ -86,10 +104,16 @@ TRAIN_CONFIGS = [
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',
         'adv_noise_params': {'noise_val': 0.1},
-    }
+    },
+    {
+        'rl_algo': 'gail',
+        'num_env': 1,
+        'expert_dataset_path': 'tests/modelfree/SumoAnts_traj/agent_0.npz',
+    },
+
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
-                  for algo in RL_ALGOS.keys()]
+                  for algo in RL_ALGOS.keys() if algo != 'gail']
 
 
 @pytest.mark.parametrize('config', TRAIN_CONFIGS)

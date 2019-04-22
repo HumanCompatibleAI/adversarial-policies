@@ -8,10 +8,12 @@ import os.path as osp
 import pkgutil
 
 from gym.spaces import Box
+import numpy as np
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import PPO1, PPO2, SAC
+from stable_baselines import GAIL, PPO1, PPO2, SAC
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
+from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -146,14 +148,62 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
     return final_path
 
 
-@train_ex.capture
-def ppo1(batch_size, learning_rate, **kwargs):
+def _get_mpi_num_proc():
     # SOMEDAY: If we end up using MPI-based algorithms regularly, come up with a cleaner solution.
     from mpi4py import MPI
     if MPI is None:
         num_proc = 1
     else:
         num_proc = MPI.COMM_WORLD.Get_size()
+    return num_proc
+
+
+class ExpertDatasetFromOurFormat(ExpertDataset):
+    """GAIL Expert Dataset. Loads in our format, rather than the GAIL default.
+
+    In particular, GAIL expects a dict of flattened arrays, with episodes concatenated together.
+    The episode start is delineated by an `episode_starts` array. See `ExpertDataset` base class
+    for more information.
+
+    By contrast, our format consists of a list of NumPy arrays, one for each episode."""
+    def __init__(self, expert_path, **kwargs):
+        traj_data = np.load(expert_path)
+
+        # Add in episode starts
+        episode_starts = []
+        for reward_dict in traj_data['rewards']:
+            ep_len = len(reward_dict)
+            # used to index episodes since they are flattened in GAIL format.
+            ep_starts = [True] + [False] * (ep_len - 1)
+            episode_starts.append(np.array(ep_starts))
+
+        # Flatten arrays
+        traj_data = {k: np.concatenate(v) for k, v in traj_data.items()}
+        traj_data['episode_starts'] = np.concatenate(episode_starts)
+
+        # Rename observations->obs
+        traj_data['obs'] = traj_data['observations']
+        del traj_data['observations']
+
+        super().__init__(traj_data=traj_data, **kwargs)
+
+
+@train_ex.capture
+def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
+    num_proc = _get_mpi_num_proc()
+    if expert_dataset_path is None:
+        raise ValueError("Must set expert_dataset_path to use GAIL.")
+    expert_dataset = ExpertDatasetFromOurFormat(expert_dataset_path)
+    kwargs['d_stepsize'] = learning_rate(1)
+    kwargs['vf_stepsize'] = learning_rate(1)
+    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
+                   callback_key='timesteps_so_far', callback_mul=1,
+                   timesteps_per_batch=batch_size // num_proc, **kwargs)
+
+
+@train_ex.capture
+def ppo1(batch_size, learning_rate, **kwargs):
+    num_proc = _get_mpi_num_proc()
     pylog.warning('Assuming constant learning rate schedule for PPO1')
     optim_stepsize = learning_rate(1)  # PPO1 does not support a callable learning_rate
     return _stable(PPO1, our_type='ppo1', callback_key='timesteps_so_far',
@@ -196,11 +246,14 @@ def train_config():
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
+    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+
+    # RL Algorithm Policies/Demonstrations
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by policy_loader.py
     }
-    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+    expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
     checkpoint_interval = 131072    # save weights to disk after this many timesteps
@@ -337,6 +390,7 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
 
 
 RL_ALGOS = {
+    'gail': gail,
     'ppo1': ppo1,
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
@@ -345,7 +399,7 @@ RL_ALGOS = {
 
 
 # True for Stable Baselines as of 2019-03
-NO_VECENV = ['ddpg', 'dqn', 'her', 'ppo1', 'sac']
+NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 
 
 @train_ex.main

@@ -174,7 +174,6 @@ class ConditionalAnnealer(Annealer):
         current_data = self.get_logs()
         if current_data is None:  # if we have zero episodes thus far
             return self.current_param_val
-
         current_wait = current_data['total_episodes'] - self.last_total_episodes
         if current_wait < self.min_wait:
             return self.current_param_val
