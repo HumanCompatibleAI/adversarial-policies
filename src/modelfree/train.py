@@ -264,6 +264,7 @@ def train_config():
     expert_dataset_path = None      # path to trajectory data to train GAIL
     lookback_params = {             # parameters for doing lookback white-box attacks
         'num_lb': 0,                # number of lookback venvs
+        'mul': 0.05,                # amount by which we weight differences in lookback
         'path': None,               # path of lookback base policy
         'type': rl_algo,            # type of lookback base policy
     }

@@ -59,6 +59,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                  victim_path, victim_type, transparent_params, lookback_space=1):
         super().__init__(venv)
         self.lookback_num = lookback_params['num_lb']
+        self.lookback_mul = lookback_params['mul']
         self.lookback_space = lookback_space
         if transparent_params is None:
             raise ValueError("LookbackRewardVecWrapper assumes transparent policies and venvs.")
@@ -151,15 +152,11 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             victim_info = infos[env_idx][self.victim_index]
             for i, lb_dict in enumerate(valid_lb_dicts):
                 lb_victim_info = lb_dict.data['info'][env_idx][self.victim_index]
-                if 'ff_policy' in self.transparent_params:
-                    diff_ff = victim_info['ff_policy'] - lb_victim_info['ff_policy']
-                    # if np.linalg.norm(diff_ff) > 0.1:
-                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
+                for key in self.transparent_params:
+                    diff_ff = victim_info[key] - lb_victim_info[key]  # typically ff_policy
                     env_diff_reward += np.linalg.norm(diff_ff)
 
-                if 'obs' in self.transparent_params:
-                    diff_obs = victim_info['obs'][env_idx] - lb_victim_info['obs'][env_idx]
-            rewards[env_idx] += 0.05 * env_diff_reward
+            rewards[env_idx] += self.lookback_mul * env_diff_reward
         return observations, rewards, self._dones, infos
 
     def reset(self):
