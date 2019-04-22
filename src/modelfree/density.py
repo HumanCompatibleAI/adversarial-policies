@@ -85,7 +85,7 @@ class DensityRewardVecWrapper(VecEnvWrapper):
         for env_idx in range(self.num_envs):
             data_dict = infos[env_idx][self.agent_idx]
             for key, model_dict in self.density_models.items():
-                sample = data_dict[key][env_idx].reshape(1, -1)
+                sample = data_dict[key].reshape(1, -1)
                 if model_dict['pca'] is not None:
                     sample = model_dict['pca'].transform(sample)
                 density = model_dict['density'].score(sample)
