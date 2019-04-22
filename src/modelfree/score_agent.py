@@ -66,7 +66,7 @@ def default_score_config():
     episodes = 20                       # number of episodes to evaluate
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
-    video_dir = 'videos/'               # video directory
+    video_dir = 'data/videos/'          # video directory
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
