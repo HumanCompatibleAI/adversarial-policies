@@ -75,7 +75,7 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         action_op = self.deterministic_action if deterministic else self.action
-        action, value, neglogp, ff = self.sess.run([action_op, self._value, self.neglogp,
+        action, value, neglogp, ff = self.sess.run([action_op, self.value_flat, self.neglogp,
                                                     self.ff_out], {self.obs_ph: obs})
 
         transparent_objs = (obs, np.concatenate(ff['policy']), np.concatenate(ff['value']), None)
@@ -105,7 +105,7 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         action = self.deterministic_action if deterministic else self.action
-        outputs = [action, self._value, self.state_out, self.neglogp, self.ff_out]
+        outputs = [action, self.value_flat, self.state_out, self.neglogp, self.ff_out]
         feed_dict = self._make_feed_dict(obs, state, mask)
         a, v, s, neglogp, ff = self.sess.run(outputs, feed_dict)
         state = []
@@ -136,7 +136,7 @@ class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         action = self.deterministic_action if deterministic else self.action
-        outputs = [action, self._value, self.neglogp, self.ff_out]
+        outputs = [action, self.value_flat, self.neglogp, self.ff_out]
         a, v, neglogp, ff = self.sess.run(outputs, {self.obs_ph: obs})
 
         transparent_objs = (obs, np.concatenate(ff['policy']), np.concatenate(ff['value']), None)
@@ -181,9 +181,8 @@ class TransparentCurryVecEnv(CurryVecEnv):
                                                                      mask=self._dones)
         # we assume that there is only one other agent in the MultiEnv.
         assert len(observations) == 1
-
         obs_copy = observations[0]
         for k in TRANSPARENCY_KEYS:
             if k in self._data and self.underlying_policy.transparent_params.get(k):
                 obs_copy = np.concatenate([obs_copy, self._data[k]], -1)
-        return tuple(obs_copy,)
+        return (obs_copy,)
