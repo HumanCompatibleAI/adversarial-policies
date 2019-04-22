@@ -170,7 +170,7 @@ class ExpertDatasetOurFormat(ExpertDataset):
 
     By contrast, our format consists of a list of NumPy arrays, one for each episode."""
     def __init__(self, expert_path, **kwargs):
-        traj_data = np.load(expert_path)
+        traj_data = np.load(expert_path, allow_pickle=True)
 
         # Add in episode starts
         episode_starts = []
