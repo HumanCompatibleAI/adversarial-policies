@@ -175,7 +175,7 @@ def make_session(graph=None):
 def _filter_dict(d, keys):
     """Filter a dictionary to contain only the specified keys.
 
-    If keys is None specified, it returns the dictionary verbatim.
+    If keys is None, it returns the dictionary verbatim.
     If a key in keys is not present in the dictionary, it gives a warning, but does not fail.
 
     :param d: (dict)
