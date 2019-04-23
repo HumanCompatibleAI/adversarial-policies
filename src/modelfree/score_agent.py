@@ -21,6 +21,7 @@ score_ex = Experiment('score')
 
 logging.basicConfig(format='%(levelname)s - %(message)s', level=logging.DEBUG)
 
+
 def announce_winner(sim_stream):
     """This function determines the winner of a match in one of the gym_compete environments.
     :param sim_stream: a stream of obs, rewards, dones, infos from one of the gym_compete envs.
@@ -56,10 +57,12 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 
     return result
 
+
 def _clean_video_directory_structure(observer_obj):
     """
-    A simple utility method to take saved videos within a Sacred run structure and clean up the file pathways, so that
-    all videos are organized under a "videos" directory, and within that organized by environment ID.
+    A simple utility method to take saved videos within a Sacred run structure and clean
+    up the file pathways, so that all videos are organized under a "videos" directory,
+    and within that organized by environment ID.
 
     :param observer_obj: A Sacred FileStorageObserver object
     :return:
@@ -81,6 +84,7 @@ def _clean_video_directory_structure(observer_obj):
         new_file_name = "episode_{}_recording.mp4".format(int(episode_id))
         os.rename(video_file, os.path.join(new_video_dir, new_file_name))
 
+
 @score_ex.config
 def default_score_config():
     env_name = 'multicomp/SumoAnts-v0'  # Gym env ID
@@ -95,20 +99,23 @@ def default_score_config():
     }
     num_env = 1                         # number of environments to run in parallel
     episodes = 20                       # number of episodes to evaluate
-    render = True                      # display on screen (warning: slow)
+    render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
     video_dir = None                    # directory to store videos in. If set to None, and videos set to true,
-                                        # videos will store in a tempdir, but will be copied to Sacred run dir in either case
+                                        # videos will store in a tempdir, but will be copied to Sacred run dir
+                                        # in either case
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
+
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
     if videos:
         if video_dir is None:
-            logging.info("No directory provided for saving videos; using a tmpdir instead, but videos will be saved to Sacred run directory")
+            logging.info("""No directory provided for saving videos; using a tmpdir instead, but videos
+                          will be saved to Sacred run directory""")
             tmp_dir = tempfile.TemporaryDirectory()
             video_dir = tmp_dir.name
         else:
@@ -154,8 +161,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                         sacred_name = "env_{}_{}".format(env_number, video_file_path)
                         score_ex.add_artifact(filename=os.path.join(env_video_dir, video_file_path),
                                               name=sacred_name)
-            except:
-                warnings.warn("Can't find path {}; no videos from that path added as artifacts".format(env_video_dir))
+            except FileNotFoundError:
+                warnings.warn("Can't find path {}; no videos from that path added as artifacts".format(
+                                                                                                env_video_dir))
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
@@ -169,7 +177,6 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             agent.sess.close()
 
     venv.close()
-
     return score
 
 
@@ -178,6 +185,7 @@ def main():
     score_ex.observers.append(observer)
     score_ex.run_commandline()
     logging.info("Sacred run completed, files stored at {}".format(observer.dir))
+
 
 if __name__ == '__main__':
     main()
