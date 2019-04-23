@@ -54,10 +54,23 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     return result
 
 def _clean_video_directory_structure(observer_obj):
+    """
+    A simple utility method to take saved videos within a Sacred run structure and clean up the file pathways, so that
+    all videos are organized under a "videos" directory, and within that organized by environment ID.
+
+    :param observer_obj: A Sacred FileStorageObserver object
+    :return:
+    """
     basedir = observer_obj.dir
     video_files = glob.glob("{}/*.mp4".format(basedir))
+    if len(video_files) == 0:
+        return
+
     ptn = re.compile('env_(\d*)_video.(\d*)')
     env_dict = defaultdict(list)
+    new_video_dir = os.path.join(basedir, "videos")
+    os.mkdir(new_video_dir)
+
     for video_file in video_files:
         search_result = ptn.search(video_file)
         if search_result is None:
@@ -65,9 +78,6 @@ def _clean_video_directory_structure(observer_obj):
         env_id, episode_id = search_result.groups()
         env_dict[env_id].append({'video_file': video_file,
                                  'new_name': "episode_{}_recording.mp4".format(int(episode_id))})
-
-    new_video_dir = os.path.join(basedir, "videos")
-    os.mkdir(new_video_dir)
     for env_id in env_dict:
         env_path = os.path.join(new_video_dir, "env_{}".format(env_id))
         os.mkdir(env_path)
