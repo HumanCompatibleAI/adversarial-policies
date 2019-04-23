@@ -101,7 +101,7 @@ def default_score_config():
     num_env = 1                         # number of environments to run in parallel
     episodes = 1                        # number of episodes to evaluate
     render = False                      # display on screen (warning: slow)
-    videos = False                       # generate videos
+    videos = False                      # generate videos
     video_dir = None                    # directory to store videos in. If set to None, and videos set to true,
                                         # videos will store in a tempdir, but will be copied to Sacred run dir in either case
     seed = 0
