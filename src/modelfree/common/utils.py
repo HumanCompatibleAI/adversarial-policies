@@ -2,7 +2,6 @@ from collections import defaultdict
 import datetime
 import itertools
 import os
-import shutil
 from os import path as osp
 import warnings
 
