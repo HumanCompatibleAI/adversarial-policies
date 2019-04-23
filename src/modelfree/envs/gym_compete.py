@@ -1,10 +1,8 @@
 from collections import Counter, OrderedDict, defaultdict
 import logging
-import numpy as np
 import os
 import pickle
 import pkgutil
-import time
 
 from gym import Wrapper
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue

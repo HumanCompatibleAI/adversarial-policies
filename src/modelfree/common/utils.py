@@ -67,8 +67,9 @@ class PolicyToModel(DummyModel):
 
         # return_data determines whether to use step or step_transparent for a TransparentPolicy.
         if hasattr(self.policy, 'step_transparent') and return_data:
-            actions, _val, states, _neglogp, data = self.policy.step_transparent(observation, state, mask,
-                                                                                 deterministic=deterministic)
+            ret_data = self.policy.step_transparent(observation, state, mask,
+                                                    deterministic=deterministic)
+            actions, _val, states, _neglogp, data = ret_data
             return actions, states, data
         else:
             actions, _val, states, _neglogp = self.policy.step(observation, state, mask,

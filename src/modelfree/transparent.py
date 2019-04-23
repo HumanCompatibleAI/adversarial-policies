@@ -1,12 +1,10 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
-import gym
-from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
-from stable_baselines.common.policies import ActorCriticPolicy, FeedForwardPolicy, nature_cnn
+from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
 
-from aprl.envs.multi_agent import CurryVecEnv, _tuple_pop, _tuple_space_augment
+from aprl.envs.multi_agent import CurryVecEnv, _tuple_pop
 from modelfree.common.utils import _filter_dict
 
 TRANSPARENCY_KEYS = set(['obs', 'ff_policy', 'ff_value', 'hid'])
