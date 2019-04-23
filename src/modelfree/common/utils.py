@@ -331,7 +331,7 @@ def simulate(venv, policies, render=False):
         actions = []
         new_states = []
         for policy, obs, state in zip(policies, observations, states):
-            act, new_state = policy.predict(obs, state=state, mask=dones)
+            act, new_state = policy.predict(obs, state=state, mask=dones, return_data=False)
             actions.append(act)
             new_states.append(new_state)
         actions = tuple(actions)

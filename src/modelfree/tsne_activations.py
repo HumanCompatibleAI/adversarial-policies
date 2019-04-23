@@ -21,7 +21,7 @@ def score_and_store(episodes, skip_scoring):
     base_config = dict(transparent_params={'ff_policy': True, 'ff_value': True},
                        record_traj_params={'agent_indices': 0},
                        env_name='multicomp/KickAndDefend-v0',
-                       num_env=8, record_traj=True, episodes=episodes, render=False)
+                       num_env=1, record_traj=True, episodes=episodes, render=False)
 
     best_adversary_path_agent_1 = get_best_adversary_path(environment=base_config['env_name'],
                                                           zoo_id=1,
