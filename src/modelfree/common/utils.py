@@ -15,7 +15,6 @@ import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
-from modelfree.transparent import TransparentPolicy
 
 
 class DummyModel(BaseRLModel):
@@ -66,13 +65,11 @@ class PolicyToModel(DummyModel):
         if mask is None:
             mask = [False for _ in range(self.policy.n_env)]
 
-        if isinstance(self.policy, TransparentPolicy):
-            actions, _val, states, _neglogp, data = self.policy.step(observation, state, mask,
-                                                                     deterministic=deterministic)
-            if return_data:
-                return actions, states, data
-            else:
-                return actions, states
+        # return_data determines whether to use step or step_transparent for a TransparentPolicy.
+        if hasattr(self.policy, 'step_transparent') and return_data:
+            actions, _val, states, _neglogp, data = self.policy.step_transparent(observation, state, mask,
+                                                                                 deterministic=deterministic)
+            return actions, states, data
         else:
             actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
                                                                deterministic=deterministic)
@@ -194,10 +191,10 @@ def _filter_dict(d, keys):
         return d
     else:
         keys = set(keys)
-        present_keys = keys.intersect(d.keys())
+        present_keys = keys.intersection(d.keys())
         missing_keys = keys.difference(d.keys())
         res = {k: d[k] for k in present_keys}
-        if missing_keys is not None:
+        if len(missing_keys) != 0:
             warnings.warn("Missing expected keys: {}".format(missing_keys), stacklevel=2)
         return res
 

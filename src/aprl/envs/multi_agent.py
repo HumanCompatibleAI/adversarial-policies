@@ -384,7 +384,7 @@ class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
     def __init__(self, venv, policy, agent_idx=0):
         """Fixes one of the players in a VecMultiEnv.
-        :param env(VecMultiEnv): the environments.
+        :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the policy to use for the agent at agent_idx.
         :param agent_idx(int): the index of the agent that should be fixed.
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but

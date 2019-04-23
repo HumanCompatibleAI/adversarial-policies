@@ -257,7 +257,7 @@ def train_config():
         'type': rl_algo,            # type supported by policy_loader.py
     }
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
-    transparent_params = None       # param dict for transparent victim policies
+    transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General

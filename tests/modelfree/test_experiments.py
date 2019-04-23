@@ -111,11 +111,13 @@ TRAIN_CONFIGS = [
         'expert_dataset_path': 'tests/modelfree/SumoAnts_traj/agent_0.npz',
     },
     {
-        'transparent_params': {'ff_policy': False, 'hid': True},
+        # test TransparentLSTMPolicy
+        'transparent_params': ['ff_policy', 'hid'],
     },
     {
+        # test TransparentMLPPolicyValue
         'env_name': 'multicomp/YouShallNotPassHumans-v0',
-        'transparent_params': {'ff_policy': False},
+        'transparent_params': ['ff_policy'],
     }
 
 ]
