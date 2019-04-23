@@ -136,8 +136,8 @@ class VideoWrapper(Wrapper):
     def __init__(self, env, directory):
         super(VideoWrapper, self).__init__(env)
         self.directory = osp.abspath(directory)
-        # Make sure to not put multiple different runs in the same directory, if the directory already exists
 
+        # Make sure to not put multiple different runs in the same directory, if the directory already exists
         if os.path.exists(self.directory):
             shutil.rmtree(self.directory)
         os.makedirs(self.directory, exist_ok=True)
