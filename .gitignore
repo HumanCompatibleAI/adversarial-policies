@@ -1,9 +1,5 @@
 # Data files
-logs/
-data/
-videos/
-stats/
-results/
+data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -78,15 +78,14 @@ def _clean_video_directory_structure(observer_obj):
 @score_ex.config
 def default_score_config():
     env_name = 'multicomp/SumoAnts-v0'  # Gym env ID
-    agent_a_type = 'zoo'            # type supported by policy_loader.py
-    agent_a_path = '1'              # path or other unique identifier
-    agent_b_type = 'zoo'            # type supported by policy_loader.py
-    agent_b_path = '2'              # path or other unique identifier
-    record_traj = False             # whether to record trajectories
-    record_traj_params = {          # parameters for recording trajectories
+    agent_a_type = 'zoo'                # type supported by policy_loader.py
+    agent_a_path = '1'                  # path or other unique identifier
+    agent_b_type = 'zoo'                # type supported by policy_loader.py
+    agent_b_path = '2'                  # path or other unique identifier
+    record_traj = False                 # whether to record trajectories
+    record_traj_params = {              # parameters for recording trajectories
         'save_dir': 'data/experts',     # directory to save trajectories to
-        'use_gail_format': False,   # use gail format (less space-efficient)
-        'agent_indices': None,      # which agent trajectories to save
+        'agent_indices': None,          # which agent trajectories to save
     }
     transparent_params = None       # whether to make the agents transparent
     num_env = 1                     # number of environments to run in parallel
@@ -119,7 +118,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path,
         venv = make_dummy_vec_multi_env(env_fns)
 
     if record_traj:
-        venv = TrajectoryRecorder(venv, **record_traj_params)
+        venv = TrajectoryRecorder(venv, record_traj_params['agent_indices'])
 
     if venv.num_agents == 1 and agent_b_path != 'none':
         raise ValueError("Set agent_b_path to 'none' if environment only uses one agent.")
@@ -131,8 +130,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path,
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
+
     if record_traj:
-        venv.save_traj()
+        venv.save(save_dir=record_traj_params['save_dir'])
 
     for video_dir in video_dirs:
         print(video_dir)

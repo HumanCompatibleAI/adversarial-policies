@@ -4,6 +4,7 @@ import itertools
 import os
 import shutil
 from os import path as osp
+import warnings
 
 import gym
 from gym import Wrapper
@@ -60,7 +61,7 @@ class PolicyToModel(DummyModel):
         """
         super().__init__(policy=policy, sess=policy.sess)
 
-    def predict(self, observation, state=None, mask=None, deterministic=False):
+    def predict(self, observation, state=None, mask=None, deterministic=False, return_data=True):
         if state is None:
             state = self.policy.initial_state
         if mask is None:
@@ -69,7 +70,10 @@ class PolicyToModel(DummyModel):
         if isinstance(self.policy, TransparentPolicy):
             actions, _val, states, _neglogp, data = self.policy.step(observation, state, mask,
                                                                      deterministic=deterministic)
-            return actions, states, data
+            if return_data:
+                return actions, states, data
+            else:
+                return actions, states
         else:
             actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
                                                                deterministic=deterministic)
@@ -80,12 +84,18 @@ class OpenAIToStablePolicy(BasePolicy):
     """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
     def __init__(self, old_policy):
         self.old = old_policy
-        self.initial_state = old_policy.initial_state
         self.sess = old_policy.sess
+
+    @property
+    def initial_state(self):
+        return self.old.initial_state
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         stochastic = not deterministic
         return self.old.step(obs, S=state, M=mask, stochastic=stochastic)
+
+    def proba_step(self, obs, state=None, mask=None):
+        raise NotImplementedError()
 
 
 class ConstantPolicy(BasePolicy):
@@ -99,11 +109,13 @@ class ConstantPolicy(BasePolicy):
                          n_steps=1,
                          n_batch=1)
         self.constant = constant
-        self.initial_state = None
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         actions = np.array([self.constant] * self.n_env)
         return actions, None, None, None
+
+    def proba_step(self, obs, state=None, mask=None):
+        return self.step(obs, state=state, mask=mask)
 
 
 class ZeroPolicy(ConstantPolicy):
@@ -120,11 +132,13 @@ class RandomPolicy(BasePolicy):
                          n_env=env.num_envs,
                          n_steps=1,
                          n_batch=1)
-        self.initial_state = None
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         actions = np.array([self.ac_space.sample() for _ in range(self.n_env)])
         return actions, None, None, None
+
+    def proba_step(self, obs, state=None, mask=None):
+        raise NotImplementedError()
 
 
 class VideoWrapper(Wrapper):
@@ -170,20 +184,53 @@ def make_session(graph=None):
     return sess
 
 
+def _filter_dict(d, keys):
+    """Filter a dictionary to contain only the specified keys.
+
+    If keys is None, it returns the dictionary verbatim.
+    If a key in keys is not present in the dictionary, it gives a warning, but does not fail.
+
+    :param d: (dict)
+    :param keys: (iterable) the desired set of keys; if None, performs no filtering.
+    :return (dict) a filtered dictionary."""
+    if keys is None:
+        return d
+    else:
+        keys = set(keys)
+        present_keys = keys.intersect(d.keys())
+        missing_keys = keys.difference(d.keys())
+        res = {k: d[k] for k in present_keys}
+        if missing_keys is not None:
+            warnings.warn("Missing expected keys: {}".format(missing_keys), stacklevel=2)
+        return res
+
+
 class TrajectoryRecorder(VecMultiWrapper):
-    def __init__(self, venv, save_dir, use_gail_format=False, agent_indices=None):
-        VecMultiWrapper.__init__(self, venv)
-        self.save_dir = save_dir
-        self.use_gail_format = use_gail_format
+    """Class for recording and saving trajectories in numpy.npz format.
+    For each episode, we record observations, actions, rewards and optionally network activations
+    for the agents specified by agent_indices.
+
+    :param venv: (VecEnv) environment to wrap
+    :param agent_indices: (list,int) indices of agents whose trajectories to record
+    :param env_keys: (list,str) keys for environment data to record; if None, record all.
+                     Options are 'observations', 'actions' and 'rewards'.
+    :param info_keys: (list,str) keys in the info dict to record; if None, record all.
+                      This is often used to expose activations from the policy.
+    """
+
+    def __init__(self, venv, agent_indices=None, env_keys=None, info_keys=None):
+        super().__init__(venv)
+
         if agent_indices is None:
             self.agent_indices = range(self.num_agents)
         elif isinstance(agent_indices, int):
             self.agent_indices = [agent_indices]
-        os.makedirs(self.save_dir, exist_ok=True)
+        self.env_keys = env_keys
+        self.info_keys = info_keys
 
-        self.traj_dicts = [[defaultdict(list) for e in range(self.num_envs)]
-                           for p in self.agent_indices]
-        self.full_traj_dicts = [defaultdict(list) for p in self.agent_indices]
+        self.traj_dicts = [[defaultdict(list) for _ in range(self.num_envs)]
+                           for _ in self.agent_indices]
+        self.full_traj_dicts = [defaultdict(list) for _ in self.agent_indices]
         self.prev_obs = None
         self.actions = None
 
@@ -193,7 +240,7 @@ class TrajectoryRecorder(VecMultiWrapper):
 
     def step_wait(self):
         observations, rewards, dones, infos = self.venv.step_wait()
-        self.record_traj(self.prev_obs, self.actions, rewards, dones)
+        self.record_timestep_data(self.prev_obs, self.actions, rewards, dones, infos)
         self.prev_obs = observations
         return observations, rewards, dones, infos
 
@@ -202,67 +249,75 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
-    def record_transparent_data(self, data, agent_idx):
-        # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
-        agent_dicts = [self.traj_dicts[i] for i in range(len(self.agent_indices)) if
-                       self.agent_indices[i] == agent_idx]
-        if len(agent_dicts) == 0:
-            return
-        else:
-            agent_dicts = agent_dicts[0]
-        for env_idx in range(self.num_envs):
-            for key in data.keys():
-                agent_dicts[env_idx][key].append(np.squeeze(data[key][env_idx]))
+    def record_timestep_data(self, prev_obs, actions, rewards, dones, infos):
+        """Record observations, actions, rewards, and (optionally) network activations
+        of one timestep in dict for current episode. Completed episode trajectories are
+        collected in a list in preparation for being saved to disk.
 
-    def record_traj(self, prev_obs, actions, rewards, dones):
-        data_keys = ('rewards', 'actions', 'obs')
-        data_vals = (rewards, actions, prev_obs)
+        :param prev_obs: (np.ndarray<float>) observations from previous timestep
+        :param actions: (np.ndarray<float>) actions taken after observing prev_obs
+        :param rewards: (np.ndarray<float>) rewards from actions
+        :param dones: ([bool]) whether episode ended (not recorded)
+        :param infos: ([dict]) dicts with network activations if networks are transparent
+        :return: None
+        """
+
+        env_data = {
+            'observations': prev_obs,
+            'actions': actions,
+            'rewards': rewards,
+        }
+        env_data = _filter_dict(env_data, self.env_keys)
+
+        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         for (dict_idx, agent_dicts), env_idx in iter_space:
             # in dict number dict_idx, record trajectories for agent number agent_idx
             agent_idx = self.agent_indices[dict_idx]
-            for key, val in zip(data_keys, data_vals):
+            for key, val in env_data.items():
                 # data_vals always have data for all agents (use agent_idx not dict_idx)
                 agent_dicts[env_idx][key].append(val[agent_idx][env_idx])
 
-            if dones[env_idx]:
-                if self.use_gail_format:
-                    ep_len = len(agent_dicts[env_idx]['rewards'])
-                    # used to index episodes since they are flattened in gail format.
-                    ep_starts = [True] + [False] * (ep_len - 1)
-                    self.full_traj_dicts[dict_idx]['episode_starts'].append(np.array(ep_starts))
+            info_dict = infos[env_idx][agent_idx]
+            info_dict = _filter_dict(info_dict, self.info_keys)
+            for key, val in info_dict.items():
+                agent_dicts[env_idx][key].append(val)
 
+            if dones[env_idx]:
                 ep_ret = sum(agent_dicts[env_idx]['rewards'])
                 self.full_traj_dicts[dict_idx]['episode_returns'].append(np.array([ep_ret]))
 
-                for key in itertools.chain(data_keys, ('ff_policy', 'ff_value', 'hid')):
-                    if key not in agent_dicts[env_idx]:
-                        continue
+                for key, val in agent_dicts[env_idx].items():
                     # consolidate episode data and append to long-term data dict
-                    episode_key_data = np.array(agent_dicts[env_idx][key])
+                    episode_key_data = np.array(val)
                     self.full_traj_dicts[dict_idx][key].append(episode_key_data)
                 agent_dicts[env_idx] = defaultdict(list)
 
-    def save_traj(self):
+    def save(self, save_dir):
+        """Save trajectories to save_dir in NumPy compressed-array format, per-agent.
+
+        Our format consists of a dictionary with keys -- e.g. 'observations', 'actions'
+        and 'rewards' -- containing lists of NumPy arrays, one for each episode.
+
+        :param save_dir: (str) path to save trajectories; will create directory if needed.
+        :return None
+        """
+        os.makedirs(save_dir, exist_ok=True)
         for dict_idx, agent_idx in enumerate(self.agent_indices):
-            # gail expects array of all episodes flattened together delineated by
-            # 'episode_starts' array. To be more efficient, we just keep the additional axis.
-            # We use np.asarray instead of np.stack because episodes have heterogenous lengths.
-            agg_function = np.concatenate if self.use_gail_format else np.asarray
-            dump_dict = {
-                k: agg_function(v)
-                for k, v in self.full_traj_dicts[dict_idx].items()}
-            save_path = os.path.join(self.save_dir, f'agent_{agent_idx}.npz')
+            agent_dicts = self.full_traj_dicts[dict_idx]
+            dump_dict = {k: np.asarray(v) for k, v in agent_dicts.items()}
+
+            save_path = os.path.join(save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)
 
 
 def simulate(venv, policies, render=False):
     """
-    Run Environment env with the agents in agents
+    Run Environment env with the policies in `policies`.
     :param venv(VecEnv): vector environment.
     :param policies(list<BaseModel>): a policy per agent.
-    :param render: true if the run should be rendered to the screen
+    :param render: (bool) true if the run should be rendered to the screen
     :return: streams information about the simulation
     """
     observations = venv.reset()
@@ -275,13 +330,8 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
-        for idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
-            if isinstance(policy.policy, TransparentPolicy):
-                act, new_state, data = policy.predict(obs, state=state, mask=dones)
-                if isinstance(venv, TrajectoryRecorder):
-                    venv.record_transparent_data(data, idx)  # e.g. activations, hidden states
-            else:
-                act, new_state = policy.predict(obs, state=state, mask=dones)
+        for policy, obs, state in zip(policies, observations, states):
+            act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
             new_states.append(new_state)
         actions = tuple(actions)
