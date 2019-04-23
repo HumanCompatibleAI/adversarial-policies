@@ -53,22 +53,21 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 @score_ex.config
 def default_score_config():
     env_name = 'multicomp/SumoAnts-v0'  # Gym env ID
-    agent_a_type = 'zoo'            # type supported by policy_loader.py
-    agent_a_path = '1'              # path or other unique identifier
-    agent_b_type = 'zoo'            # type supported by policy_loader.py
-    agent_b_path = '2'              # path or other unique identifier
-    record_traj = False             # whether to record trajectories
-    record_traj_params = {          # parameters for recording trajectories
+    agent_a_type = 'zoo'                # type supported by policy_loader.py
+    agent_a_path = '1'                  # path or other unique identifier
+    agent_b_type = 'zoo'                # type supported by policy_loader.py
+    agent_b_path = '2'                  # path or other unique identifier
+    record_traj = False                 # whether to record trajectories
+    record_traj_params = {              # parameters for recording trajectories
         'save_dir': 'data/experts',     # directory to save trajectories to
-        'use_gail_format': False,   # use gail format (less space-efficient)
-        'agent_indices': None,      # which agent trajectories to save
+        'agent_indices': None,          # which agent trajectories to save
     }
-    transparent_params = None       # whether to make the agents transparent
-    num_env = 1                     # number of environments to run in parallel
-    episodes = 20                   # number of episodes to evaluate
-    render = True                   # display on screen (warning: slow)
-    videos = False                  # generate videos
-    video_dir = 'videos/'           # video directory
+    transparent_params = None           # whether to make the agents transparent
+    num_env = 1                         # number of environments to run in parallel
+    episodes = 20                       # number of episodes to evaluate
+    render = True                       # display on screen (warning: slow)
+    videos = False                      # generate videos
+    video_dir = 'data/videos/'          # video directory
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -92,7 +91,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         venv = make_dummy_vec_multi_env(env_fns)
 
     if record_traj:
-        venv = TrajectoryRecorder(venv, **record_traj_params)
+        venv = TrajectoryRecorder(venv, record_traj_params['agent_indices'])
 
     if venv.num_agents == 1 and agent_b_path != 'none':
         raise ValueError("Set agent_b_path to 'none' if environment only uses one agent.")
@@ -104,8 +103,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
+
     if record_traj:
-        venv.save_traj()
+        venv.save(save_dir=record_traj_params['save_dir'])
 
     for agent in agents:
         if agent.sess is not None:

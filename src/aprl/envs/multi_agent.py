@@ -82,14 +82,15 @@ class FakeSingleSpacesVec(VecEnv):
     def close(self):
         raise NotImplementedError()
 
+    def env_method(self, method_name, *method_args, indices=None, **method_kwargs):
+        raise NotImplementedError()
+
     def get_attr(self, attr_name, indices=None):
         raise NotImplementedError()
 
     def set_attr(self, attr_name, value, indices=None):
         raise NotImplementedError()
 
-    def env_method(self, method_name, *method_args, indices=None, **method_kwargs):
-        raise NotImplementedError()
 
 class FlattenSingletonEnv(Wrapper):
     """Adapts a single-agent MultiAgentEnv into a standard Gym Env.
@@ -366,7 +367,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def reset(self):
         observations = self.venv.reset()
-        observations = self._get_augmented_obs(observations)
+        observations = self._get_updated_obs(observations)
         return observations
 
     def _get_updated_obs(self, observations):
