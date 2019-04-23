@@ -86,10 +86,10 @@ class FakeSingleSpacesVec(VecEnv):
         raise NotImplementedError()
 
     def get_attr(self, attr_name, indices=None):
+        raise NotImplementedError()
 
-        raise NotImplementedError
     def set_attr(self, attr_name, value, indices=None):
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 class FlattenSingletonEnv(Wrapper):
