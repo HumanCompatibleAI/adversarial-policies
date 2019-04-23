@@ -4,6 +4,7 @@ import functools
 import os.path as osp
 import os
 import glob
+import tempfile
 import shutil
 import re
 from collections import defaultdict
@@ -98,10 +99,11 @@ def default_score_config():
         'agent_indices': None,          # which agent trajectories to save
     }
     num_env = 1                         # number of environments to run in parallel
-    episodes = 20                       # number of episodes to evaluate
-    render = True                       # display on screen (warning: slow)
-    videos = False                      # generate videos
-    video_dir = 'data/videos/'          # video directory
+    episodes = 1                        # number of episodes to evaluate
+    render = False                      # display on screen (warning: slow)
+    videos = True                       # generate videos
+    video_dir = None                    # directory to store videos in. If set to None, and videos set to true,
+                                        # videos will store in a tempdir, but will be copied to Sacred run dir in either case
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -110,7 +112,12 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
-
+    if videos is True and video_dir is None:
+        print("No directory provided for saving videos; using a tmpdir instead, but videos will be saved to Sacred run directory")
+        tmp_dir = tempfile.TemporaryDirectory()
+        video_dir = tmp_dir.name
+    else:
+        tmp_dir = None
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     def env_fn(i):
@@ -142,14 +149,21 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     if record_traj:
         venv.save(save_dir=record_traj_params['save_dir'])
 
-    for video_dir in video_dirs:
-        print(video_dir)
-        for video_file_path in os.listdir(video_dir):
+    for env_video_dir in video_dirs:
+        print(env_video_dir)
+        for video_file_path in os.listdir(env_video_dir):
             if 'mp4' in video_file_path:
-                env_number = video_dir.split("/")[-1]
+                env_number = env_video_dir.split("/")[-1]
+                print("Env number: {}".format(env_number))
                 sacred_name = "env_{}_{}".format(env_number, video_file_path)
-                score_ex.add_artifact(filename=os.path.join(video_dir, video_file_path),
+                score_ex.add_artifact(filename=os.path.join(env_video_dir, video_file_path),
                                       name=sacred_name)
+    for observer in score_ex.observers:
+        if isinstance(observer, FileStorageObserver):
+            _clean_video_directory_structure(observer)
+
+    if tmp_dir is not None:
+        tmp_dir.cleanup()
 
     for agent in agents:
         if agent.sess is not None:
@@ -164,7 +178,7 @@ def main():
     observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
     score_ex.observers.append(observer)
     score_ex.run_commandline()
-    _clean_video_directory_structure(observer)
+
 
 
 if __name__ == '__main__':
