@@ -112,7 +112,7 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
-    if videos is True and video_dir is None:
+    if video_dir is None:
         print("No directory provided for saving videos; using a tmpdir instead, but videos will be saved to Sacred run directory")
         tmp_dir = tempfile.TemporaryDirectory()
         video_dir = tmp_dir.name
@@ -150,16 +150,18 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         venv.save(save_dir=record_traj_params['save_dir'])
 
     for env_video_dir in video_dirs:
-        print(env_video_dir)
-        for video_file_path in os.listdir(env_video_dir):
-            if 'mp4' in video_file_path:
-                env_number = env_video_dir.split("/")[-1]
-                print("Env number: {}".format(env_number))
-                sacred_name = "env_{}_{}".format(env_number, video_file_path)
-                score_ex.add_artifact(filename=os.path.join(env_video_dir, video_file_path),
-                                      name=sacred_name)
+        try:
+            for video_file_path in os.listdir(env_video_dir):
+                if 'mp4' in video_file_path:
+                    env_number = env_video_dir.split("/")[-1]
+                    print("Env number: {}".format(env_number))
+                    sacred_name = "env_{}_{}".format(env_number, video_file_path)
+                    score_ex.add_artifact(filename=os.path.join(env_video_dir, video_file_path),
+                                          name=sacred_name)
+        except:
+            Warning("Can't find path {}; no videos from that path added as artifacts".format(env_video_dir))
     for observer in score_ex.observers:
-        if isinstance(observer, FileStorageObserver):
+        if hasattr(observer, 'dir'):
             _clean_video_directory_structure(observer)
 
     if tmp_dir is not None:
