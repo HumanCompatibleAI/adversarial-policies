@@ -101,9 +101,11 @@ def default_score_config():
     episodes = 20                       # number of episodes to evaluate
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
-    video_dir = None                    # directory to store videos in. If set to None, and videos set to true,
-                                        # videos will store in a tempdir, but will be copied to Sacred run dir
-                                        # in either case
+    video_dir = None                    # directory to store videos in.
+
+    # If video_dir set to None, and videos set to true, videos will store in a
+    # tempdir, but will be copied to Sacred run dir in either case
+
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -114,8 +116,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                 record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
     if videos:
         if video_dir is None:
-            logging.info("""No directory provided for saving videos; using a tmpdir instead, but videos
-                          will be saved to Sacred run directory""")
+            logging.info("""No directory provided for saving videos; using a tmpdir instead,
+                            but videos will be saved to Sacred run directory""")
             tmp_dir = tempfile.TemporaryDirectory()
             video_dir = tmp_dir.name
         else:
@@ -159,11 +161,12 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                     if 'mp4' in video_file_path:
                         env_number = env_video_dir.split("/")[-1]
                         sacred_name = "env_{}_{}".format(env_number, video_file_path)
-                        score_ex.add_artifact(filename=os.path.join(env_video_dir, video_file_path),
+                        score_ex.add_artifact(filename=os.path.join(env_video_dir,
+                                                                    video_file_path),
                                               name=sacred_name)
             except FileNotFoundError:
-                warnings.warn("Can't find path {}; no videos from that path added as artifacts".format(
-                                                                                                env_video_dir))
+                warnings.warn("Can't find path {}; no videos from that path added as artifacts"
+                              .format(env_video_dir))
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
