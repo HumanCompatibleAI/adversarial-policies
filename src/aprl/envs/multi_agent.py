@@ -255,8 +255,8 @@ class _ActionTranspose(VecMultiWrapper):
 
 
 def _make_vec_multi_env(cls):
-    def f(env_fns):
-        venv = cls(env_fns)
+    def f(*args, **kwargs):
+        venv = cls(*args, **kwargs)
         return _ActionTranspose(venv)
     return f
 
@@ -275,8 +275,10 @@ class _DummyVecMultiEnv(DummyVecEnv, VecMultiEnv):
 
 class _SubprocVecMultiEnv(SubprocVecEnv, VecMultiEnv):
     """Stand-in for SubprocVecEnv when applied to MultiEnv's."""
-    def __init__(self, env_fns):
-        SubprocVecEnv.__init__(self, env_fns)
+    def __init__(self, env_fns, start_method=None):
+        if start_method is None:
+            start_method = 'forkserver'  # thread safe by default
+        SubprocVecEnv.__init__(self, env_fns, start_method=start_method)
         env = env_fns[0]()
         num_agents = getattr_unwrapped(env, 'num_agents')
         env.close()
