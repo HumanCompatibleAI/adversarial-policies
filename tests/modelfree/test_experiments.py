@@ -108,7 +108,7 @@ TRAIN_CONFIGS = [
     {
         'rl_algo': 'gail',
         'num_env': 1,
-        'expert_dataset_path': 'tests/modelfree/SumoAnts_traj/agent_0.npz',
+        'expert_dataset_path': os.path.join(BASE_DIR, 'SumoAnts_traj/agent_0.npz'),
     },
     {
         # test TransparentLSTMPolicy
