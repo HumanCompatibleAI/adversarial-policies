@@ -19,9 +19,6 @@ from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 
 score_ex = Experiment('score')
 
-logging.basicConfig(format='%(levelname)s - %(message)s', level=logging.DEBUG)
-
-
 def announce_winner(sim_stream):
     """This function determines the winner of a match in one of the gym_compete environments.
     :param sim_stream: a stream of obs, rewards, dones, infos from one of the gym_compete envs.
@@ -110,14 +107,19 @@ def default_score_config():
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
+@score_ex.named_config
+def video_config():
+    videos = True
+    render = False
+    episodes = 3
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
     if videos:
         if video_dir is None:
-            logging.info("""No directory provided for saving videos; using a tmpdir instead,
-                            but videos will be saved to Sacred run directory""")
+            logging.info("No directory provided for saving videos; using a tmpdir instead, "
+                         "but videos will be saved to Sacred run directory")
             tmp_dir = tempfile.TemporaryDirectory()
             video_dir = tmp_dir.name
         else:
