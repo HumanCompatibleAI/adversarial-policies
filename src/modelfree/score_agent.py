@@ -58,8 +58,7 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 def _clean_video_directory_structure(observer_obj):
     """
     A simple utility method to take saved videos within a Sacred run structure and clean
-    up the file pathways, so that all videos are organized under a "videos" directory,
-    and within that organized by environment ID.
+    up the file pathways, so that all videos are organized under a "videos" directory
 
     :param observer_obj: A Sacred FileStorageObserver object
     :return: None
