@@ -62,7 +62,7 @@ def _clean_video_directory_structure(observer_obj):
     and within that organized by environment ID.
 
     :param observer_obj: A Sacred FileStorageObserver object
-    :return:
+    :return: None
     """
     basedir = observer_obj.dir
     video_files = glob.glob("{}/*.mp4".format(basedir))
