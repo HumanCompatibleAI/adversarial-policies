@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import gym
+import pdb
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
@@ -179,6 +180,7 @@ class TransparentCurryVecEnv(CurryVecEnv):
         observations, self._obs = _tuple_pop(observations, self._agent_to_fix)
         self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
                                                                      mask=self._dones)
+        pdb.set_trace()
         # we assume that there is only one other agent in the MultiEnv.
         assert len(observations) == 1
         obs_copy = observations[0]

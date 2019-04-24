@@ -4,6 +4,7 @@ import itertools
 import os
 import shutil
 from os import path as osp
+import pdb
 import warnings
 
 import gym
@@ -286,6 +287,7 @@ class TrajectoryRecorder(VecMultiWrapper):
 
             info_dict = infos[env_idx][agent_idx]
             info_dict = _filter_dict(info_dict, self.info_keys)
+            #pdb.set_trace()
             for key, val in info_dict.items():
                 agent_dicts[env_idx][key].append(val)
 

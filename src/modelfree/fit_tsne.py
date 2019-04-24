@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import logging
 
+from glob import glob
 from sklearn.manifold import TSNE
 from sacred.observers import FileStorageObserver
 from swissarmy import logger
@@ -18,23 +19,38 @@ tsne_experiment = sacred.Experiment('tsne-base-experiment')
 tsne_experiment.observers.append(FileStorageObserver.create('/Users/cody/Data/adversarial_policies/tsne_runs'))
 logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
 
-opponent_lookup = {
-    'kad-adv': 'Adversarial',
-    'kad-rand': 'Random',
-    'kad-zoo': 'Zoo'
-}
+
 @tsne_experiment.config
 def base_config():
-    relative_dirs = ['kad-adv', 'kad-rand', 'kad-zoo']
-    base_path = "/Users/cody/Data/adversarial_policies"
+    relative_dirs = ['adversary', 'random', 'zoo']
+    base_path = "/Users/cody/Data/adversarial_policies/tsne_save_activations"
     data_type = 'ff_policy'
     num_components = 2
+    sacred_dir_ids = None # otherwise list
+    np_file_name = "victim_activations.npz"
     # TODO Try with and without PCA before
-    # TODO Try with different numbers of components
+
+
+def _get_latest_sacred_dirs(base_path, rd_list):
+    latest_dir_ids = []
+    for rd in rd_list:
+        sacred_dirs = os.listdir(os.path.join(base_path, rd))
+        max_int_dir = 0
+        for sd in sacred_dirs:
+            try:
+                int_dir = int(sd)
+                if int_dir > max_int_dir:
+                    max_int_dir = int_dir
+            except:
+                continue
+        latest_dir_ids.append(str(max_int_dir))
+    return latest_dir_ids
+
 
 @tsne_experiment.capture
-def _load_and_reshape_single_file(relative_dir, base_path, data_type):
-    traj_data = np.load(os.path.join(base_path, relative_dir, "agent_0.npz"))
+def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
+    traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name))
+    pdb.set_trace()
     episode_list = traj_data[data_type].tolist()
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
@@ -47,7 +63,7 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type):
         relative_observation_index += [el/episode_length for el in episode_observation_ids]
 
     concated_data = np.concatenate(episode_list)
-    opponent_id = [opponent_lookup[relative_dir]]*len(concated_data)
+    opponent_id = [relative_dir]*len(concated_data)
 
     metadata_df = pd.DataFrame({'episode_id': episode_id,
                                 'observation_index': observation_index,
@@ -56,11 +72,15 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type):
     return concated_data, metadata_df
 
 @tsne_experiment.automain
-def experiment_main(relative_dirs, num_components):
+def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids):
     all_file_data = []
     all_metadata = []
-    for rd in relative_dirs:
-        file_data, metadata = _load_and_reshape_single_file(rd)
+    if sacred_dir_ids is None:
+        sacred_dir_ids = _get_latest_sacred_dirs(base_path, relative_dirs)
+
+    for i, rd in enumerate(relative_dirs):
+        print("Pulling data out of {}".format(rd))
+        file_data, metadata = _load_and_reshape_single_file(rd, sacred_dir=sacred_dir_ids[i])
         all_file_data.append(file_data)
         all_metadata.append(metadata)
 
