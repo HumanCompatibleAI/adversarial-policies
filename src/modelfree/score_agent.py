@@ -114,7 +114,8 @@ def default_score_config():
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
+                record_traj, record_traj_params, transparent_params,
+                num_env, episodes, render, videos, video_dir):
     if videos:
         if video_dir is None:
             logging.info("""No directory provided for saving videos; using a tmpdir instead,
@@ -155,8 +156,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
     if record_traj:
-        venv.save(save_dir=record_traj_params['save_dir'])
-
+        save_paths = venv.save(save_dir=record_traj_params['save_dir'])
+        for save_path in save_paths:
+            score_ex.add_artifact(save_path, name="victim_activations.npz")
     if videos:
         for env_video_dir in video_dirs:
             try:

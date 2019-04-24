@@ -309,13 +309,15 @@ class TrajectoryRecorder(VecMultiWrapper):
         :return None
         """
         os.makedirs(save_dir, exist_ok=True)
+        save_paths = []
         for dict_idx, agent_idx in enumerate(self.agent_indices):
             agent_dicts = self.full_traj_dicts[dict_idx]
             dump_dict = {k: np.asarray(v) for k, v in agent_dicts.items()}
 
             save_path = os.path.join(save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)
-
+            save_paths.append(save_path)
+        return save_paths
 
 def simulate(venv, policies, render=False):
     """
