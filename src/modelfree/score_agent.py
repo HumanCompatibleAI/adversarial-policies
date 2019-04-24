@@ -86,9 +86,12 @@ def _clean_video_directory_structure(observer_obj):
 
 def _save_video_or_metadata(env_dir, saved_video_path):
     """
+    A helper method to pull the logic for pattern matching certain kinds of video and metadata
+    files and storing them as sacred artifacts with clearer names
+
     :param env_dir: The path to a per-environment folder where videos are stored
-    :param saved_video_path: The
-    :return:
+    :param saved_video_path: The video file to be reformatted and saved as a sacred artifact
+    :return: None
     """
     env_number = env_dir.split("/")[-1]
     video_ptn = re.compile(r'video.(\d*).mp4')
@@ -106,8 +109,7 @@ def _save_video_or_metadata(env_dir, saved_video_path):
 
     else:
         return
-    score_ex.add_artifact(filename=os.path.join(env_dir,
-                                                saved_video_path),
+    score_ex.add_artifact(filename=os.path.join(env_dir, saved_video_path),
                           name=sacred_name)
 
 
