@@ -21,25 +21,24 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_policy
+from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.training.logger import setup_logger
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
-from modelfree.transparent import TransparentCurryVecEnv
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index, transparent_params):
+    def __init__(self, multi_env, victim, victim_index, transparent):
         self.victim = victim
-        if transparent_params is None:
-            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        else:
+        if transparent:
             curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-
+        else:
+            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
         super().__init__(curried_env)
 
     def reset(self):
@@ -364,9 +363,10 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
             log_callbacks.append(lambda logger, locals, globals: victim.log_callback(logger))
 
         # Curry the victim
+        transparent = transparent_params is not None
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                         victim_index=victim_index,
-                                        transparent_params=transparent_params)
+                                        transparent=transparent)
 
     return multi_venv
 

@@ -13,18 +13,16 @@ TRANSPARENCY_KEYS = set(['obs', 'ff_policy', 'ff_value', 'hid'])
 class TransparentPolicy(ABC):
     """Policy which returns its observations and/or activations in its call to self.predict
 
-    :param transparent_params: (set) a subset of TRANSPARENCY_KEYS
-    - If key is not present, then we don't provide this data as part of the data dict in step.
-    - If key is present, value (bool) corresponds to whether we augment the observation space
-    with it. This is because TransparentCurryVecEnv needs this information to modify its
-    observation space, and we want all of the transparency-related parameters in one dict.
+    :param transparent_params: (set) a subset of TRANSPARENCY_KEYS.
+           If key is present, that data will be included in the transparency_dict
+           returned in step_transparent.
     """
     def __init__(self, transparent_params):
         if transparent_params is None:
-            transparent_params = set([])
-        for key in transparent_params:
-            if key not in TRANSPARENCY_KEYS:
-                raise KeyError(f"Unrecognized transparency key: {key}")
+            transparent_params = set()
+        unexpected_keys = set(transparent_params).difference(TRANSPARENCY_KEYS)
+        if unexpected_keys:
+            raise KeyError(f"Unrecognized transparency keys: {unexpected_keys}")
         self.transparent_params = transparent_params
 
     def _get_default_transparency_dict(self, obs, ff, hid):
@@ -86,8 +84,9 @@ class TransparentCurryVecEnv(CurryVecEnv):
         self._action = None
 
     def step_async(self, actions):
-        self._action, self._state, self._data = self._policy.predict(self._obs, state=self._state,
-                                                                     mask=self._dones)
+        policy_out = self._policy.predict(self._obs, state=self._state,
+                                          mask=self._dones, return_data=True)
+        self._action, self._state, self._data = policy_out
         actions.insert(self._agent_to_fix, self._action)
         self.venv.step_async(actions)
 

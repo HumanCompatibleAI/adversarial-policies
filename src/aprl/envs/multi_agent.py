@@ -364,15 +364,15 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
-        observations = self._get_updated_obs(observations)
+        observations = self._get_augmented_obs(observations)
         return observations, rewards, self._dones, infos
 
     def reset(self):
         observations = self.venv.reset()
-        observations = self._get_updated_obs(observations)
+        observations = self._get_augmented_obs(observations)
         return observations
 
-    def _get_updated_obs(self, observations):
+    def _get_augmented_obs(self, observations):
         """Augments observations[self._agent_to_merge] with action that self._policy would take
         given its observations. Keeps track of these variables to use in next timestep."""
         self._obs = observations[self._agent_to_merge]

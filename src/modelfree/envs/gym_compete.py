@@ -9,8 +9,8 @@ from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
+from modelfree.common.transparent import TransparentPolicy
 from modelfree.common.utils import PolicyToModel, make_session
-from modelfree.transparent import TransparentPolicy
 
 pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 
@@ -87,7 +87,7 @@ class GameOutcomeMonitor(VecMultiWrapper):
 
 
 class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
-    """gym_compete LSTMPolicy which also transparent."""
+    """gym_compete LSTMPolicy which is also transparent."""
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  hiddens=None, scope="input", reuse=False, normalize=False):
         LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
@@ -147,10 +147,7 @@ def get_policy_type_for_zoo_agent(env_name, transparent_params):
     transparent_mlp = (TransparentMLPPolicyValue, {'normalize': True,
                                                    'transparent_params': transparent_params})
     if canonical_env in POLICY_STATEFUL:
-        if POLICY_STATEFUL[canonical_env]:
-            return transparent_lstm
-        else:
-            return transparent_mlp
+        return transparent_lstm if POLICY_STATEFUL[canonical_env] else transparent_mlp
     else:
         msg = f"Unsupported Environment: {canonical_env}, choose from {POLICY_STATEFUL.keys()}"
         raise ValueError(msg)
