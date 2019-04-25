@@ -29,9 +29,7 @@ def score_and_store(episodes, skip_scoring, sacred_dir):
                        episodes=episodes, render=False)
 
 
-    best_adversary_path_agent_1 = get_best_adversary_path(environment=base_config['env_name'],
-                                                          zoo_id=1,
-                                                          base_path=BASE_DIR)
+    best_adversary_path_agent_1 = get_best_adversary_path(environment=base_config['env_name'], zoo_id=1,  base_path=BASE_DIR)
 
     tests_to_run = [
         {'dir': 'kad-adv', 'path': best_adversary_path_agent_1,
