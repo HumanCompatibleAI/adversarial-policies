@@ -1,23 +1,20 @@
 import argparse
-import itertools
-import pickle
 import os
-import os.path as osp
-import sacred
 
-from sacred.observers import FileStorageObserver
 from get_best_adversary import get_best_adversary_path
+from sacred.observers import FileStorageObserver
+
 from modelfree.score_agent import score_ex
 
-
-
-## TODO
-## Find a T-SNE library that works to learn whatever the projection matrix is
-## Figure out some sensible tags to attach to timesteps
+# TODO
+# Find a T-SNE library that works to learn whatever the projection matrix is
+# Figure out some sensible tags to attach to timesteps
 # (probably just "index in trajectory", "did you win",
 # "what policy were you playing against" would be good)
 
 BASE_DIR = "/Users/cody/Data/adversarial_policies/"
+
+
 def score_and_store(episodes, skip_scoring, sacred_dir):
 
     base_config = dict(transparent_params={'ff_policy': True, 'ff_value': True},
@@ -28,8 +25,8 @@ def score_and_store(episodes, skip_scoring, sacred_dir):
                        video_dir=None,
                        episodes=episodes, render=False)
 
-
-    best_adversary_path_agent_1 = get_best_adversary_path(environment=base_config['env_name'], zoo_id=1,  base_path=BASE_DIR)
+    best_adversary_path_agent_1 = get_best_adversary_path(
+        environment=base_config['env_name'], zoo_id=1, base_path=BASE_DIR)
 
     tests_to_run = [
         {'dir': 'kad-adv', 'path': best_adversary_path_agent_1,

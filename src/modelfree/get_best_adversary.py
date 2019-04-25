@@ -2,7 +2,8 @@ import json
 import logging
 import os
 
-def get_best_adversary_path(environment, zoo_id, base_path, victim_idx = None):
+
+def get_best_adversary_path(environment, zoo_id, base_path, victim_idx=None):
     with open("best_adversaries.json", 'rb') as fp:
         best_adversaries = json.load(fp)
     best_adv_policy_paths = best_adversaries['policies']

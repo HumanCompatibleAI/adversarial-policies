@@ -1,7 +1,7 @@
 import argparse
 import itertools
-import pickle
 import os
+import pickle
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -140,4 +140,3 @@ if __name__ == "__main__":
     parser.add_argument('--skip-scoring', action='store_true')
     args = parser.parse_args()
     kick_and_defend_ex(args.pca_dim, args.episodes, args.skip_scoring)
-

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
+import pdb
 
 import gym
-import pdb
 from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
@@ -21,6 +21,7 @@ class TransparentPolicy(ABC):
     with it. This is because TransparentCurryVecEnv needs this information to modify its
     observation space, and we want all of the transparency-related parameters in one dict.
     """
+
     def __init__(self, transparent_params):
         if transparent_params is None:
             raise ValueError("TransparentPolicy requires transparent_params.")
@@ -63,6 +64,7 @@ class TransparentPolicy(ABC):
 
 class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
     """stable_baselines FeedForwardPolicy which is also transparent."""
+
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  reuse=False, layers=None, net_arch=None, act_fun=tf.tanh,
                  cnn_extractor=nature_cnn, feature_extraction="cnn", **kwargs):
@@ -94,6 +96,7 @@ class TransparentMlpPolicy(TransparentFeedForwardPolicy):
 
 class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
     """gym_compete LSTMPolicy which also transparent."""
+
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  hiddens=None, scope="input", reuse=False, normalize=False):
         LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
@@ -126,6 +129,7 @@ class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
 
 class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
     """gym_compete MlpPolicyValue which is also transparent."""
+
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
                  hiddens=None, scope="input", reuse=False, normalize=False):
         MlpPolicyValue.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch,
@@ -147,6 +151,7 @@ class TransparentMlpPolicyValue(TransparentPolicy, MlpPolicyValue):
 
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that provides transparency data about its policy in its infos dicts."""
+
     def __init__(self, venv, policy, agent_idx=0):
         super().__init__(venv, policy, agent_idx)
         self.underlying_policy = policy.policy

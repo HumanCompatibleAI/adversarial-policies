@@ -2,9 +2,7 @@ from collections import defaultdict
 import datetime
 import itertools
 import os
-import shutil
 from os import path as osp
-import pdb
 import warnings
 
 import gym
@@ -25,6 +23,7 @@ class DummyModel(BaseRLModel):
 
     Provides stub implementations that raise NotImplementedError.
     The predict method is left as abstract and must be implemented in base class."""
+
     def __init__(self, policy, sess):
         """Constructs a DummyModel with given policy and session.
         :param policy: (BasePolicy) a loaded policy.
@@ -55,6 +54,7 @@ class DummyModel(BaseRLModel):
 
 class PolicyToModel(DummyModel):
     """Converts BasePolicy to a BaseRLModel with only predict implemented."""
+
     def __init__(self, policy):
         """Constructs a BaseRLModel using policy for predictions.
         :param policy: (BasePolicy) a loaded policy.
@@ -83,6 +83,7 @@ class PolicyToModel(DummyModel):
 
 class OpenAIToStablePolicy(BasePolicy):
     """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
+
     def __init__(self, old_policy):
         self.old = old_policy
         self.sess = old_policy.sess
@@ -101,6 +102,7 @@ class OpenAIToStablePolicy(BasePolicy):
 
 class ConstantPolicy(BasePolicy):
     """Policy that returns a constant action."""
+
     def __init__(self, env, constant):
         assert env.action_space.contains(constant)
         super().__init__(sess=None,
@@ -121,6 +123,7 @@ class ConstantPolicy(BasePolicy):
 
 class ZeroPolicy(ConstantPolicy):
     """Policy that returns a zero action."""
+
     def __init__(self, env):
         super().__init__(env, np.zeros(env.action_space.shape))
 
@@ -262,7 +265,6 @@ class TrajectoryRecorder(VecMultiWrapper):
         else:
             dict_index = self.agent_indices.index(agent_idx)
 
-
         for env_idx in range(self.num_envs):
             for key in data.keys():
                 self.traj_dicts[dict_index][env_idx][key].append(np.squeeze(data[key]))
@@ -298,7 +300,7 @@ class TrajectoryRecorder(VecMultiWrapper):
 
             info_dict = infos[env_idx][agent_idx]
             info_dict = _filter_dict(info_dict, self.info_keys)
-            #pdb.set_trace()
+            # pdb.set_trace()
             for key, val in info_dict.items():
                 agent_dicts[env_idx][key].append(val)
 
@@ -333,6 +335,7 @@ class TrajectoryRecorder(VecMultiWrapper):
             save_paths.append(save_path)
         return save_paths
 
+
 def simulate(venv, policies, render=False):
     """
     Run Environment env with the policies in `policies`.
@@ -358,8 +361,8 @@ def simulate(venv, policies, render=False):
                 act, new_state, transparent_data = return_tuple
                 try:
                     venv.record_transparent_data(transparent_data, policy_ind)
-                except:
-                    print("Can't record data on this venv")
+                except AttributeError:
+                    print("No way to record transparent data on this venv")
             else:
                 act, new_state = return_tuple
 

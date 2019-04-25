@@ -1,22 +1,18 @@
-import os
-import sacred
-import pdb
-import pickle
 import logging
+import os
+import pickle
 import tempfile
 
 import numpy as np
 import pandas as pd
-import logging
-
-from glob import glob
-from sklearn.manifold import TSNE
+import sacred
 from sacred.observers import FileStorageObserver
+from sklearn.manifold import TSNE
 from swissarmy import logger
 
-
 tsne_experiment = sacred.Experiment('tsne-base-experiment')
-tsne_experiment.observers.append(FileStorageObserver.create('/Users/cody/Data/adversarial_policies/tsne_runs'))
+tsne_experiment.observers.append(FileStorageObserver.create(
+    '/Users/cody/Data/adversarial_policies/tsne_runs'))
 logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
 
 
@@ -26,10 +22,12 @@ def base_config():
     base_path = "/Users/cody/Data/adversarial_policies/tsne_save_activations"
     data_type = 'ff_policy'
     num_components = 2
-    sacred_dir_ids = None # otherwise list
+    sacred_dir_ids = None  # otherwise list
     np_file_name = "victim_activations.npz"
     num_observations = 1000
-    # TODO Try with and without PCA before
+    seed = 0
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 
 def _get_latest_sacred_dirs(base_path, rd_list):
@@ -42,7 +40,7 @@ def _get_latest_sacred_dirs(base_path, rd_list):
                 int_dir = int(sd)
                 if int_dir > max_int_dir:
                     max_int_dir = int_dir
-            except:
+            except ValueError:
                 continue
         latest_dir_ids.append(str(max_int_dir))
     return latest_dir_ids
@@ -57,19 +55,20 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_na
     observation_index = []
     relative_observation_index = []
     for i, episode_length in enumerate(episode_lengths):
-        episode_id += [i]*episode_length
+        episode_id += [i] * episode_length
         episode_observation_ids = list(range(episode_length))
         observation_index += episode_observation_ids
-        relative_observation_index += [el/episode_length for el in episode_observation_ids]
+        relative_observation_index += [el / episode_length for el in episode_observation_ids]
 
     concated_data = np.concatenate(episode_list)
-    opponent_id = [relative_dir]*len(concated_data)
+    opponent_id = [relative_dir] * len(concated_data)
 
     metadata_df = pd.DataFrame({'episode_id': episode_id,
                                 'observation_index': observation_index,
                                 'relative_observation_index': relative_observation_index,
                                 'opponent_id': opponent_id})
     return concated_data, metadata_df
+
 
 @tsne_experiment.automain
 def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids, num_observations):
@@ -106,9 +105,3 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids, nu
         cluster_ids_path = os.path.join(dirname, 'cluster_ids.npy')
         np.save(cluster_ids_path, tsne_ids)
         tsne_experiment.add_artifact(cluster_ids_path)
-
-
-
-
-
-
