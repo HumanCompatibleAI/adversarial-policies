@@ -18,7 +18,7 @@ from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, s
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 
 score_ex = Experiment('score')
-score_ex_logger = logging.getLogger(__name__)
+score_ex_logger = logging.getLogger('score_agent')
 
 
 def announce_winner(sim_stream):
@@ -102,13 +102,12 @@ def _save_video_or_metadata(env_dir, saved_video_path):
     if video_search_result is not None:
         episode_id = video_search_result.groups()[0]
         sacred_name = "env_{}_episode_{}_recording.mp4".format(env_number, int(episode_id))
-
     elif metadata_search_result is not None:
         episode_id = metadata_search_result.groups()[0]
         sacred_name = "env_{}_episode_{}_metadata.json".format(env_number, int(episode_id))
-
     else:
         return
+
     score_ex.add_artifact(filename=os.path.join(env_dir, saved_video_path),
                           name=sacred_name)
 
