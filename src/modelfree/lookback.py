@@ -13,21 +13,23 @@ from modelfree.envs.gym_compete import GymCompeteToOurs
 
 
 class DebugVenv(VecEnvWrapper):
-    def __init__(self, venv):
+    def __init__(self, venv, dump_mujoco_state=False):
         super().__init__(venv)
         self.num_agents = 2
+        self.dump_mujoco_state = dump_mujoco_state
         self.debug_file = None
         self.debug_dict = {}
 
     def step_async(self, actions):
         self.debug_dict['actions'] = actions
-        #state_data = self.unwrapped.envs[0].env.sim.data
-        #fields = type(state_data._wrapped.contents).__dict__['_fields_']
-        #keys = [t[0] for t in fields if t[0] != 'contact']
-        #for k in keys:
-        #    val = getattr(state_data, k)
-        #    if isinstance(val, np.ndarray) and val.size > 0:
-        #        self.debug_dict[k] = val
+        if self.dump_mujoco_state:
+            state_data = self.unwrapped.envs[0].env.sim.data
+            fields = type(state_data._wrapped.contents).__dict__['_fields_']
+            keys = [t[0] for t in fields if t[0] != 'contact']
+            for k in keys:
+                val = getattr(state_data, k)
+                if isinstance(val, np.ndarray) and val.size > 0:
+                    self.debug_dict[k] = val
 
         self.venv.step_async(actions)
 
@@ -103,7 +105,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
             multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                             victim_index=victim_index,
-                                            transparent_params=self.transparent_params)
+                                            transparent=True)
 
             single_venv = FlattenSingletonVecEnv(multi_venv)
             data_dict = {'state': None, 'action': None, 'reward': np.zeros(self.num_envs),

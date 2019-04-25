@@ -2,6 +2,7 @@ import json
 import logging
 import os.path
 
+import matplotlib.backends.backend_pdf
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -77,7 +78,7 @@ def load_transfer_baseline(path):
     # drop the always 'zoo' and 'ppo2' type for victim and adversary
     scores.index = scores.index.droplevel(level=3).droplevel(level=1)
     adversary_paths = scores.index.get_level_values(2)
-    trained_on = adversary_paths.str.replace('.*victim_path=', '').str.replace('-.*', '')
+    trained_on = adversary_paths.str.replace('.*victim_path=', '').str.replace('[^0-9].*', '')
     scores.index = pd.MultiIndex.from_tuples([(x[0], x[1], path)
                                               for x, path in zip(scores.index, trained_on)])
     scores.index.names = ['Environment', 'Victim', 'Adversary For']
@@ -120,10 +121,13 @@ def apply_per_env(scores, fn, *args, **kwargs):
 
 
 def save_figs(out_dir, generator):
+    combined = matplotlib.backends.backend_pdf.PdfPages(os.path.join(out_dir, 'combined.pdf'))
     for env_name, fig in generator:
         out_path = os.path.join(out_dir, env_name.replace('/', '_') + '.pdf')
         logger.info(f"Saving to '{out_path}'")
         fig.savefig(out_path)
+        combined.savefig(fig)
+    combined.close()
 
 
 def heatmap(single_env):

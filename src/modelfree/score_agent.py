@@ -66,7 +66,7 @@ def default_score_config():
     episodes = 20                       # number of episodes to evaluate
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
-    video_dir = 'videos/'               # video directory
+    video_dir = 'data/videos/'          # video directory
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -103,7 +103,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
     if record_traj:
-        venv.save_traj(save_dir=record_traj_params['save_dir'])
+        venv.save(save_dir=record_traj_params['save_dir'])
 
     for agent in agents:
         if agent.sess is not None:

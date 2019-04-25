@@ -4,7 +4,6 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
 from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-import pickle
 
 from aprl.utils import getattr_unwrapped
 
@@ -259,8 +258,8 @@ class _ActionTranspose(VecMultiWrapper):
 
 
 def _make_vec_multi_env(cls):
-    def f(env_fns):
-        venv = cls(env_fns)
+    def f(*args, **kwargs):
+        venv = cls(*args, **kwargs)
         return _ActionTranspose(venv)
     return f
 
@@ -279,8 +278,10 @@ class _DummyVecMultiEnv(DummyVecEnv, VecMultiEnv):
 
 class _SubprocVecMultiEnv(SubprocVecEnv, VecMultiEnv):
     """Stand-in for SubprocVecEnv when applied to MultiEnv's."""
-    def __init__(self, env_fns):
-        SubprocVecEnv.__init__(self, env_fns)
+    def __init__(self, env_fns, start_method=None):
+        if start_method is None:
+            start_method = 'forkserver'  # thread safe by default
+        SubprocVecEnv.__init__(self, env_fns, start_method=start_method)
         env = env_fns[0]()
         num_agents = getattr_unwrapped(env, 'num_agents')
         env.close()
@@ -358,34 +359,23 @@ class MergeAgentVecEnv(VecMultiWrapper):
         self._state = None
         self._obs = None
         self._dones = [False] * venv.num_envs
-        self.debug_file = None
-        self.debug_dict = {}
-        self.t = 0
 
     def step_async(self, actions):
         new_action = actions[self._agent_to_merge] + self._action
-        old_actions = [actions[0], self._action]
         actions = _tuple_replace(actions, self._agent_to_merge, new_action)
-        all_state_data = self.venv.unwrapped.env_method('get_full_state')[0]
-        if self.debug_file is not None:
-            self.debug_dict.update({'actions': old_actions, 'env': 'curry', 't': self.t})
         self.venv.step_async(actions)
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
-        observations = self._get_updated_obs(observations)
-        if self.debug_file is not None:
-            self.debug_dict.update({'obs': observations, 'rewards': rewards})
-            pickle.dump(self.debug_dict, self.debug_file)
-            self.t += 1
+        observations = self._get_augmented_obs(observations)
         return observations, rewards, self._dones, infos
 
     def reset(self):
         observations = self.venv.reset()
-        observations = self._get_updated_obs(observations)
+        observations = self._get_augmented_obs(observations)
         return observations
 
-    def _get_updated_obs(self, observations):
+    def _get_augmented_obs(self, observations):
         """Augments observations[self._agent_to_merge] with action that self._policy would take
         given its observations. Keeps track of these variables to use in next timestep."""
         self._obs = observations[self._agent_to_merge]
@@ -402,7 +392,7 @@ class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
     def __init__(self, venv, policy, agent_idx=0):
         """Fixes one of the players in a VecMultiEnv.
-        :param env(VecMultiEnv): the environments.
+        :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the policy to use for the agent at agent_idx.
         :param agent_idx(int): the index of the agent that should be fixed.
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but

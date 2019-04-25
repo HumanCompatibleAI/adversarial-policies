@@ -21,26 +21,25 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_policy, load_backward_compatible_model
+from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.lookback import LookbackRewardVecWrapper, DebugVenv
 from modelfree.training.logger import setup_logger
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
-from modelfree.transparent import TransparentCurryVecEnv, TransparentPolicy
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index, transparent_params):
+    def __init__(self, multi_env, victim, victim_index, transparent):
         self.victim = victim
-        if transparent_params is None:
-            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        else:
+        if transparent:
             curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-
+        else:
+            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
         super().__init__(curried_env)
 
     def get_policy(self):
@@ -166,11 +165,12 @@ def _get_mpi_num_proc():
     return num_proc
 
 
-class ExpertDatasetOurFormat(ExpertDataset):
+class ExpertDatasetFromOurFormat(ExpertDataset):
     """GAIL Expert Dataset. Loads in our format, rather than the GAIL default.
 
     In particular, GAIL expects a dict of flattened arrays, with episodes concatenated together.
-    The episode start is delineated by an `episode_starts` array.
+    The episode start is delineated by an `episode_starts` array. See `ExpertDataset` base class
+    for more information.
 
     By contrast, our format consists of a list of NumPy arrays, one for each episode."""
     def __init__(self, expert_path, **kwargs):
@@ -200,7 +200,7 @@ def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("Must set expert_dataset_path to use GAIL.")
-    expert_dataset = ExpertDatasetOurFormat(expert_dataset_path)
+    expert_dataset = ExpertDatasetFromOurFormat(expert_dataset_path)
     kwargs['d_stepsize'] = learning_rate(1)
     kwargs['vf_stepsize'] = learning_rate(1)
     return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
@@ -260,7 +260,7 @@ def train_config():
         'type': rl_algo,            # type supported by policy_loader.py
     }
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
-    transparent_params = None       # param dict for transparent victim policies
+    transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
     lookback_params = {             # parameters for doing lookback white-box attacks
         'num_lb': 0,                # number of lookback venvs
@@ -378,9 +378,10 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
             log_callbacks.append(lambda logger, locals, globals: victim.log_callback(logger))
 
         # Curry the victim
+        transparent = transparent_params is not None
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                         victim_index=victim_index,
-                                        transparent_params=transparent_params)
+                                        transparent=transparent)
 
     return multi_venv
 

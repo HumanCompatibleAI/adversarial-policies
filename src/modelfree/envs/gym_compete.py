@@ -9,8 +9,8 @@ from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
+from modelfree.common.transparent import TransparentPolicy
 from modelfree.common.utils import PolicyToModel, make_session
-from modelfree.transparent import TransparentLSTMPolicy, TransparentMlpPolicyValue
 
 pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 
@@ -86,6 +86,37 @@ class GameOutcomeMonitor(VecMultiWrapper):
         self.outcomes = []
 
 
+class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
+    """gym_compete LSTMPolicy which is also transparent."""
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 hiddens=None, scope="input", reuse=False, normalize=False):
+        LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
+                            scope, reuse, normalize)
+        TransparentPolicy.__init__(self, transparent_params)
+
+    def step_transparent(self, obs, state=None, mask=None, deterministic=False):
+        action, value, state, neglogp, ff = self.step(obs, state, mask, deterministic,
+                                                      extra_op=self.ff_out)
+        # 'hid' is the hidden state of policy which is the last of the four state vectors
+        transparency_dict = self._get_default_transparency_dict(obs, ff, hid=state[:, -1, :])
+        return action, value, state, neglogp, transparency_dict
+
+
+class TransparentMLPPolicyValue(TransparentPolicy, MlpPolicyValue):
+    """gym_compete MlpPolicyValue which is also transparent."""
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 hiddens=None, scope="input", reuse=False, normalize=False):
+        MlpPolicyValue.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch,
+                                hiddens=hiddens, scope=scope, reuse=reuse, normalize=normalize)
+        TransparentPolicy.__init__(self, transparent_params)
+
+    def step_transparent(self, obs, state=None, mask=None, deterministic=False):
+        action, value, state, neglogp, ff = self.step(obs, state, mask, deterministic,
+                                                      extra_op=self.ff_out)
+        transparency_dict = self._get_default_transparency_dict(obs, ff, hid=None)
+        return action, value, self.initial_state, neglogp, transparency_dict
+
+
 def env_name_to_canonical(env_name):
     env_aliases = {
         'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0',
@@ -111,17 +142,12 @@ def get_policy_type_for_zoo_agent(env_name, transparent_params):
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
     canonical_env = env_name_to_canonical(env_name)
-    lstm = (LSTMPolicy, {'normalize': True})
-    mlp = (MlpPolicyValue, {'normalize': True})
     transparent_lstm = (TransparentLSTMPolicy, {'normalize': True,
                                                 'transparent_params': transparent_params})
-    transparent_mlp = (TransparentMlpPolicyValue, {'normalize': True,
+    transparent_mlp = (TransparentMLPPolicyValue, {'normalize': True,
                                                    'transparent_params': transparent_params})
     if canonical_env in POLICY_STATEFUL:
-        if POLICY_STATEFUL[canonical_env]:
-            return transparent_lstm if transparent_params is not None else lstm
-        else:
-            return transparent_mlp if transparent_params is not None else mlp
+        return transparent_lstm if POLICY_STATEFUL[canonical_env] else transparent_mlp
     else:
         msg = f"Unsupported Environment: {canonical_env}, choose from {POLICY_STATEFUL.keys()}"
         raise ValueError(msg)
