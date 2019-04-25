@@ -255,6 +255,18 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
+    def record_transparent_data(self, data, agent_idx):
+        # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
+        if agent_idx not in self.agent_indices:
+            return
+        else:
+            dict_index = self.agent_indices.index(agent_idx)
+
+
+        for env_idx in range(self.num_envs):
+            for key in data.keys():
+                self.traj_dicts[dict_index][env_idx][key].append(np.squeeze(data[key]))
+
     def record_timestep_data(self, prev_obs, actions, rewards, dones, infos):
         """Record observations, actions, rewards, and (optionally) network activations
         of one timestep in dict for current episode. Completed episode trajectories are
@@ -275,7 +287,6 @@ class TrajectoryRecorder(VecMultiWrapper):
         }
         env_data = _filter_dict(env_data, self.env_keys)
 
-        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
         iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         for (dict_idx, agent_dicts), env_idx in iter_space:
@@ -311,6 +322,7 @@ class TrajectoryRecorder(VecMultiWrapper):
         :return None
         """
         os.makedirs(save_dir, exist_ok=True)
+
         save_paths = []
         for dict_idx, agent_idx in enumerate(self.agent_indices):
             agent_dicts = self.full_traj_dicts[dict_idx]
@@ -339,10 +351,22 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
+        policy_ind = 0
         for policy, obs, state in zip(policies, observations, states):
-            act, new_state = policy.predict(obs, state=state, mask=dones, return_data=False)
+            return_tuple = policy.predict(obs, state=state, mask=dones, return_data=True)
+            if len(return_tuple) == 3:
+                act, new_state, transparent_data = return_tuple
+                try:
+                    venv.record_transparent_data(transparent_data, policy_ind)
+                except:
+                    print("Can't record data on this venv")
+            else:
+                act, new_state = return_tuple
+
             actions.append(act)
             new_states.append(new_state)
+            policy_ind += 1
+
         actions = tuple(actions)
         states = new_states
 

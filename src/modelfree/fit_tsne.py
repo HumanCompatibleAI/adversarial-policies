@@ -28,6 +28,7 @@ def base_config():
     num_components = 2
     sacred_dir_ids = None # otherwise list
     np_file_name = "victim_activations.npz"
+    num_observations = 1000
     # TODO Try with and without PCA before
 
 
@@ -50,7 +51,6 @@ def _get_latest_sacred_dirs(base_path, rd_list):
 @tsne_experiment.capture
 def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
     traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name))
-    pdb.set_trace()
     episode_list = traj_data[data_type].tolist()
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
@@ -72,29 +72,30 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_na
     return concated_data, metadata_df
 
 @tsne_experiment.automain
-def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids):
+def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids, num_observations):
     all_file_data = []
     all_metadata = []
     if sacred_dir_ids is None:
         sacred_dir_ids = _get_latest_sacred_dirs(base_path, relative_dirs)
 
     for i, rd in enumerate(relative_dirs):
-        print("Pulling data out of {}".format(rd))
+        print("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
         file_data, metadata = _load_and_reshape_single_file(rd, sacred_dir=sacred_dir_ids[i])
         all_file_data.append(file_data)
         all_metadata.append(metadata)
 
     merged_file_data = np.concatenate(all_file_data)
     merged_metadata = pd.concat(all_metadata)
-
+    if num_observations is None:
+        num_observations = len(merged_metadata)
     with tempfile.TemporaryDirectory() as dirname:
         metadata_path = os.path.join(dirname, 'metadata.csv')
-        merged_metadata.to_csv(metadata_path)
+        merged_metadata[0:num_observations].to_csv(metadata_path)
         tsne_experiment.add_artifact(metadata_path)
 
         tsne_obj = TSNE(n_components=num_components)
         logger_obj.debug("Starting T-SNE fitting")
-        tsne_ids = tsne_obj.fit_transform(merged_file_data)
+        tsne_ids = tsne_obj.fit_transform(merged_file_data[0:num_observations])
         logger_obj.debug("Completed T-SNE fitting")
         print(tsne_ids.shape)
         tsne_weights_path = os.path.join(dirname, 'saved_tsne_weights.pkl')

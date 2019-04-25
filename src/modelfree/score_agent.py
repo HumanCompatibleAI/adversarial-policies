@@ -154,7 +154,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
-    #pdb.set_trace()
+
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
     if record_traj:
