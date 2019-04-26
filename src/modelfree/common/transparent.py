@@ -1,6 +1,5 @@
 from abc import ABC
 
-import gym
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
