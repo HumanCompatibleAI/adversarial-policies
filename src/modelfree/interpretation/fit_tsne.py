@@ -26,9 +26,15 @@ def base_config():
     np_file_name = "victim_activations.npz"
     num_observations = 1000
     seed = 0
+    perplexity = 5
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
+@tsne_experiment.named_config
+def full_model():
+    num_observations = None
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 def _get_latest_sacred_dirs(base_path, rd_list):
     latest_dir_ids = []
@@ -48,7 +54,7 @@ def _get_latest_sacred_dirs(base_path, rd_list):
 
 @tsne_experiment.capture
 def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
-    traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name))
+    traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name), allow_pickle=True)
     episode_list = traj_data[data_type].tolist()
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
@@ -71,7 +77,8 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_na
 
 
 @tsne_experiment.automain
-def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids, num_observations):
+def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
+                    num_observations, perplexity):
     all_file_data = []
     all_metadata = []
     if sacred_dir_ids is None:
@@ -92,7 +99,7 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids, nu
         merged_metadata[0:num_observations].to_csv(metadata_path)
         tsne_experiment.add_artifact(metadata_path)
 
-        tsne_obj = TSNE(n_components=num_components)
+        tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
         logger_obj.debug("Starting T-SNE fitting")
         tsne_ids = tsne_obj.fit_transform(merged_file_data[0:num_observations])
         logger_obj.debug("Completed T-SNE fitting")
