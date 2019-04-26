@@ -432,13 +432,13 @@ class CurryVecEnv(VecMultiWrapper):
     def get_curry_venv(self):
         return self
 
-    def set_obs(self, obs, env_idx=None):
+    def set_curry_obs(self, obs, env_idx=None):
         if env_idx is None:
             self._obs = obs
         else:
             self._obs[env_idx] = obs[env_idx]
 
-    def get_obs(self, env_idx=None):
+    def get_curry_obs(self, env_idx=None):
         if env_idx is None:
             return self._obs
         else:
