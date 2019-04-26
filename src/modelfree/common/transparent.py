@@ -85,8 +85,8 @@ class TransparentCurryVecEnv(CurryVecEnv):
         self._action = None
 
     def step_async(self, actions):
-        policy_out = predict_transparent(self._policy.policy, self._obs,
-                                         state=self._state, mask=self._dones)
+        policy_out = self._policy.predict_transparent(self._obs, state=self._state,
+                                                      mask=self._dones)
         self._action, self._state, self._data = policy_out
         actions.insert(self._agent_to_fix, self._action)
         self.venv.step_async(actions)
@@ -98,23 +98,3 @@ class TransparentCurryVecEnv(CurryVecEnv):
             env_data = {k: v[env_idx] for k, v in self._data.items()}
             infos[env_idx][self._agent_to_fix].update(env_data)
         return observations, rewards, self._dones, infos
-
-
-def predict_transparent(policy, observation, state=None, mask=None, deterministic=False):
-    """Call step_transparent for a policy which is both a TransparentPolicy and ActorCriticPolicy
-    params observation, state, mask and deterministic are inherited from BaseRLModel.predict
-
-    This is compatible with both transparent stable_baselines and gym_compete policies,
-    however, it does not perform action clipping. It should also do vector normalization? 
-
-    :param policy (TransparentPolicy and ActorCriticPolicy) policy to call step_transparent with
-    :return: ([float], [float], dict<str, [float]>) actions, states, data
-    """
-    if state is None:
-        state = policy.initial_state
-    if mask is None:
-        mask = [False for _ in range(policy.n_envs)]
-    actions, _, states, _, data = policy.step_transparent(observation, state, mask,
-                                                          deterministic=deterministic)
-    return actions, states, data
-

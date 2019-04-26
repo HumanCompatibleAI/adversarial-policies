@@ -26,6 +26,10 @@ class NormalizeModel(DummyModel):
         norm_obs = self.vec_normalize._normalize_observation(observation)
         return self.policy.predict(norm_obs, state, mask, deterministic)
 
+    def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
+        norm_obs = self.vec_normalize._normalize_observation(observation)
+        return self.policy.predict_transparent(norm_obs, state, mask, deterministic)
+
 
 def load_stable_baselines(cls):
     def f(root_dir, env, env_name, index, transparent_params):

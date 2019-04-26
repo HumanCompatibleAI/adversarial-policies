@@ -59,15 +59,26 @@ class PolicyToModel(DummyModel):
         """
         super().__init__(policy=policy, sess=policy.sess)
 
-    def predict(self, observation, state=None, mask=None, deterministic=False):
+    def _get_policy_out(self, observation, state, mask, transparent, deterministic=False):
         if state is None:
             state = self.policy.initial_state
         if mask is None:
             mask = [False for _ in range(self.policy.n_env)]
 
-        actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
-                                                           deterministic=deterministic)
+        step_fn = self.policy.step_transparent if transparent else self.policy.step
+        return step_fn(observation, state, mask, deterministic=deterministic)
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        policy_out = self._get_policy_out(observation, state, mask, transparent=False,
+                                          deterministic=deterministic)
+        actions, _val, states, _neglogp = policy_out
         return actions, states
+
+    def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
+        policy_out = self._get_policy_out(observation, state, mask, transparent=True,
+                                          deterministic=deterministic)
+        actions, _val, states, _neglogp, data = policy_out
+        return actions, states, data
 
 
 class OpenAIToStablePolicy(BasePolicy):
