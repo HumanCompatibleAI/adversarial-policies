@@ -1,5 +1,6 @@
 from abc import ABC
 
+import gym
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
@@ -84,8 +85,8 @@ class TransparentCurryVecEnv(CurryVecEnv):
         self._action = None
 
     def step_async(self, actions):
-        policy_out = self._policy.predict(self._obs, state=self._state,
-                                          mask=self._dones, return_data=True)
+        policy_out = self._policy.predict_transparent(self._obs, state=self._state,
+                                                      mask=self._dones)
         self._action, self._state, self._data = policy_out
         actions.insert(self._agent_to_fix, self._action)
         self.venv.step_async(actions)
