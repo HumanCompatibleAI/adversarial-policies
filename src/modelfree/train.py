@@ -20,7 +20,7 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.common.policy_loader import load_policy
+from modelfree.common.policy_loader import load_policy, load_backward_compatible_model
 from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
@@ -113,7 +113,7 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
     if load_policy['path'] is not None:
         if load_policy['type'] == our_type:
             # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
-            model = cls.load(load_policy['path'], **kwargs)
+            model = load_backward_compatible_model(cls, load_policy['path'], **kwargs)
         elif load_policy['type'] == 'zoo':
             policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
             kwargs['policy_kwargs'] = policy_kwargs

@@ -75,6 +75,7 @@ class PolicyToModel(DummyModel):
         return actions, states
 
     def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
+        """Returns same values as predict, as well as a dictionary with transparent data."""
         policy_out = self._get_policy_out(observation, state, mask, transparent=True,
                                           deterministic=deterministic)
         actions, _val, states, _neglogp, data = policy_out
