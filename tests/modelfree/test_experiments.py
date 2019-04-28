@@ -99,7 +99,7 @@ def test_score_agent_video():
 
 TRAIN_CONFIGS = [
     {'num_env': 1},
-    {'env_name': 'multicomp/KickAndDefend-v0'},
+    {'env_name': 'multicomp/YouShallNotPassHumans-v0'},
     {'normalize': False},
     {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants', 'ppo2')},
     {
