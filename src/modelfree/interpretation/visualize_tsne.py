@@ -90,6 +90,7 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
                     "random": "#fdb462",
                     "adversary": '#e7298a'
                 }
+            plt.figure(figsize=(12, 8))
             sns.scatterplot(data=data, x="ax_1", y="ax_2", hue="opponent_id",
                             alpha=opacity, s=dot_size, edgecolors='none',
                             palette=palette_name, hue_order=hue_order)
