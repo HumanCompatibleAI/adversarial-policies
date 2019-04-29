@@ -45,21 +45,27 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
                 state_dict[k] = getattr(self.sim.data, k)
         return state_dict
 
-    def get_state(self):
+    def get_state(self, all_data=False):
         """Serializes the qpos and qvel state of the MuJoCo emulator."""
         state = MujocoState.from_mjdata(self.sim.data).flatten()
+        if all_data:
+            full_state = self.get_full_state()
+            radius = self.get_radius()
+            return (state, full_state, radius)
         return state
 
     def get_radius(self):
         return self.env.env.RADIUS
 
-    def set_state(self, x, sim_data=None, forward=True):
+    def set_state(self, x, sim_data=None, radius=None, forward=True):
         """Restores qpos and qvel, calling forward() to derive other values."""
         state = MujocoState.from_flattened(x, self.sim)
         state.set_mjdata(self.sim.data, old_mujoco=True)
         if sim_data is not None:
             # set more than just qacc, qvel, qpos
             self.set_arbitrary_state(sim_data)
+        if radius is not None:
+            self.set_radius(radius)
         if forward:
             self.sim.model.forward()  # put mjData in consistent state
 

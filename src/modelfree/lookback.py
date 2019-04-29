@@ -92,6 +92,13 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             main_debug.set_debug_file(self.debug_files[0])
 
     def _create_lb_tuples(self, env_name, use_debug, victim_index, victim_path, victim_type):
+        """Create lookback data structures which are used to compare our episode rollouts against
+        those of an environment where a lookback base policy acted instead.
+
+        params victim_index, victim_path, victim_type are the same as in policy_loader.load_policy
+        :param use_debug (bool): Use DummyVecEnv instead of SubprocVecEnv
+        :return: (list<LookbackTuple>) lb_tuples
+        """
         from modelfree.train import EmbedVictimWrapper
 
         def env_fn(i):
@@ -182,21 +189,27 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         return observations, rewards, self._dones, infos
 
     def reset(self):
-        """Process our observations and then synchronize lookbacks with our venv."""
+        # process our observations and then synchronize lookbacks with our venv.
         observations = self.venv.reset()
         self._process_own_obs(observations)
         self._reset_state_data(observations)
         return observations
 
     def _process_own_obs(self, observations):
-        """Record action, state and observations of our policy"""
+        """Record action, state and observations of our policy
+
+        :param observations ([float]) observations from self.venv
+        :return: None
+        """
         self._obs = self._get_truncated_obs(observations)
         self._action, self._state = self._policy.predict(self._obs, state=self._state,
                                                          mask=self._dones, deterministic=True)
 
     def _process_lb_data(self, lb_data):
         """Record action and state of lookback policy
-        :param lb_data: list of (observations, rewards, dones, infos), one for each lb_venv
+
+        :param lb_data: list of (observations, rewards, dones, infos), one for each lb_tuple
+        :return: None
         """
         for idx, (lb_obs, lb_reward, _, lb_info) in enumerate(lb_data):
             # prepare observation and state and then get next timestep's action and state
@@ -211,33 +224,33 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 self.lb_tuples[idx].data['info'][env_idx].update(lb_info[env_idx])
 
     def _reset_state_data(self, initial_observations, env_idx=None):
-        """Reset lb_venv states when self.venv resets. Also reset data for baseline policy."""
+        """Reset lb_venv states when self.venv resets. Also reset data for baseline policy.
+
+        :param initial_observations ([float]) observations from freshly reset self.venv
+        :return: None
+        """
         truncated_obs = self._get_truncated_obs(initial_observations)
         action, state = self._policy.predict(truncated_obs, state=None, mask=None, deterministic=True)
-        initial_env_states = self.venv.unwrapped.env_method('get_state', indices=env_idx)
-        initial_env_full_state = self.venv.unwrapped.env_method('get_full_state', indices=env_idx)
-        initial_env_radii = self.venv.unwrapped.env_method('get_radius', indices=env_idx)
+
+        initial_env_data = self.venv.unwrapped.env_method('get_state', indices=env_idx, all_data=True)
+        states, sim_data, radii = list(zip(*initial_env_data))
+
         for lb_tuple in self.lb_tuples:
+            lb_tuple.venv.set_curry_obs(self.get_curry_obs(), env_idx)
             if env_idx is None:
                 # this gets called only in self.reset()
                 lb_tuple.venv.reset()
                 lb_tuple.data['action'] = action
                 lb_tuple.data['state'] = state
-                lb_tuple.data['info'] = defaultdict(dict)
             else:
                 # this gets called when an episode ends in one of the environments
                 lb_tuple.data['action'][env_idx] = action[env_idx]
-                if state is None:
-                    lb_tuple.data['state'] = None
-                else:
-                    lb_tuple.data['state'][env_idx, :, :] = state[env_idx, :, :]
-            lb_tuple.venv.set_curry_obs(self.get_curry_obs(), env_idx)
+                lb_tuple.data['state'] = None if state is None else state[env_idx]
+
             envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
             for i, env_to_set in enumerate(envs_iter):
-                lb_tuple.venv.unwrapped.env_method('set_radius', initial_env_radii[i], indices=env_to_set)
-                lb_tuple.venv.unwrapped.env_method('set_state', initial_env_states[i],
-                                                  indices=env_to_set, sim_data=initial_env_full_state[i],
-                                                  forward=False)
+                lb_tuple.venv.unwrapped.env_method('set_state', states[i], indices=env_to_set,
+                                                   sim_data=sim_data[i], radius=radii[i], forward=False)
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""

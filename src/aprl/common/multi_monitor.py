@@ -52,18 +52,18 @@ class MultiMonitor(Monitor):
         self.total_steps += 1
         return observation, reward, done, info
 
-    def get_state(self):
+    def get_state(self, all_data=False):
         """Pass through to a ResettableEnv"""
         assert isinstance(self.env, ResettableEnv)
-        return self.env.get_state()
+        return self.env.get_state(all_data=all_data)
 
     def get_full_state(self):
         return self.env.get_full_state()
 
-    def set_state(self, x, sim_data=None, forward=True):
+    def set_state(self, x, sim_data=None, radius=None, forward=True):
         """Pass through to a ResettableEnv"""
         assert isinstance(self.env, ResettableEnv)
-        return self.env.set_state(x, sim_data=sim_data, forward=forward)
+        return self.env.set_state(x, sim_data=sim_data, radius=radius, forward=forward)
 
     def get_radius(self):
         """Pass through to a ResettableEnv"""
