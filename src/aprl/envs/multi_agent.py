@@ -254,6 +254,7 @@ class _ActionTranspose(VecMultiWrapper):
         return obs, rews, done, info
 
     def get_base_venv(self):
+        """Helper method to locate self in a stack of nested VecEnvWrappers"""
         return self
 
 
@@ -434,15 +435,26 @@ class CurryVecEnv(VecMultiWrapper):
         return self._policy
 
     def get_curry_venv(self):
+        """Helper method to locate self in a stack of nested VecEnvWrappers"""
         return self
 
     def set_curry_obs(self, obs, env_idx=None):
+        """Setter for observation of embedded agent
+
+        :param obs ([float]) a vectorized observation from either one or all environments
+        :param env_idx (int,None) indices of observations to set. None means all.
+        """
         if env_idx is None:
             self._obs = obs
         else:
-            self._obs[env_idx] = obs[env_idx]
+            self._obs[env_idx] = obs
 
     def get_curry_obs(self, env_idx=None):
+        """Getter for observation of embedded agent
+
+        :param env_idx (int,None) indices of observations to get. None means all.
+        :return: ([float]) observations from specified environments
+        """
         if env_idx is None:
             return self._obs
         else:

@@ -57,6 +57,7 @@ class DebugVenv(VecEnvWrapper):
         self.debug_file = f
 
     def get_debug_venv(self):
+        """Helper method to locate self in a stack of nested VecEnvWrappers"""
         return self
 
 
@@ -75,8 +76,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.transparent_params = transparent_params
         self.victim_index = victim_index
 
-        self._policy = load_policy(lookback_params['type'], lookback_params['path'], self.get_base_venv(),
-                                   env_name, 1 - victim_index, transparent_params=None)
+        self._policy = load_policy(lookback_params['type'], lookback_params['path'],
+                                   self.get_base_venv(), env_name,
+                                   1 - victim_index, transparent_params=None)
         self._action = None
         self._obs = None
         self._state = None
@@ -88,8 +90,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.use_debug = use_debug
         if self.use_debug:
             self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]
-            main_debug = self.get_debug_venv()
-            main_debug.set_debug_file(self.debug_files[0])
+            self.get_debug_venv().set_debug_file(self.debug_files[0])
 
     def _create_lb_tuples(self, env_name, use_debug, victim_index, victim_path, victim_type):
         """Create lookback data structures which are used to compare our episode rollouts against
@@ -132,7 +133,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
         # synchronize the observation of the victim in the new lookback venv.
         # then, synchronize the mujoco state (qpos, qvel, qacc) for each individual env.
-        new_lb_tuple.venv.set_curry_obs(self.get_curry_obs())
+        self._sync_curry_venvs(new_lb_tuple, env_idx=None)
         current_states = self.venv.unwrapped.env_method('get_state')
         for env_idx in range(self.num_envs):
             new_lb_tuple.venv.unwrapped.env_method('set_state', current_states[env_idx],
@@ -217,6 +218,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             input_state = self.lb_tuples[idx].data['state']
             lb_action, lb_state = self._policy.predict(lb_obs, state=input_state,
                                                        mask=self._dones, deterministic=True)
+
             # update lb_tuple[idx].data since this data will be used elsewhere
             self.lb_tuples[idx].data['action'] = lb_action
             self.lb_tuples[idx].data['state'] = lb_state
@@ -229,20 +231,22 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         :param initial_observations ([float]) observations from freshly reset self.venv
         :return: None
         """
-        truncated_obs = self._get_truncated_obs(initial_observations)
-        action, state = self._policy.predict(truncated_obs, state=None, mask=None, deterministic=True)
+        # get action and state to synchronize caches for lookback agents
+        obs = self._get_truncated_obs(initial_observations)
+        action, state = self._policy.predict(obs, state=None, mask=None, deterministic=True)
 
-        initial_env_data = self.venv.unwrapped.env_method('get_state', indices=env_idx, all_data=True)
-        mj_states, sim_data, radii = list(zip(*initial_env_data))
+        # data from our own environment which needs to be set elsewhere
+        env_data = self.venv.unwrapped.env_method('get_state', indices=env_idx, all_data=True)
+        mj_states, sim_data, radii = list(zip(*env_data))
 
-        envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
         for lb_tuple in self.lb_tuples:
-            lb_tuple.venv.set_curry_obs(self.get_curry_obs(), env_idx)
+            # synchronize lb_tuple data caches
             if env_idx is None:
-                # this gets called only in self.reset()
+                # this branch is only called in self.reset()
                 lb_tuple.venv.reset()
                 lb_tuple.data['action'] = action
                 lb_tuple.data['state'] = state
+                lb_tuple.data['info'] = defaultdict(dict)
             else:
                 # this gets called when an episode ends in one of the environments
                 lb_tuple.data['action'][env_idx] = action[env_idx]
@@ -251,9 +255,18 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 else:
                     lb_tuple.data['state'][env_idx, :, :] = state[env_idx, :, :]
 
+            # synchronize environment states
+            self._sync_curry_venvs(lb_tuple, env_idx)
+            envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
             for i, env_to_set in enumerate(envs_iter):
-                lb_tuple.venv.unwrapped.env_method('set_state', mj_states[i], indices=env_to_set,
-                                                   sim_data=sim_data[i], radius=radii[i], forward=False)
+                env = lb_tuple.venv.unwrapped
+                env.env_method('set_state', mj_states[i], indices=env_to_set,
+                               sim_data=sim_data[i], radius=radii[i], forward=False)
+
+    def _sync_curry_venvs(self, lb_tuple, env_idx):
+        """Synchronize observation of victim in lookback CurryVecEnv to that of our own victim."""
+        our_curry_obs = self.get_curry_obs(env_idx=env_idx)
+        lb_tuple.venv.set_curry_obs(our_curry_obs, env_idx=env_idx)
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""
