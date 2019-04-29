@@ -34,11 +34,11 @@ def main_config():
     subsample_rate = 0.15
     perplexity = 250
     video_path = "/Users/cody/Data/adversarial_policies/video_frames"
-    chart_type = "altair"
+    chart_type = "seaborn"
     opacity = 0.10
     dot_size = 2
     palette_name = None
-    hue_order = ["zoo", "random", "adversary"]
+    hue_order = ["adversary","zoo", "random"]
     _ = locals()
     del _
 
@@ -84,17 +84,22 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
                 x='ax_1', y='ax_2', color='opponent_id')
             chart.save(fname)
         elif chart_type == 'seaborn':
-            if palette_name is None:
+            if palette_name is "bright" or palette_name is None:
                 palette_name = {
                     "zoo": "#66c2a5",
                     "random": "#fdb462",
                     "adversary": '#e7298a'
                 }
-            plt.figure(figsize=(12, 8))
+            fig, ax = plt.subplots(figsize=(12, 8))
             sns.scatterplot(data=data, x="ax_1", y="ax_2", hue="opponent_id",
-                            alpha=opacity, s=dot_size, edgecolors='none',
-                            palette=palette_name, hue_order=hue_order)
-            plt.savefig(fname)
+                            alpha=opacity, s=dot_size, edgecolors='none', linewidth=0,
+                            palette=palette_name, hue_order=hue_order, ax=ax)
+            handles, labels = ax.get_legend_handles_labels()
+            ax.xaxis.set_visible(False)
+            ax.yaxis.set_visible(False)
+            ax.legend(handles=handles[1:], labels=labels[1:], fontsize=22,
+                      loc=9, ncol=3, bbox_to_anchor=(0.5, -0.005))
+            plt.savefig(fname, dpi=400)
             plt.close()
         tsne_vis_ex.add_artifact(fname)
 
