@@ -3,7 +3,6 @@ import time
 import numpy as np
 from stable_baselines.bench import Monitor
 
-from aprl.agents.monte_carlo import ResettableEnv
 from aprl.utils import getattr_unwrapped
 
 

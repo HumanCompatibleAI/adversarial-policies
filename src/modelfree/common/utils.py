@@ -13,7 +13,7 @@ from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
-from aprl.agents.monte_carlo import OldMujocoResettableWrapper
+from aprl.common.mujoco import OldMujocoResettableWrapper
 from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
 
