@@ -74,7 +74,7 @@ class TransparentCurryVecEnv(CurryVecEnv):
     def __init__(self, venv, policy, agent_idx=0):
         """
         :param venv (VecMultiEnv): the environments
-        :param policy (BaseRLModel): model which wraps a BasePolicy object
+        :param policy (BaseRLModel): model which wraps a TransparentPolicy object
         :param agent_idx (int): the index of the agent that should be fixed.
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
                  with all actions at index agent_idx set to those returned by agent."""
