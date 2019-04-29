@@ -3,6 +3,7 @@
 Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
 import os
+import shutil
 
 import numpy as np
 import pytest
@@ -72,9 +73,33 @@ def test_score_agent(config):
             os.rmdir(config['record_traj_params']['save_dir'])
 
 
+SCORE_AGENT_VIDEO_CONFIGS = {
+    'none_dir': {'videos': True, 'video_dir': None, 'episodes': 1, 'render': False},
+    'specified_dir': {'videos': True, 'video_dir': 'specific_video_dir',
+                      'episodes': 1, 'render': False}
+}
+
+
+def test_score_agent_video():
+    # Confirm that experiment runs properly saving videos to a temp dir
+    none_dir_run = score_ex.run(config_updates=SCORE_AGENT_VIDEO_CONFIGS['none_dir'])
+    assert none_dir_run.status == 'COMPLETED'
+
+    try:
+        # Confirm that the first time you try to save videos to a specified dir, it works properly
+        specified_dir_run = score_ex.run(config_updates=SCORE_AGENT_VIDEO_CONFIGS['specified_dir'])
+        assert specified_dir_run.status == 'COMPLETED'
+
+        # Confirm that the second time you try to save videos to the same specified dir, it fails
+        with pytest.raises(AssertionError):
+            _ = score_ex.run(config_updates=SCORE_AGENT_VIDEO_CONFIGS['specified_dir'])
+    finally:
+        shutil.rmtree(SCORE_AGENT_VIDEO_CONFIGS['specified_dir']['video_dir'])
+
+
 TRAIN_CONFIGS = [
     {'num_env': 1},
-    {'env_name': 'multicomp/KickAndDefend-v0'},
+    {'env_name': 'multicomp/YouShallNotPassHumans-v0'},
     {'normalize': False},
     {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants', 'ppo2')},
     {
