@@ -233,7 +233,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         action, state = self._policy.predict(truncated_obs, state=None, mask=None, deterministic=True)
 
         initial_env_data = self.venv.unwrapped.env_method('get_state', indices=env_idx, all_data=True)
-        states, sim_data, radii = list(zip(*initial_env_data))
+        mj_states, sim_data, radii = list(zip(*initial_env_data))
 
         for lb_tuple in self.lb_tuples:
             lb_tuple.venv.set_curry_obs(self.get_curry_obs(), env_idx)
@@ -245,11 +245,14 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             else:
                 # this gets called when an episode ends in one of the environments
                 lb_tuple.data['action'][env_idx] = action[env_idx]
-                lb_tuple.data['state'] = None if state is None else state[env_idx]
+                if state is None:
+                    lb_tuple.data['state'] = None
+                else:
+                    lb_tuple.data['state'][env_idx, :, :] = state[env_idx, :, :]
 
             envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
             for i, env_to_set in enumerate(envs_iter):
-                lb_tuple.venv.unwrapped.env_method('set_state', states[i], indices=env_to_set,
+                lb_tuple.venv.unwrapped.env_method('set_state', mj_states[i], indices=env_to_set,
                                                    sim_data=sim_data[i], radius=radii[i], forward=False)
 
     def _get_truncated_obs(self, obs):
