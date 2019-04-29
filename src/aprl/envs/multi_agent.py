@@ -335,7 +335,7 @@ def _tuple_space_augment(tuple_space, augment_idx, augment_space):
 class MergeAgentVecEnv(VecMultiWrapper):
     """Allows merging of two agents into a pseudo-agent by merging their actions.
        The observation space is augmented with the actions of the fixed policy."""
-    def __init__(self, venv, policy, replace_action_space, merge_agent_idx, deterministic=True):
+    def __init__(self, venv, policy, replace_action_space, merge_agent_idx, deterministic=False):
         """Expands one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the fixed policy to use at merge_agent_idx
@@ -392,7 +392,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
 class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
-    def __init__(self, venv, policy, agent_idx=0, deterministic=True):
+    def __init__(self, venv, policy, agent_idx=0, deterministic=False):
         """Fixes one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the policy to use for the agent at agent_idx.

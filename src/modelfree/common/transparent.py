@@ -71,7 +71,7 @@ class TransparentMlpPolicy(TransparentFeedForwardPolicy):
 
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that provides transparency data about its policy by updating infos dicts."""
-    def __init__(self, venv, policy, agent_idx=0, deterministic=True):
+    def __init__(self, venv, policy, agent_idx=0, deterministic=False):
         """
         :param venv (VecMultiEnv): the environments
         :param policy (BaseRLModel): model which wraps a BasePolicy object

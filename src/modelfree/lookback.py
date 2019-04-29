@@ -117,7 +117,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
             multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                             victim_index=victim_index,
-                                            transparent=True)
+                                            transparent=True, deterministic=True)
 
             single_venv = FlattenSingletonVecEnv(multi_venv)
             data_dict = {'state': None, 'action': None, 'reward': np.zeros(self.num_envs),
@@ -235,6 +235,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         initial_env_data = self.venv.unwrapped.env_method('get_state', indices=env_idx, all_data=True)
         mj_states, sim_data, radii = list(zip(*initial_env_data))
 
+        envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
         for lb_tuple in self.lb_tuples:
             lb_tuple.venv.set_curry_obs(self.get_curry_obs(), env_idx)
             if env_idx is None:
@@ -250,7 +251,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 else:
                     lb_tuple.data['state'][env_idx, :, :] = state[env_idx, :, :]
 
-            envs_iter = range(self.num_envs) if env_idx is None else (env_idx,)
             for i, env_to_set in enumerate(envs_iter):
                 lb_tuple.venv.unwrapped.env_method('set_state', mj_states[i], indices=env_to_set,
                                                    sim_data=sim_data[i], radius=radii[i], forward=False)

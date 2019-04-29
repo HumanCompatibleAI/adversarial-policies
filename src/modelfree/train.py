@@ -34,12 +34,11 @@ pylog = logging.getLogger('modelfree.train')
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index, transparent):
+    def __init__(self, multi_env, victim, victim_index, transparent, deterministic):
         self.victim = victim
-        if transparent:
-            curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        else:
-            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        cls = TransparentCurryVecEnv if transparent else CurryVecEnv
+        curried_env = cls(multi_env, self.victim, agent_idx=victim_index,
+                          deterministic=deterministic)
         super().__init__(curried_env)
 
     def get_policy(self):
@@ -342,7 +341,8 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 
 
 @train_ex.capture
-def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type):
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type,
+                        deterministic):
     adv_noise_agent_val = adv_noise_params['noise_val']
     base_policy_path = adv_noise_params.get('base_path', victim_path)
     base_policy_type = adv_noise_params.get('base_type', victim_type)
@@ -354,18 +354,20 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
                                  high=adv_noise_agent_val * base_action_space.high)
     multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
                                   replace_action_space=adv_noise_action_space,
-                                  merge_agent_idx=our_idx)
+                                  merge_agent_idx=our_idx, deterministic=deterministic)
     return multi_venv
 
 
 @train_ex.capture
 def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
                        victim_path, victim_index, victim_noise, victim_noise_params,
-                       adv_noise_params, transparent_params):
+                       adv_noise_params, transparent_params, lookback_params):
     if victim_type != 'none':
+        deterministic = lookback_params is not None
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params is not None:
-            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
+            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
+                                             deterministic=deterministic)
 
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
@@ -380,8 +382,8 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
         # Curry the victim
         transparent = transparent_params is not None
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                        victim_index=victim_index,
-                                        transparent=transparent)
+                                        victim_index=victim_index, transparent=transparent,
+                                        deterministic=deterministic)
 
     return multi_venv
 
