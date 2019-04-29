@@ -20,7 +20,7 @@ class DebugVenv(VecEnvWrapper):
     """
     def __init__(self, venv, dump_mujoco_state=False):
         super().__init__(venv)
-        self.num_agents = 2
+        self.num_agents = self.venv.num_agents
         self.dump_mujoco_state = dump_mujoco_state
         self.debug_file = None
         self.debug_dict = {}
