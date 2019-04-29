@@ -10,6 +10,7 @@ from sacred.observers import FileStorageObserver
 import seaborn as sns
 
 from modelfree.configs.multi.train import VICTIM_INDEX
+from modelfree.envs.gym_compete import is_symmetric
 from modelfree.visualize import tb, util
 from modelfree.visualize.styles import STYLES
 
@@ -17,13 +18,6 @@ logger = logging.getLogger('modelfree.visualize.training')
 visualize_training_ex = Experiment('visualize_training')
 
 # Helper methods
-
-
-@visualize_training_ex.capture
-def load_baselines(score_dir):
-    fixed = util.load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
-    zoo = util.load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
-    return fixed, zoo
 
 
 def save_figs(fig_dir, figs):
@@ -89,7 +83,7 @@ def lineplot_multi_fig(outer_key, data, xcol, ycols, ci, in_split_keys,
         }
         fig, ax = plt.subplots(gridspec_kw=gridspec)
 
-        sns.lineplot(x=xcol, y=ycol, data=longform, ci=ci, label="Adv", **kwargs)
+        sns.lineplot(x=xcol, y=ycol, data=longform, ci=ci, linewidth=1, label="Adv", **kwargs)
         for plot_fn in plot_fns:
             plot_fn(locals(), ax)
 
@@ -111,36 +105,42 @@ def lineplot_monolithic(outer_key, data, xcol, ycols, ci, in_split_keys,
     # Aggregate data and convert to 'tidy' or longform format Seaborn expects
     longform = _aggregate_data(data, xcol, ycols, in_split_keys, data_fns)
 
-    nrows = len(plot_cfg)
-    ncols = len(plot_cfg[0])
-    assert all(len(x) <= ncols for x in plot_cfg)
+    subplot_cfg = plot_cfg['subplots']
+    nrows = len(subplot_cfg)
+    ncols = len(subplot_cfg[0])
+    assert all(len(x) <= ncols for x in subplot_cfg)
 
     width, height = plt.rcParams.get('figure.figsize')
     bottom_margin_in = 0.4
     top_margin_in = 0.5
     gridspec_kw = {
-        'wspace': 0.1,
+        'wspace': 0.15,
         'left': 0.08,
-        'right': 0.99,
+        'right': 0.98,
         'top': 1 - (top_margin_in / height),
         'bottom': bottom_margin_in / height,
     }
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey=True, squeeze=False,
                             gridspec_kw=gridspec_kw, figsize=(width, height))
 
-    for i, cfg_row in enumerate(plot_cfg):
+    for i, cfg_row in enumerate(subplot_cfg):
         for j, cfg in enumerate(cfg_row):
             subset = longform
             for key, val in cfg['filter'].items():
                 assert key in in_split_keys
                 subset = subset[subset[key] == val]
-            print(cfg, pd.unique(subset['victim_path']))
 
             ax = axs[i][j]
-            # TODO: different color map, and make it synced up with baseline
-            sns.lineplot(x=xcol, y=ycol, data=subset, ci=ci,
-                         ax=ax, legend='full', **kwargs)
-            ax.get_legend().remove()  # plot legend to add handles, but we'll draw our own later
+            if plot_cfg.get('aggregated', True):
+                group = subset.groupby(subset[xcol])[ycol]
+                min, median, max = group.min(), group.median(), group.max()
+                ax.fill_between(x=median.index, y1=min, y2=max, alpha=0.4)
+                median.plot(label="Adv", ax=ax)
+            else:
+                sns.lineplot(x=xcol, y=ycol, data=subset, ci=ci, linewidth=1,
+                             ax=ax, legend="full", hue="seed", **kwargs)
+                # Plot legend in order to add handles, but remove as we'll draw our own later
+                ax.get_legend().remove()
             for plot_fn in plot_fns:
                 plot_fn(locals(), ax)
             if 'title' in cfg:
@@ -177,8 +177,6 @@ def _win_rate_data_convert(env_name, df):
     for col in COLUMNS.values():
         df[col] *= 100
 
-    df['seed'] = 'Seed ' + df['seed'].astype(str)  # want to treat as categorical not quantitative
-
     return df
 
 
@@ -211,14 +209,19 @@ def win_rate(tb_dir, lineplot_fn, out_split_keys, in_split_keys, data_fns, plot_
 
 
 def plot_baselines(env_name, victim_path, ycol, ax, baseline):
-    scores = baseline.loc[(env_name, f'Zoo{victim_path}'), :]
+    victim_name = f'Zoo{victim_path}' if is_symmetric(env_name) else f'ZooV{victim_path}'
+    scores = baseline.loc[(env_name, victim_name), :]
     num_episodes = util.num_episodes(scores)
     scores = scores / num_episodes * 100  # convert to percent
-    scores = scores.loc[[f'Zoo{victim_path}', 'Rand', 'Zero'], ycol]
+
+    opponent_name = f'Zoo{victim_path}' if is_symmetric(env_name) else f'ZooO{victim_path}'
+    scores = scores.rename(index={opponent_name: 'Zoo'})
+    scores = scores.loc[['Zoo', 'Rand', 'Zero'], ycol]
 
     num_lines = len(ax.get_legend_handles_labels()[0])
     for i, (opponent, score) in enumerate(scores.items()):
-        ax.axhline(y=score, label=opponent, color=f'C{i + num_lines}', linestyle='--')
+        ax.axhline(y=score, label=opponent, color=f'C{num_lines + i}',
+                   linewidth=1, linestyle='--')
 
 
 def plot_baselines_multi_fig(vars, ax, baseline):
@@ -253,21 +256,14 @@ def plot_baselines_monolithic(vars, ax, baseline):
     return plot_baselines(env_name, victim_path, ycol, ax, baseline)
 
 
-def remove_seed_legend(vars, ax):
-    for i, line in enumerate(ax.lines):
-        if line.get_label() == 'seed':
-            del ax.lines[i]
-            break
-
-
 def opponent_win_rate_per_victim_env(tb_dir, baseline):
     out_split_keys = []
     in_split_keys = ['env_name', 'victim_path', 'seed']
 
     plot_baselines_wrapped = functools.partial(plot_baselines_monolithic, baseline=baseline)
     return win_rate(tb_dir, lineplot_monolithic, out_split_keys, in_split_keys,
-                    data_fns=[], plot_fns=[remove_seed_legend, plot_baselines_wrapped],
-                    ycols=['Opponent Win'], hue='seed')
+                    data_fns=[], plot_fns=[plot_baselines_wrapped],
+                    ycols=['Opponent Win'])
 
 
 # Sacred config and commands
@@ -278,7 +274,8 @@ def default_config():
     command = win_rate_per_victim_env
     fig_dir = os.path.join('data', 'figs', 'training')
     plot_cfg = None
-    score_dir = os.path.join('data', 'score_agents')
+    transfer_score_path = os.path.join('data', 'score_agents',
+                                       '2019-04-29T14:11:08-07:00_adversary_transfer.json')
     tb_dir = None
     styles = ['paper', 'a4']
     xcol = 'step'
@@ -293,25 +290,27 @@ def default_config():
 def paper_config():
     command = opponent_win_rate_per_victim_env
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/training_single')
-    plot_cfg = [
-        [
-            {
-                'filter': {'env_name': 'multicomp/KickAndDefend-v0', 'victim_path': 1},
-                'title': 'Kick and Defend',
-            },
-            {
-                'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
-                'title': 'Sumo',
-            },
-            {
-                'filter': {'env_name': 'multicomp/YouShallNotPassHumans-v0', 'victim_path': 1},
-                'title': 'You Shall Not Pass',
-            },
+    plot_cfg = {
+        'subplots': [
+            [
+                {
+                    'filter': {'env_name': 'multicomp/KickAndDefend-v0', 'victim_path': 1},
+                    'title': 'Kick and Defend',
+                },
+                {
+                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
+                    'title': 'Sumo',
+                },
+                {
+                    'filter': {'env_name': 'multicomp/YouShallNotPassHumans-v0', 'victim_path': 1},
+                    'title': 'You Shall Not Pass',
+                },
+            ],
         ]
-    ]
+    }
     ci = None
     styles = ['paper', 'monolithic']
-    tb_dir = os.path.join('data', 'aws', 'multi_train', 'best_guess', '20190330_025205_filtered')
+    tb_dir = os.path.join('data', 'aws', 'multi_train', 'paper', '20190429_011349')
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -327,30 +326,32 @@ def _gen_cell(env_name, victim_path):
 def supplementary_config():
     command = opponent_win_rate_per_victim_env
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/training')
-    plot_cfg = [
-        [
-            _gen_cell('multicomp/KickAndDefend-v0', 1),
-            _gen_cell('multicomp/KickAndDefend-v0', 2),
-            _gen_cell('multicomp/KickAndDefend-v0', 3),
-        ],
-        [
-            _gen_cell('multicomp/SumoHumansAutoContact-v0', 1),
-            _gen_cell('multicomp/SumoHumansAutoContact-v0', 2),
-            _gen_cell('multicomp/SumoHumansAutoContact-v0', 3),
-        ],
-        # [
-        #     _gen_cell('multicomp/SumoAntsAutoContact-v0', 1),
-        #     _gen_cell('multicomp/SumoAntsAutoContact-v0', 2),
-        #     _gen_cell('multicomp/SumoAntsAutoContact-v0', 3),
-        # ],
-        [
-            # _gen_cell('multicomp/SumoAntsAutoContact-v0', 4),
-            _gen_cell('multicomp/YouShallNotPassHumans-v0', 1),
-        ],
-    ]
+    plot_cfg = {
+        'subplots': [
+            [
+                _gen_cell('multicomp/KickAndDefend-v0', 1),
+                _gen_cell('multicomp/KickAndDefend-v0', 2),
+                _gen_cell('multicomp/KickAndDefend-v0', 3),
+            ],
+            [
+                _gen_cell('multicomp/SumoHumansAutoContact-v0', 1),
+                _gen_cell('multicomp/SumoHumansAutoContact-v0', 2),
+                _gen_cell('multicomp/SumoHumansAutoContact-v0', 3),
+            ],
+            [
+                _gen_cell('multicomp/SumoAntsAutoContact-v0', 1),
+                _gen_cell('multicomp/SumoAntsAutoContact-v0', 2),
+                _gen_cell('multicomp/SumoAntsAutoContact-v0', 3),
+            ],
+            [
+                _gen_cell('multicomp/SumoAntsAutoContact-v0', 4),
+                _gen_cell('multicomp/YouShallNotPassHumans-v0', 1),
+            ],
+        ]
+    }
     styles = ['paper']
     ci = None
-    tb_dir = os.path.join('data', 'aws', 'multi_train', 'best_guess', '20190330_025205_filtered')
+    tb_dir = os.path.join('data', 'aws', 'multi_train', 'paper', '20190429_011349')
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -390,8 +391,8 @@ def debug_paper_config():
 
 
 @visualize_training_ex.main
-def visualize_score(command, styles, tb_dir, score_dir, fig_dir):
-    baseline = util.load_datasets(score_dir)
+def visualize_score(command, styles, tb_dir, transfer_score_path, fig_dir):
+    baseline = util.load_datasets(transfer_score_path)
 
     sns.set_style("whitegrid")
     for style in styles:

@@ -30,6 +30,15 @@ NUM_ZOO_POLICIES.update({
     'KickAndDefend-v0': 3,
 })
 
+SYMMETRIC_ENV = OrderedDict([
+    ('KickAndDefend-v0', False),
+    ('RunToGoalAnts-v0', True),
+    ('RunToGoalHumans-v0', True),
+    ('SumoAnts-v0', True),
+    ('SumoHumans-v0', True),
+    ('YouShallNotPassHumans-v0', False),
+])
+
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
     """This adapts gym_compete.MultiAgentEnv to our eponymous MultiAgentEnv.
@@ -137,6 +146,10 @@ def num_zoo_policies(env_name):
     return NUM_ZOO_POLICIES[env_name_to_canonical(env_name)]
 
 
+def is_symmetric(env_name):
+    return SYMMETRIC_ENV[env_name_to_canonical(env_name)]
+
+
 def get_policy_type_for_zoo_agent(env_name, transparent_params):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
@@ -162,14 +175,16 @@ def load_zoo_agent_params(tag, env_name, index):
     # Load parameters
     canonical_env = env_name_to_canonical(env_name)
     dir = os.path.join('agent_zoo', canonical_env)
-    asymmetric_fname = f'agent{index + 1}_parameters-v{tag}.pkl'
-    symmetric_fname = f'agent_parameters-v{tag}.pkl'
-    try:  # asymmetric version, parameters tagged with agent id
-        path = os.path.join(dir, asymmetric_fname)
-        params_pkl = pkgutil.get_data('gym_compete', path)
-    except OSError:  # symmetric version, parameters not associated with a specific agent
+
+    if is_symmetric(env_name):  # asymmetric version, parameters tagged with agent id
+        symmetric_fname = f'agent_parameters-v{tag}.pkl'
         path = os.path.join(dir, symmetric_fname)
         params_pkl = pkgutil.get_data('gym_compete', path)
+    else:  # symmetric version, parameters not associated with a specific agent
+        asymmetric_fname = f'agent{index + 1}_parameters-v{tag}.pkl'
+        path = os.path.join(dir, asymmetric_fname)
+        params_pkl = pkgutil.get_data('gym_compete', path)
+
     pylog.info(f"Loaded zoo parameters from '{path}'")
 
     return pickle.loads(params_pkl)

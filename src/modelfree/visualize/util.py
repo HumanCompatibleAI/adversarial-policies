@@ -8,6 +8,7 @@ import pandas as pd
 import seaborn as sns
 
 from modelfree.configs.multi.common import VICTIM_INDEX
+from modelfree.envs import gym_compete
 from modelfree.visualize.styles import STYLES
 
 logger = logging.getLogger('modelfree.visualize.util')
@@ -93,6 +94,15 @@ def prefix_level(df, prefix, level):
     return df
 
 
+def agent_index_suffix(env_name, victim_name, opponent_name):
+    if not gym_compete.is_symmetric(env_name):
+        if victim_name.startswith('Zoo'):
+            victim_name = f'ZooV{victim_name[-1]}'
+        if opponent_name.startswith('Zoo'):
+            opponent_name = f'ZooO{opponent_name[-1]}'
+    return env_name, victim_name, opponent_name
+
+
 def combine_all(fixed, zoo, transfer):
     fixed = fixed.copy()
     zoo = zoo.copy()
@@ -106,13 +116,18 @@ def combine_all(fixed, zoo, transfer):
     combined = prefix_level(combined, 'Zoo', 1)
     combined = combined.sort_index(level=0, sort_remaining=False)
     combined.index = combined.index.set_names('Opponent', level=2)
+
+    new_index = [agent_index_suffix(*entry) for entry in combined.index]
+    combined.index = pd.MultiIndex.from_tuples(new_index)
+
     return combined
 
 
-def load_datasets(score_dir):
+def load_datasets(transfer_path):
+    score_dir = os.path.dirname(transfer_path)
     fixed = load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
     zoo = load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
-    transfer = load_transfer_baseline(os.path.join(score_dir, 'adversary_transfer.json'))
+    transfer = load_transfer_baseline(transfer_path)
     return combine_all(fixed, zoo, transfer)
 
 # Visualization
@@ -155,53 +170,58 @@ def num_episodes(single_env):
     return num_episodes[0]
 
 
+def rotate_labels(ax):
+    for label in ax.get_xticklabels():
+        label.set_rotation(90)
+    for label in ax.get_yticklabels():
+        label.set_rotation(0)
+
+
 def heatmap_full(single_env, cols=None):
     # Figure layout calculations
     if cols is None:
         cols = single_env.columns
     ncols = len(cols) + 1
 
-    num_xticks = len(set(single_env.index.get_level_values(1)))
-    rotate_xticks = num_xticks > 4
     gridspec_kw = {
         'top': 0.8,
-        'bottom': 0.35 if rotate_xticks else 0.25,
+        'bottom': 0.35,
         'wspace': 0.05,
         'width_ratios': [1.0] * len(cols) + [1/15],
     }
     width, height = plt.rcParams.get('figure.figsize')
     height = min(height, width / len(cols))
 
-    # Consistent color map scale
-    vmax = num_episodes(single_env)
-
     # Actually plot the heatmap
+    single_env *= 100 / num_episodes(single_env)  # convert to percentages
     fig, axs = plt.subplots(ncols=ncols, gridspec_kw=gridspec_kw, figsize=(width, height))
     cbar_ax = axs[-1]
+    plt.yticks(rotation=0)
     for i, col in enumerate(cols):
         ax = axs[i]
         yaxis = i == 0
         cbar = i == len(cols) - 1
-        sns.heatmap(single_env[col].unstack(), vmin=0, vmax=vmax,
-                    annot=True, annot_kws={'fontsize': 6}, fmt='d',
+        sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
+                    annot=True, annot_kws={'fontsize': 6}, fmt='.0f',
                     ax=ax, cbar=cbar, cbar_ax=cbar_ax, yticklabels=yaxis)
         ax.get_yaxis().set_visible(yaxis)
         if len(cols) > 1:
             ax.set_title(col)
-
-        if rotate_xticks:
-            plt.xticks(rotation=90)
+        rotate_labels(ax)
 
     return fig
 
 
 def heatmap_one_col(single_env, col, cbar, ylabel):
     gridspec_kw = {
-        'bottom': 0.35,
-        'left': 0.23 if ylabel else 0.13,
+        'bottom': 0.4,
+        'left': 0.31 if ylabel else 0.21,
+        'right': 0.98,
+        'top': 0.95,
     }
     if cbar:
         gridspec_kw.update({
+            'left': gridspec_kw['left'] + 0.05,
             'width_ratios': (1.0, 0.1),
             'wspace': 0.2,
             'right': 0.75,
@@ -217,7 +237,8 @@ def heatmap_one_col(single_env, col, cbar, ylabel):
                 ax=ax, cbar=cbar, cbar_ax=cbar_ax)
     if not ylabel:
         ax.set_ylabel('')
-    plt.xticks(rotation=90)
+
+    rotate_labels(ax)
 
     return fig
 
