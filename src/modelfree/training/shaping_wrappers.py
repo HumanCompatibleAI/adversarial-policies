@@ -65,7 +65,7 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         """Interface to access self.ep_logs which contains data about episodes"""
         if self.ep_logs['total_episodes'] == 0:
             return None
-        # keys: 'dense', 'sparse', 'length', 'total_episodes'
+        # keys: 'dense', 'sparse', 'length', 'total_episodes', 'last_callback_episode'
         return self.ep_logs
 
     def reset(self):

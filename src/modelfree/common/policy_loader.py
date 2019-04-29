@@ -26,21 +26,18 @@ class NormalizeModel(DummyModel):
         norm_obs = self.vec_normalize._normalize_observation(observation)
         return self.policy.predict(norm_obs, state, mask, deterministic)
 
+    def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
+        """Returns same values as predict, as well as a dictionary with transparent data."""
+        norm_obs = self.vec_normalize._normalize_observation(observation)
+        return self.policy.predict_transparent(norm_obs, state, mask, deterministic)
+
 
 def load_stable_baselines(cls):
-    def f(root_dir, env, env_name, index):
+    def f(root_dir, env, env_name, index, transparent_params):
         denv = FakeSingleSpacesVec(env, agent_id=index)
         model_path = os.path.join(root_dir, 'model.pkl')
         pylog.info(f"Loading Stable Baselines policy for '{cls}' from '{model_path}'")
-
-        # TODO: REMOVE THIS! Backwards compatibility hack.
-        # Renamed modelfree.scheduling->modelfree.training.scheduling.
-        # But old pickled policies still expect modelfree.scheduling to exist.
-        import modelfree.training.scheduling  # noqa: F401
-        sys.modules['modelfree.scheduling'] = sys.modules['modelfree.training.scheduling']
-        model = cls.load(model_path, env=denv)
-        del sys.modules['modelfree.scheduling']
-
+        model = load_backward_compatible_model(cls, model_path, denv)
         try:
             vec_normalize = VecNormalize(denv, training=False)
             vec_normalize.load_running_average(root_dir)
@@ -55,7 +52,7 @@ def load_stable_baselines(cls):
     return f
 
 
-def load_old_ppo2(root_dir, env, env_name, index):
+def load_old_ppo2(root_dir, env, env_name, index, transparent_params):
     try:
         from baselines.ppo2 import ppo2 as ppo2_old
     except ImportError as e:
@@ -101,13 +98,13 @@ def load_old_ppo2(root_dir, env, env_name, index):
     return model
 
 
-def load_zero(path, env, env_name, index):
+def load_zero(path, env, env_name, index, transparent_params):
     denv = FakeSingleSpacesVec(env, agent_id=index)
     policy = ZeroPolicy(denv)
     return PolicyToModel(policy)
 
 
-def load_random(path, env, env_name, index):
+def load_random(path, env, env_name, index, transparent_params):
     denv = FakeSingleSpacesVec(env, agent_id=index)
     policy = RandomPolicy(denv)
     return PolicyToModel(policy)
@@ -124,8 +121,22 @@ AGENT_LOADERS = {
 }
 
 
-def load_policy(policy_type, policy_path, env, env_name, index):
+def load_policy(policy_type, policy_path, env, env_name, index, transparent_params=None):
     agent_loader = AGENT_LOADERS.get(policy_type)
     if agent_loader is None:
         raise ValueError(f"Unrecognized agent type '{policy_type}'")
-    return agent_loader(policy_path, env, env_name, index)
+    return agent_loader(policy_path, env, env_name, index, transparent_params)
+
+
+def load_backward_compatible_model(cls, model_path, denv=None, **kwargs):
+    """Backwards compatibility hack to load old pickled policies
+    which still expect modelfree.scheduling to exist.
+    """
+    import modelfree.training.scheduling  # noqa: F401
+    sys.modules['modelfree.scheduling'] = sys.modules['modelfree.training.scheduling']
+    if 'env' in kwargs:
+        denv = kwargs['env']
+        del kwargs['env']
+    model = cls.load(model_path, env=denv, **kwargs)
+    del sys.modules['modelfree.scheduling']
+    return model

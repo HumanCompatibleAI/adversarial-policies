@@ -20,7 +20,8 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.common.policy_loader import load_policy
+from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
+from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.training.logger import setup_logger
@@ -32,10 +33,12 @@ pylog = logging.getLogger('modelfree.train')
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index):
+    def __init__(self, multi_env, victim, victim_index, transparent):
         self.victim = victim
-        curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-
+        if transparent:
+            curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        else:
+            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
         super().__init__(curried_env)
 
     def reset(self):
@@ -110,7 +113,7 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
     if load_policy['path'] is not None:
         if load_policy['type'] == our_type:
             # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
-            model = cls.load(load_policy['path'], **kwargs)
+            model = load_backward_compatible_model(cls, load_policy['path'], **kwargs)
         elif load_policy['type'] == 'zoo':
             policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
             kwargs['policy_kwargs'] = policy_kwargs
@@ -246,13 +249,14 @@ def train_config():
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
     rl_args = dict()                # algorithm-specific arguments
-    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
 
     # RL Algorithm Policies/Demonstrations
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by policy_loader.py
     }
+    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+    transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
 
     # General
@@ -343,7 +347,7 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 @train_ex.capture
 def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
                        victim_path, victim_index, victim_noise, victim_noise_params,
-                       adv_noise_params):
+                       adv_noise_params, transparent_params):
     if victim_type != 'none':
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params is not None:
@@ -351,15 +355,18 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
 
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                             env_name=env_name, index=victim_index)
+                             env_name=env_name, index=victim_index,
+                             transparent_params=transparent_params)
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
                                           scheduler=scheduler)
             log_callbacks.append(lambda logger, locals, globals: victim.log_callback(logger))
 
         # Curry the victim
+        transparent = transparent_params is not None
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                        victim_index=victim_index)
+                                        victim_index=victim_index,
+                                        transparent=transparent)
 
     return multi_venv
 

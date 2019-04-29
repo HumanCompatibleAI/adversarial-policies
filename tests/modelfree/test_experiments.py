@@ -135,6 +135,15 @@ TRAIN_CONFIGS = [
         'num_env': 1,
         'expert_dataset_path': os.path.join(BASE_DIR, 'SumoAnts_traj/agent_0.npz'),
     },
+    {
+        # test TransparentLSTMPolicy
+        'transparent_params': ['ff_policy', 'hid'],
+    },
+    {
+        # test TransparentMLPPolicyValue
+        'env_name': 'multicomp/YouShallNotPassHumans-v0',
+        'transparent_params': ['ff_policy'],
+    }
 
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
