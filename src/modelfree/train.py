@@ -258,7 +258,11 @@ def train_config():
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by policy_loader.py
     }
-    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+    adv_noise_params = {            # param dict for epsilon-ball noise policy added to zoo policy
+        'noise_val': None,          # size of noise ball. Set to nonnegative float to activate.
+        'base_path': victim_path,   # path of agent to be wrapped with noise ball
+        'base_type': victim_type,   # type of agent to be wrapped with noise ball
+    }
     transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
     lookback_params = {             # parameters for doing lookback white-box attacks
@@ -344,8 +348,8 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type,
                         deterministic):
     adv_noise_agent_val = adv_noise_params['noise_val']
-    base_policy_path = adv_noise_params.get('base_path', victim_path)
-    base_policy_type = adv_noise_params.get('base_type', victim_type)
+    base_policy_path = adv_noise_params['base_path']
+    base_policy_type = adv_noise_params['base_type']
     base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
                               env=multi_venv, env_name=env_name, index=our_idx)
 
@@ -365,7 +369,7 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
     if victim_type != 'none':
         deterministic = lookback_params is not None
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
-        if adv_noise_params is not None:
+        if adv_noise_params['noise_val'] is not None:
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
                                              deterministic=deterministic)
 

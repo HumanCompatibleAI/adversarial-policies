@@ -246,7 +246,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 lb_tuple.venv.reset()
                 lb_tuple.data['action'] = action
                 lb_tuple.data['state'] = state
-                lb_tuple.data['info'] = defaultdict(dict)
             else:
                 # this gets called when an episode ends in one of the environments
                 lb_tuple.data['action'][env_idx] = action[env_idx]

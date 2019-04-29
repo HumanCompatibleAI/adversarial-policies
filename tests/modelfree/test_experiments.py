@@ -143,7 +143,14 @@ TRAIN_CONFIGS = [
         # test TransparentMLPPolicyValue
         'env_name': 'multicomp/YouShallNotPassHumans-v0',
         'transparent_params': ['ff_policy'],
+    },
+    {
+        'env_name': 'multicomp/SumoHumans-v0',
+        'lookback_params': {'num_lb': 2, 'path': 1, 'type': 'zoo'},
+        'adv_noise_params': {'noise_val': 0.1},
+        'transparent_params': ['ff_policy'],
     }
+
 
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
