@@ -24,7 +24,7 @@ from modelfree.common.policy_loader import load_backward_compatible_model, load_
 from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
-from modelfree.lookback import LookbackRewardVecWrapper, DebugVenv
+from modelfree.lookback import DebugVenv, LookbackRewardVecWrapper
 from modelfree.training.logger import setup_logger
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
@@ -305,7 +305,8 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug, lookback_params):
+def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
+              debug, lookback_params):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
     resettable = lookback_params['num_lb'] > 0
 
@@ -441,7 +442,8 @@ NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 
 
 @train_ex.main
-def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats, lookback_params):
+def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
+          log_output_formats, lookback_params):
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []

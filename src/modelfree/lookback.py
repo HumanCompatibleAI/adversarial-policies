@@ -2,8 +2,8 @@ from collections import defaultdict, namedtuple
 import pickle
 
 import numpy as np
-from stable_baselines.common.vec_env import VecEnvWrapper
 from stable_baselines.common.base_class import ActorCriticRLModel
+from stable_baselines.common.vec_env import VecEnvWrapper
 
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
@@ -65,7 +65,7 @@ LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
 
 
 class LookbackRewardVecWrapper(VecEnvWrapper):
-    """Retains information about prior episodes and rollouts to be used in k-lookback whitebox attacks"""
+    """Retains information about episodes and rollouts for use in k-lookback whitebox attacks"""
     def __init__(self, venv, lookback_params, env_name, use_debug, victim_index,
                  victim_path, victim_type, transparent_params):
         super().__init__(venv)
@@ -86,7 +86,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self._dones = [False] * self.num_envs
         self.ep_lens = np.zeros(self.num_envs).astype(int)
         self.lb_tuples = self._create_lb_tuples(env_name, use_debug, victim_index,
-                                              victim_path, victim_type)
+                                                victim_path, victim_type)
         self.use_debug = use_debug
         if self.use_debug:
             self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lookback_num + 1)]

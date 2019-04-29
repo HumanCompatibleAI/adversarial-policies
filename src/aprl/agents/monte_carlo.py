@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from multiprocessing import Pipe, Process
 
 import gym
-import numpy as np
 from stable_baselines.common.vec_env import CloudpickleWrapper
 
 from aprl.common.mujoco import MujocoState
