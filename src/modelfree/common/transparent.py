@@ -1,6 +1,5 @@
 from abc import ABC
 
-import gym
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
@@ -72,21 +71,22 @@ class TransparentMlpPolicy(TransparentFeedForwardPolicy):
 
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that provides transparency data about its policy by updating infos dicts."""
-    def __init__(self, venv, policy, agent_idx=0):
+    def __init__(self, venv, policy, agent_idx=0, deterministic=True):
         """
         :param venv (VecMultiEnv): the environments
         :param policy (BaseRLModel): model which wraps a BasePolicy object
         :param agent_idx (int): the index of the agent that should be fixed.
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
                  with all actions at index agent_idx set to those returned by agent."""
-        super().__init__(venv, policy, agent_idx)
+        super().__init__(venv, policy, agent_idx, deterministic)
         if not hasattr(self._policy.policy, 'step_transparent'):
             raise TypeError("Error: policy must be transparent")
         self._action = None
 
     def step_async(self, actions):
         policy_out = self._policy.predict_transparent(self._obs, state=self._state,
-                                                      mask=self._dones)
+                                                      mask=self._dones,
+                                                      deterministic=self.deterministic)
         self._action, self._state, self._data = policy_out
         actions.insert(self._agent_to_fix, self._action)
         self.venv.step_async(actions)

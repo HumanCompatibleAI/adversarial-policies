@@ -335,7 +335,7 @@ def _tuple_space_augment(tuple_space, augment_idx, augment_space):
 class MergeAgentVecEnv(VecMultiWrapper):
     """Allows merging of two agents into a pseudo-agent by merging their actions.
        The observation space is augmented with the actions of the fixed policy."""
-    def __init__(self, venv, policy, replace_action_space, merge_agent_idx):
+    def __init__(self, venv, policy, replace_action_space, merge_agent_idx, deterministic=True):
         """Expands one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the fixed policy to use at merge_agent_idx
@@ -359,6 +359,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
         self._state = None
         self._obs = None
         self._dones = [False] * venv.num_envs
+        self.deterministic = deterministic
 
     def step_async(self, actions):
         new_action = actions[self._agent_to_merge] + self._action
@@ -379,8 +380,9 @@ class MergeAgentVecEnv(VecMultiWrapper):
         """Augments observations[self._agent_to_merge] with action that self._policy would take
         given its observations. Keeps track of these variables to use in next timestep."""
         self._obs = observations[self._agent_to_merge]
-        self._action, self._state = self._policy.predict(self._obs, state=self._state,
-                                                         mask=self._dones)
+        policy_out = self._policy.predict(self._obs, state=self._state, mask=self._dones,
+                                          deterministic=self.deterministic)
+        self._action, self._state = policy_out
         new_obs = np.concatenate([self._obs, self._action], axis=1)
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
 
@@ -390,7 +392,7 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
 class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
-    def __init__(self, venv, policy, agent_idx=0):
+    def __init__(self, venv, policy, agent_idx=0, deterministic=True):
         """Fixes one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the policy to use for the agent at agent_idx.
@@ -409,9 +411,11 @@ class CurryVecEnv(VecMultiWrapper):
         self._state = None
         self._obs = None
         self._dones = [False] * venv.num_envs
+        self.deterministic = deterministic
 
     def step_async(self, actions):
-        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones)
+        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones,
+                                                   deterministic=self.deterministic)
         actions.insert(self._agent_to_fix, action)
         self.venv.step_async(actions)
 

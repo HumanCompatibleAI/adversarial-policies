@@ -6,13 +6,18 @@ from stable_baselines.common.vec_env import VecEnvWrapper
 from stable_baselines.common.base_class import ActorCriticRLModel
 
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_env,
-                                   make_subproc_vec_multi_env, CurryVecEnv)
+                                   make_subproc_vec_multi_env)
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import make_env
 from modelfree.envs.gym_compete import GymCompeteToOurs
 
 
 class DebugVenv(VecEnvWrapper):
+    """VecEnvWrapper whose purpose is to record trajectory information for debugging purposes
+
+    :param venv (VecEnv) the environment to wrap
+    :param dump_mujoco_state (bool) whether to dump all MjData information (memory intensive)
+    """
     def __init__(self, venv, dump_mujoco_state=False):
         super().__init__(venv)
         self.num_agents = 2
@@ -48,13 +53,14 @@ class DebugVenv(VecEnvWrapper):
         return observations
 
     def set_debug_file(self, f):
+        """Setter for self.debug_file."""
         self.debug_file = f
 
     def get_debug_venv(self):
         return self
 
 
-LookbackTuple = namedtuple('LookbackTuple', ['curry', 'venv', 'data'])
+LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
 
 
 class LookbackRewardVecWrapper(VecEnvWrapper):
@@ -109,8 +115,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             single_venv = FlattenSingletonVecEnv(multi_venv)
             data_dict = {'state': None, 'action': None, 'reward': np.zeros(self.num_envs),
                          'info': defaultdict(dict)}
-            lb_tuples.append(LookbackTuple(curry=single_venv.get_curry_venv(), venv=single_venv,
-                                           data=data_dict))
+            lb_tuples.append(LookbackTuple(venv=single_venv, data=data_dict))
         return lb_tuples
 
     def step_async(self, actions):
@@ -129,7 +134,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         # the baseline policy's state is what it would have been if it had observed all of
         # the same things as our policy. self._new_lb_state comes from seeing only self._obs
         lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
-                                                             mask=self._dones, return_data=False)
+                                                             mask=self._dones, deterministic=True)
         new_lb_tuple.data['state'] = self._new_lb_state
 
         # synchronize debug file and then step_async for the new lookback venv.
@@ -187,7 +192,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         """Record action, state and observations of our policy"""
         self._obs = self._get_truncated_obs(observations)
         self._action, self._state = self._policy.predict(self._obs, state=self._state,
-                                                         mask=self._dones, return_data=False)
+                                                         mask=self._dones, deterministic=True)
 
     def _process_lb_data(self, lb_data):
         """Record action and state of lookback policy
@@ -198,7 +203,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             lb_obs = self._get_truncated_obs(lb_obs)
             input_state = self.lb_tuples[idx].data['state']
             lb_action, lb_state = self._policy.predict(lb_obs, state=input_state,
-                                                       mask=self._dones, return_data=False)
+                                                       mask=self._dones, deterministic=True)
             # update lb_tuple[idx].data since this data will be used elsewhere
             self.lb_tuples[idx].data['action'] = lb_action
             self.lb_tuples[idx].data['state'] = lb_state
@@ -208,7 +213,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
     def _reset_state_data(self, initial_observations, env_idx=None):
         """Reset lb_venv states when self.venv resets. Also reset data for baseline policy."""
         truncated_obs = self._get_truncated_obs(initial_observations)
-        action, state = self._policy.predict(truncated_obs, state=None, mask=None, return_data=False)
+        action, state = self._policy.predict(truncated_obs, state=None, mask=None, deterministic=True)
         initial_env_states = self.venv.unwrapped.env_method('get_state', indices=env_idx)
         initial_env_full_state = self.venv.unwrapped.env_method('get_full_state', indices=env_idx)
         initial_env_radii = self.venv.unwrapped.env_method('get_radius', indices=env_idx)

@@ -22,7 +22,7 @@ class NormalizeModel(DummyModel):
         super().__init__(policy, policy.sess)
         self.vec_normalize = vec_normalize
 
-    def predict(self, observation, state=None, mask=None, deterministic=True, return_data=False):
+    def predict(self, observation, state=None, mask=None, deterministic=True):
         norm_obs = self.vec_normalize._normalize_observation(observation)
         return self.policy.predict(norm_obs, state, mask, deterministic)
 
