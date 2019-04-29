@@ -8,6 +8,7 @@ import pandas as pd
 import seaborn as sns
 
 from modelfree.configs.multi.common import VICTIM_INDEX
+from modelfree.visualize.styles import STYLES
 
 logger = logging.getLogger('modelfree.visualize.util')
 
@@ -38,7 +39,7 @@ def load_scores(path, reindex_victim=False):
         v = {
             'Ties': v['ties'],
             'Victim Win': v[f'win{victim_index}'],
-            'Adversary Win': v[f'win{our_index}'],
+            'Opponent Win': v[f'win{our_index}'],
         }
         if victim_index == 1:  # victim is agent_b
             k = (env_name, agent_b_type, agent_b_path, agent_a_type, agent_a_path)
@@ -48,7 +49,7 @@ def load_scores(path, reindex_victim=False):
     df = pd.DataFrame(res).T
     df.index.names = ['env_name', 'victim_type', 'victim_path',
                       'adversary_type', 'adversary_path']
-    cols = ['Adversary Win', 'Victim Win', 'Ties']
+    cols = ['Opponent Win', 'Victim Win', 'Ties']
     return df.loc[:, cols].copy()
 
 
@@ -107,58 +108,131 @@ def combine_all(fixed, zoo, transfer):
     combined.index = combined.index.set_names('Opponent', level=2)
     return combined
 
+
+def load_datasets(score_dir):
+    fixed = load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
+    zoo = load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
+    transfer = load_transfer_baseline(os.path.join(score_dir, 'adversary_transfer.json'))
+    return combine_all(fixed, zoo, transfer)
+
 # Visualization
 
 
-def apply_per_env(scores, fn, *args, **kwargs):
+def apply_per_env(scores, fn, *args, suptitle=True, **kwargs):
     envs = scores.index.levels[0]
-    for env_name in envs:
-        single_env = scores.loc[env_name]
+    for i, env_name in enumerate(envs):
+        single_env = pd.DataFrame(scores.loc[env_name])
+        single_env.name = env_name
         fig = fn(single_env, *args, **kwargs)
-        pretty_env = PRETTY_ENV.get(env_name, env_name)
-        fig.suptitle(pretty_env)
+
+        if suptitle:
+            pretty_env = PRETTY_ENV.get(env_name, env_name)
+            fig.suptitle(pretty_env)
+
         yield env_name, fig
 
 
-def save_figs(out_dir, generator):
-    combined = matplotlib.backends.backend_pdf.PdfPages(os.path.join(out_dir, 'combined.pdf'))
-    for env_name, fig in generator:
-        out_path = os.path.join(out_dir, env_name.replace('/', '_') + '.pdf')
+def save_figs(out_dir, generator, combine=False):
+    if combine:
+        combined = matplotlib.backends.backend_pdf.PdfPages(os.path.join(out_dir, 'combined.pdf'))
+    for fig_name, fig in generator:
+        fig_name = fig_name.replace('/', '_').replace(' ', '_')
+        out_path = os.path.join(out_dir, fig_name + '.pdf')
         logger.info(f"Saving to '{out_path}'")
         fig.savefig(out_path)
-        combined.savefig(fig)
-    combined.close()
+        if combine:
+            combined.savefig(fig)
+        yield out_path
+        plt.close(fig)
+    if combine:
+        combined.close()
 
 
-def heatmap(single_env):
-    # Consistent color map scale
-    vmin = 0
+def num_episodes(single_env):
+    """Compute number of episodes in dataset"""
     num_episodes = pd.unique(single_env.sum(axis=1))
     assert len(num_episodes) == 1
-    vmax = num_episodes[0]
+    return num_episodes[0]
 
+
+def heatmap_full(single_env, cols=None):
     # Figure layout calculations
-    cols = single_env.columns
+    if cols is None:
+        cols = single_env.columns
     ncols = len(cols) + 1
+
+    num_xticks = len(set(single_env.index.get_level_values(1)))
+    rotate_xticks = num_xticks > 4
     gridspec_kw = {
         'top': 0.8,
-        'bottom': 0.25,
+        'bottom': 0.35 if rotate_xticks else 0.25,
         'wspace': 0.05,
         'width_ratios': [1.0] * len(cols) + [1/15],
     }
     width, height = plt.rcParams.get('figure.figsize')
     height = min(height, width / len(cols))
 
+    # Consistent color map scale
+    vmax = num_episodes(single_env)
+
     # Actually plot the heatmap
     fig, axs = plt.subplots(ncols=ncols, gridspec_kw=gridspec_kw, figsize=(width, height))
     cbar_ax = axs[-1]
-    for i, col in enumerate(single_env.columns):
+    for i, col in enumerate(cols):
         ax = axs[i]
         yaxis = i == 0
         cbar = i == len(cols) - 1
-        sns.heatmap(single_env[col].unstack(), vmin=vmin, vmax=vmax, annot=True, fmt='d',
+        sns.heatmap(single_env[col].unstack(), vmin=0, vmax=vmax,
+                    annot=True, annot_kws={'fontsize': 6}, fmt='d',
                     ax=ax, cbar=cbar, cbar_ax=cbar_ax, yticklabels=yaxis)
         ax.get_yaxis().set_visible(yaxis)
-        ax.set_title(col)
+        if len(cols) > 1:
+            ax.set_title(col)
+
+        if rotate_xticks:
+            plt.xticks(rotation=90)
 
     return fig
+
+
+def heatmap_one_col(single_env, col, cbar, ylabel):
+    gridspec_kw = {
+        'bottom': 0.35,
+        'left': 0.23 if ylabel else 0.13,
+    }
+    if cbar:
+        gridspec_kw.update({
+            'width_ratios': (1.0, 0.1),
+            'wspace': 0.2,
+            'right': 0.75,
+        })
+        fig, (ax, cbar_ax) = plt.subplots(ncols=2, gridspec_kw=gridspec_kw)
+    else:
+        fig, ax = plt.subplots(1, gridspec_kw=gridspec_kw)
+        cbar_ax = None
+
+    single_env *= 100 / num_episodes(single_env)  # convert to percentages
+    sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
+                annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
+                ax=ax, cbar=cbar, cbar_ax=cbar_ax)
+    if not ylabel:
+        ax.set_ylabel('')
+    plt.xticks(rotation=90)
+
+    return fig
+
+
+# Argument parsing
+
+def directory(path):
+    if not os.path.exists(path):
+        raise ValueError(f"Path '{path}' does not exist")
+    if not os.path.isdir(path):
+        raise ValueError(f"Path '{path}' is not a directory")
+    return path
+
+
+def style(key):
+    if key not in STYLES:
+        raise ValueError(f"Unrecognized style '{key}'")
+    return key

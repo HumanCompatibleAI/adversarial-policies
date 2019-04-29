@@ -1,53 +1,84 @@
-import argparse
+from distutils.dir_util import copy_tree
+import logging
 import os.path
 
 import matplotlib.pyplot as plt
+from sacred import Experiment
+from sacred.observers import FileStorageObserver
 
 from modelfree.visualize import util
 from modelfree.visualize.styles import STYLES
 
-
-def directory(path):
-    if not os.path.exists(path):
-        raise ValueError(f"Path '{path}' does not exist")
-    if not os.path.isdir(path):
-        raise ValueError(f"Path '{path}' is not a directory")
-    return path
+logger = logging.getLogger('modelfree.visualize.scores')
+visualize_score_ex = Experiment('visualize_score')
 
 
-def style(key):
-    if key not in STYLES:
-        raise ValueError(f"Unrecognized style '{key}'")
-    return key
+def heatmap_opponent(single_env):
+    cbar = single_env.name == 'multicomp/YouShallNotPassHumans-v0'
+    ylabel = single_env.name == 'multicomp/KickAndDefend-v0'
+    return util.heatmap_one_col(single_env, col='Opponent Win', cbar=cbar, ylabel=ylabel)
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--fig-dir', type=directory,
-                        default=os.path.join('data', 'figs', 'scores'))
-    parser.add_argument('--score-dir', type=directory,
-                        default=os.path.join('data', 'score_agents'))
-    parser.add_argument('--style', type=style, default=['paper', 'a4'], nargs='+')
-    return parser.parse_args()
+@visualize_score_ex.config
+def default_config():
+    fig_dir = os.path.join('data', 'figs', 'scores')
+    score_dir = os.path.join('data', 'score_agents')
+    styles = ['paper', 'a4']
+    command = util.heatmap_full
+    publication = False
+    seed = 0  # we don't use it for anything, but stop config changing each time as we version it
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 
-def load_datasets(args):
-    score_dir = args.score_dir
-    fixed = util.load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
-    zoo = util.load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
-    transfer = util.load_transfer_baseline(os.path.join(score_dir, 'adversary_transfer.json'))
-    return util.combine_all(fixed, zoo, transfer)
+@visualize_score_ex.named_config
+def use_heatmap_opponent():
+    command = heatmap_opponent  # noqa: F841
+
+
+@visualize_score_ex.named_config
+def paper_config():
+    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores_single')
+    styles = ['paper', 'threecol']
+    command = heatmap_opponent
+    publication = True
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
+def supplementary_config():
+    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores')
+    styles = ['paper']
+    publication = True
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.main
+def visualize_score(command, styles, publication, score_dir, fig_dir):
+    dataset = util.load_datasets(score_dir)
+
+    for style in styles:
+        plt.style.use(STYLES[style])
+
+    suptitle = not publication
+    combine = not publication
+    generator = util.apply_per_env(dataset, command, suptitle=suptitle)
+    for out_path in util.save_figs(fig_dir, generator, combine=combine):
+        visualize_score_ex.add_artifact(filename=out_path)
+
+    for observer in visualize_score_ex.observers:
+        if hasattr(observer, 'dir'):
+            logger.info(f"Copying from {observer.dir} to {fig_dir}")
+            copy_tree(observer.dir, fig_dir)
+            break
 
 
 def main():
-    args = get_args()
-    dataset = load_datasets(args)
-
-    for style in args.style:
-        plt.style.use(STYLES[style])
-
-    generator = util.apply_per_env(dataset, util.heatmap)
-    util.save_figs(args.fig_dir, generator)
+    observer = FileStorageObserver.create(os.path.join('data', 'sacred', 'visualize_score'))
+    visualize_score_ex.observers.append(observer)
+    visualize_score_ex.run_commandline()
 
 
 if __name__ == '__main__':

@@ -18,8 +18,7 @@ from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, s
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 
 score_ex = Experiment('score')
-
-logging.basicConfig(format='%(levelname)s - %(message)s', level=logging.DEBUG)
+score_ex_logger = logging.getLogger('score_agent')
 
 
 def announce_winner(sim_stream):
@@ -61,28 +60,56 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
 def _clean_video_directory_structure(observer_obj):
     """
     A simple utility method to take saved videos within a Sacred run structure and clean
-    up the file pathways, so that all videos are organized under a "videos" directory,
-    and within that organized by environment ID.
+    up the file pathways, so that all videos are organized under a "videos" directory
 
     :param observer_obj: A Sacred FileStorageObserver object
-    :return:
+    :return: None
     """
     basedir = observer_obj.dir
     video_files = glob.glob("{}/*.mp4".format(basedir))
+    metadata_files = glob.glob("{}/*metadata.json".format(basedir))
     if len(video_files) == 0:
         return
 
-    ptn = re.compile(r'env_\d*_video.(\d*)')
     new_video_dir = os.path.join(basedir, "videos")
     os.mkdir(new_video_dir)
-
+    new_video_metadata_dir = os.path.join(new_video_dir, "metadata")
+    os.mkdir(new_video_metadata_dir)
     for video_file in video_files:
-        search_result = ptn.search(video_file)
-        if search_result is None:
-            continue
-        episode_id = search_result.groups()[0]
-        new_file_name = "episode_{}_recording.mp4".format(int(episode_id))
-        os.rename(video_file, os.path.join(new_video_dir, new_file_name))
+        base_file_name = os.path.basename(video_file)
+        os.rename(video_file, os.path.join(new_video_dir, base_file_name))
+
+    for metadata_file in metadata_files:
+        base_file_name = os.path.basename(metadata_file)
+        os.rename(metadata_file, os.path.join(new_video_metadata_dir, base_file_name))
+
+
+def _save_video_or_metadata(env_dir, saved_video_path):
+    """
+    A helper method to pull the logic for pattern matching certain kinds of video and metadata
+    files and storing them as sacred artifacts with clearer names
+
+    :param env_dir: The path to a per-environment folder where videos are stored
+    :param saved_video_path: The video file to be reformatted and saved as a sacred artifact
+    :return: None
+    """
+    env_number = env_dir.split("/")[-1]
+    video_ptn = re.compile(r'video.(\d*).mp4')
+    metadata_ptn = re.compile(r'video.(\d*).meta.json')
+    video_search_result = video_ptn.match(saved_video_path)
+    metadata_search_result = metadata_ptn.match(saved_video_path)
+
+    if video_search_result is not None:
+        episode_id = video_search_result.groups()[0]
+        sacred_name = "env_{}_episode_{}_recording.mp4".format(env_number, int(episode_id))
+    elif metadata_search_result is not None:
+        episode_id = metadata_search_result.groups()[0]
+        sacred_name = "env_{}_episode_{}_metadata.json".format(env_number, int(episode_id))
+    else:
+        return
+
+    score_ex.add_artifact(filename=os.path.join(env_dir, saved_video_path),
+                          name=sacred_name)
 
 
 @score_ex.config
@@ -97,6 +124,7 @@ def default_score_config():
         'save_dir': 'data/experts',     # directory to save trajectories to
         'agent_indices': None,          # which agent trajectories to save
     }
+
     transparent_params = None       # whether to make the agents transparent
     num_env = 1                     # number of environments to run in parallel
     episodes = 2               # number of episodes to evaluate
@@ -118,8 +146,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                 num_env, episodes, render, videos, video_dir):
     if videos:
         if video_dir is None:
-            logging.info("""No directory provided for saving videos; using a tmpdir instead,
-                            but videos will be saved to Sacred run directory""")
+            score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
+                                 "but videos will be saved to Sacred run directory")
             tmp_dir = tempfile.TemporaryDirectory()
             video_dir = tmp_dir.name
         else:
@@ -162,13 +190,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     if videos:
         for env_video_dir in video_dirs:
             try:
-                for video_file_path in os.listdir(env_video_dir):
-                    if 'mp4' in video_file_path:
-                        env_number = env_video_dir.split("/")[-1]
-                        sacred_name = "env_{}_{}".format(env_number, video_file_path)
-                        score_ex.add_artifact(filename=os.path.join(env_video_dir,
-                                                                    video_file_path),
-                                              name=sacred_name)
+                for file_path in os.listdir(env_video_dir):
+                    _save_video_or_metadata(env_video_dir, file_path)
+
             except FileNotFoundError:
                 warnings.warn("Can't find path {}; no videos from that path added as artifacts"
                               .format(env_video_dir))
@@ -192,7 +216,7 @@ def main():
     observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
     score_ex.observers.append(observer)
     score_ex.run_commandline()
-    logging.info("Sacred run completed, files stored at {}".format(observer.dir))
+    score_ex_logger.info("Sacred run completed, files stored at {}".format(observer.dir))
 
 
 if __name__ == '__main__':

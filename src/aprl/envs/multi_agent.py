@@ -364,15 +364,15 @@ class MergeAgentVecEnv(VecMultiWrapper):
 
     def step_wait(self):
         observations, rewards, self._dones, infos = self.venv.step_wait()
-        observations = self._get_updated_obs(observations)
+        observations = self._get_augmented_obs(observations)
         return observations, rewards, self._dones, infos
 
     def reset(self):
         observations = self.venv.reset()
-        observations = self._get_updated_obs(observations)
+        observations = self._get_augmented_obs(observations)
         return observations
 
-    def _get_updated_obs(self, observations):
+    def _get_augmented_obs(self, observations):
         """Augments observations[self._agent_to_merge] with action that self._policy would take
         given its observations. Keeps track of these variables to use in next timestep."""
         self._obs = observations[self._agent_to_merge]
@@ -386,7 +386,7 @@ class CurryVecEnv(VecMultiWrapper):
     """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
     def __init__(self, venv, policy, agent_idx=0):
         """Fixes one of the players in a VecMultiEnv.
-        :param env(VecMultiEnv): the environments.
+        :param venv(VecMultiEnv): the environments.
         :param policy(Policy): the policy to use for the agent at agent_idx.
         :param agent_idx(int): the index of the agent that should be fixed.
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but

@@ -99,7 +99,7 @@ def test_score_agent_video():
 
 TRAIN_CONFIGS = [
     {'num_env': 1},
-    {'env_name': 'multicomp/KickAndDefend-v0'},
+    {'env_name': 'multicomp/YouShallNotPassHumans-v0'},
     {'normalize': False},
     {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants', 'ppo2')},
     {
@@ -136,11 +136,13 @@ TRAIN_CONFIGS = [
         'expert_dataset_path': os.path.join(BASE_DIR, 'SumoAnts_traj/agent_0.npz'),
     },
     {
-        'transparent_params': {'ff_policy': False, 'hid': True},
+        # test TransparentLSTMPolicy
+        'transparent_params': ['ff_policy', 'hid'],
     },
     {
+        # test TransparentMLPPolicyValue
         'env_name': 'multicomp/YouShallNotPassHumans-v0',
-        'transparent_params': {'ff_policy': False},
+        'transparent_params': ['ff_policy'],
     }
 
 ]
