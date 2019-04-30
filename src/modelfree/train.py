@@ -22,6 +22,7 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
 from modelfree.common.transparent import TransparentCurryVecEnv
+from modelfree.density import DensityRewardVecWrapper
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.training.logger import setup_logger
@@ -258,6 +259,7 @@ def train_config():
     adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
     transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
+    density_params = None           # param dict for density reward wrapper
 
     # General
     checkpoint_interval = 131072    # save weights to disk after this many timesteps
@@ -372,8 +374,8 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
-                    rew_shape, rew_shape_params, log_callbacks, save_callbacks):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy, rew_shape,
+                    rew_shape_params, density_params, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -383,6 +385,9 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
         for anneal_type in ['noise', 'rew_shape']:
             if scheduler.is_conditional(anneal_type):
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
+
+    if density_params is not None:
+        single_venv = DensityRewardVecWrapper(single_venv, 1 - our_idx, density_params)
 
     if normalize:
         if load_policy['type'] == 'zoo':
