@@ -371,7 +371,6 @@ def debug_paper_config():
     command = opponent_win_rate_per_victim_env
     fig_dir = 'data/debug/figs_training_single'
     plot_cfg = [
-        # TODO: filter, title
         [
             {
                 'filter': {'env_name': 'multicomp/KickAndDefend-v0', 'victim_path': 1},
