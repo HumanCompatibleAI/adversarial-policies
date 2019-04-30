@@ -30,41 +30,55 @@ class AdversaryMaskedGymCompeteAgent(Agent):
                     outp[other_agent] = np.zeros(self.other_agent_shapes[other_agent])
                 else:
                     raise NotImplementedError(
-                        "Oops, haven't implemented Gaussian noise yet since I haven't found the right variance")
+                        "Oops, haven't implemented Gaussian noise yet"
+                        " since I haven't found the right variance")
 
         return outp
 
 
 class AdversaryMaskedGymCompeteAntFighter(AdversaryMaskedGymCompeteAgent, AntFighter):
     def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
-        assert isinstance(agent_to_mask, AntFighter), "You have passed in {}, requires instance of AntFighter".format(
+        assert isinstance(
+            agent_to_mask, AntFighter), \
+            "You have passed in {}, requires instance of AntFighter".format(
             type(agent_to_mask))
-        AdversaryMaskedGymCompeteAgent.__init__(self, agent_to_mask=agent_to_mask, agents_to_hide=agents_to_hide,
+        AdversaryMaskedGymCompeteAgent.__init__(self,
+                                                agent_to_mask=agent_to_mask,
+                                                agents_to_hide=agents_to_hide,
                                                 masking_type=masking_type)
 
 
 class AdversaryMaskedGymCompeteHumanoidKicker(AdversaryMaskedGymCompeteAgent, HumanoidKicker):
     def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
         assert isinstance(agent_to_mask,
-                          HumanoidKicker), "You have passed in {}, requires instance of HumanoidKicker".format(
+                          HumanoidKicker), \
+            "You have passed in {}, requires instance of HumanoidKicker".format(
             type(agent_to_mask))
-        AdversaryMaskedGymCompeteAgent.__init__(self, agent_to_mask=agent_to_mask, agents_to_hide=agents_to_hide,
+        AdversaryMaskedGymCompeteAgent.__init__(self,
+                                                agent_to_mask=agent_to_mask,
+                                                agents_to_hide=agents_to_hide,
                                                 masking_type=masking_type)
 
 
 class AdversaryMaskedGymCompeteHumanoid(AdversaryMaskedGymCompeteAgent, Humanoid):
     def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
         assert isinstance(agent_to_mask,
-                          Humanoid), "You have passed in {}, requires instance of Humanoid".format(
+                          Humanoid), \
+            "You have passed in {}, requires instance of Humanoid".format(
             type(agent_to_mask))
-        AdversaryMaskedGymCompeteAgent.__init__(self, agent_to_mask=agent_to_mask, agents_to_hide=agents_to_hide,
+        AdversaryMaskedGymCompeteAgent.__init__(self,
+                                                agent_to_mask=agent_to_mask,
+                                                agents_to_hide=agents_to_hide,
                                                 masking_type=masking_type)
 
 
 class AdversaryMaskedGymCompeteHumanoidBlocker(AdversaryMaskedGymCompeteAgent, HumanoidBlocker):
     def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
         assert isinstance(agent_to_mask,
-                          HumanoidBlocker), "You have passed in {}, requires instance of HumanoidBlocker".format(
+                          HumanoidBlocker),\
+            "You have passed in {}, requires instance of HumanoidBlocker".format(
             type(agent_to_mask))
-        AdversaryMaskedGymCompeteAgent.__init__(self, agent_to_mask=agent_to_mask, agents_to_hide=agents_to_hide,
+        AdversaryMaskedGymCompeteAgent.__init__(self,
+                                                agent_to_mask=agent_to_mask,
+                                                agents_to_hide=agents_to_hide,
                                                 masking_type=masking_type)

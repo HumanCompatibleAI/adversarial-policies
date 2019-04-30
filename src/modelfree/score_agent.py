@@ -13,7 +13,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
-from modelfree import observation_masking
+from modelfree import observation_masking as masking
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
@@ -23,9 +23,9 @@ score_ex_logger = logging.getLogger('score_agent')
 
 
 MASKED_VICTIM_LOOKUP = {
-    "multicomp/SumoAnts-v0": observation_masking.AdversaryMaskedGymCompeteAntFighter,
-    "multicomp/YouShallNotPassHumans-v0": observation_masking.AdversaryMaskedGymCompeteHumanoidBlocker,
-    "multicomp/KickAndDefend-v0": observation_masking.AdversaryMaskedGymCompeteHumanoidKicker
+    "multicomp/SumoAnts-v0": masking.AdversaryMaskedGymCompeteAntFighter,
+    "multicomp/YouShallNotPassHumans-v0": masking.AdversaryMaskedGymCompeteHumanoidBlocker,
+    "multicomp/KickAndDefend-v0": masking.AdversaryMaskedGymCompeteHumanoidKicker
 }
 
 
