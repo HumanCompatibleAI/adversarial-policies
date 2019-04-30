@@ -162,7 +162,10 @@ def experiment_main(base_path, sacred_id, subsample_rate, perplexity, save_type)
 
     logger_obj.info("For perplexity {}, using sacred dir {}".format(perplexity, sacred_id))
 
-    full_sacred_dir = os.path.join(base_path, sacred_id)
+    if base_path is None:
+        full_sacred_dir = sacred_id
+    else:
+        full_sacred_dir = os.path.join(base_path, sacred_id)
 
     metadata_df = pd.read_csv(os.path.join(full_sacred_dir, 'metadata.csv'))
     cluster_ids = np.load(os.path.join(full_sacred_dir, 'cluster_ids.npy'))

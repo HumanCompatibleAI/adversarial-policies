@@ -40,7 +40,12 @@ def full_model():
 
 @tsne_experiment.capture
 def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
-    traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name), allow_pickle=True)
+    if base_path is None:
+        traj_data = np.load(os.path.join(sacred_dir, np_file_name),
+                            allow_pickle=True)
+    else:
+        traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name),
+                            allow_pickle=True)
     episode_list = traj_data[data_type].tolist()
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
@@ -88,6 +93,7 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
         num_observations = len(merged_metadata)
 
     sub_data = merged_file_data[0:num_observations].reshape(num_observations, 128)
+
     with tempfile.TemporaryDirectory() as dirname:
         metadata_path = os.path.join(dirname, 'metadata.csv')
         merged_metadata[0:num_observations].to_csv(metadata_path)
