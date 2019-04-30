@@ -9,8 +9,8 @@ from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
+from modelfree.common.transparent import TransparentPolicy
 from modelfree.common.utils import PolicyToModel, make_session
-from modelfree.transparent import TransparentLSTMPolicy, TransparentMlpPolicyValue
 
 pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 
@@ -29,6 +29,15 @@ NUM_ZOO_POLICIES.update({
     'SumoAnts-v0': 4,
     'KickAndDefend-v0': 3,
 })
+
+SYMMETRIC_ENV = OrderedDict([
+    ('KickAndDefend-v0', False),
+    ('RunToGoalAnts-v0', True),
+    ('RunToGoalHumans-v0', True),
+    ('SumoAnts-v0', True),
+    ('SumoHumans-v0', True),
+    ('YouShallNotPassHumans-v0', False),
+])
 
 
 class GymCompeteToOurs(Wrapper, MultiAgentEnv):
@@ -86,6 +95,37 @@ class GameOutcomeMonitor(VecMultiWrapper):
         self.outcomes = []
 
 
+class TransparentLSTMPolicy(TransparentPolicy, LSTMPolicy):
+    """gym_compete LSTMPolicy which is also transparent."""
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 hiddens=None, scope="input", reuse=False, normalize=False):
+        LSTMPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, hiddens,
+                            scope, reuse, normalize)
+        TransparentPolicy.__init__(self, transparent_params)
+
+    def step_transparent(self, obs, state=None, mask=None, deterministic=False):
+        action, value, state, neglogp, ff = self.step(obs, state, mask, deterministic,
+                                                      extra_op=self.ff_out)
+        # 'hid' is the hidden state of policy which is the last of the four state vectors
+        transparency_dict = self._get_default_transparency_dict(obs, ff, hid=state[:, -1, :])
+        return action, value, state, neglogp, transparency_dict
+
+
+class TransparentMLPPolicyValue(TransparentPolicy, MlpPolicyValue):
+    """gym_compete MlpPolicyValue which is also transparent."""
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
+                 hiddens=None, scope="input", reuse=False, normalize=False):
+        MlpPolicyValue.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch,
+                                hiddens=hiddens, scope=scope, reuse=reuse, normalize=normalize)
+        TransparentPolicy.__init__(self, transparent_params)
+
+    def step_transparent(self, obs, state=None, mask=None, deterministic=False):
+        action, value, state, neglogp, ff = self.step(obs, state, mask, deterministic,
+                                                      extra_op=self.ff_out)
+        transparency_dict = self._get_default_transparency_dict(obs, ff, hid=None)
+        return action, value, self.initial_state, neglogp, transparency_dict
+
+
 def env_name_to_canonical(env_name):
     env_aliases = {
         'multicomp/SumoHumansAutoContact-v0': 'multicomp/SumoHumans-v0',
@@ -106,22 +146,21 @@ def num_zoo_policies(env_name):
     return NUM_ZOO_POLICIES[env_name_to_canonical(env_name)]
 
 
+def is_symmetric(env_name):
+    return SYMMETRIC_ENV[env_name_to_canonical(env_name)]
+
+
 def get_policy_type_for_zoo_agent(env_name, transparent_params):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""
     canonical_env = env_name_to_canonical(env_name)
-    lstm = (LSTMPolicy, {'normalize': True})
-    mlp = (MlpPolicyValue, {'normalize': True})
     transparent_lstm = (TransparentLSTMPolicy, {'normalize': True,
                                                 'transparent_params': transparent_params})
-    transparent_mlp = (TransparentMlpPolicyValue, {'normalize': True,
+    transparent_mlp = (TransparentMLPPolicyValue, {'normalize': True,
                                                    'transparent_params': transparent_params})
     if canonical_env in POLICY_STATEFUL:
-        if POLICY_STATEFUL[canonical_env]:
-            return transparent_lstm if transparent_params is not None else lstm
-        else:
-            return transparent_mlp if transparent_params is not None else mlp
+        return transparent_lstm if POLICY_STATEFUL[canonical_env] else transparent_mlp
     else:
         msg = f"Unsupported Environment: {canonical_env}, choose from {POLICY_STATEFUL.keys()}"
         raise ValueError(msg)
@@ -136,14 +175,16 @@ def load_zoo_agent_params(tag, env_name, index):
     # Load parameters
     canonical_env = env_name_to_canonical(env_name)
     dir = os.path.join('agent_zoo', canonical_env)
-    asymmetric_fname = f'agent{index + 1}_parameters-v{tag}.pkl'
-    symmetric_fname = f'agent_parameters-v{tag}.pkl'
-    try:  # asymmetric version, parameters tagged with agent id
-        path = os.path.join(dir, asymmetric_fname)
-        params_pkl = pkgutil.get_data('gym_compete', path)
-    except OSError:  # symmetric version, parameters not associated with a specific agent
+
+    if is_symmetric(env_name):  # asymmetric version, parameters tagged with agent id
+        symmetric_fname = f'agent_parameters-v{tag}.pkl'
         path = os.path.join(dir, symmetric_fname)
         params_pkl = pkgutil.get_data('gym_compete', path)
+    else:  # symmetric version, parameters not associated with a specific agent
+        asymmetric_fname = f'agent{index + 1}_parameters-v{tag}.pkl'
+        path = os.path.join(dir, asymmetric_fname)
+        params_pkl = pkgutil.get_data('gym_compete', path)
+
     pylog.info(f"Loaded zoo parameters from '{path}'")
 
     return pickle.loads(params_pkl)

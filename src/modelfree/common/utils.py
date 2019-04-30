@@ -15,7 +15,6 @@ import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
-from modelfree.transparent import TransparentPolicy
 
 
 class DummyModel(BaseRLModel):
@@ -60,23 +59,27 @@ class PolicyToModel(DummyModel):
         """
         super().__init__(policy=policy, sess=policy.sess)
 
-    def predict(self, observation, state=None, mask=None, deterministic=False, return_data=True):
+    def _get_policy_out(self, observation, state, mask, transparent, deterministic=False):
         if state is None:
             state = self.policy.initial_state
         if mask is None:
             mask = [False for _ in range(self.policy.n_env)]
 
-        if isinstance(self.policy, TransparentPolicy):
-            actions, _val, states, _neglogp, data = self.policy.step(observation, state, mask,
-                                                                     deterministic=deterministic)
-            if return_data:
-                return actions, states, data
-            else:
-                return actions, states
-        else:
-            actions, _val, states, _neglogp = self.policy.step(observation, state, mask,
-                                                               deterministic=deterministic)
-            return actions, states
+        step_fn = self.policy.step_transparent if transparent else self.policy.step
+        return step_fn(observation, state, mask, deterministic=deterministic)
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        policy_out = self._get_policy_out(observation, state, mask, transparent=False,
+                                          deterministic=deterministic)
+        actions, _val, states, _neglogp = policy_out
+        return actions, states
+
+    def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
+        """Returns same values as predict, as well as a dictionary with transparent data."""
+        policy_out = self._get_policy_out(observation, state, mask, transparent=True,
+                                          deterministic=deterministic)
+        actions, _val, states, _neglogp, data = policy_out
+        return actions, states, data
 
 
 class OpenAIToStablePolicy(BasePolicy):
@@ -144,6 +147,12 @@ class VideoWrapper(Wrapper):
     def __init__(self, env, directory):
         super(VideoWrapper, self).__init__(env)
         self.directory = osp.abspath(directory)
+        # Make sure to not put multiple different runs in the same directory,
+        # if the directory already exists
+        error_msg = "You're trying to use the same directory twice, " \
+                    "this would result in files being overwritten"
+        assert not os.path.exists(self.directory), error_msg
+
         os.makedirs(self.directory, exist_ok=True)
         self.episode_id = 0
         self.video_recorder = None
@@ -194,10 +203,10 @@ def _filter_dict(d, keys):
         return d
     else:
         keys = set(keys)
-        present_keys = keys.intersect(d.keys())
+        present_keys = keys.intersection(d.keys())
         missing_keys = keys.difference(d.keys())
         res = {k: d[k] for k in present_keys}
-        if missing_keys is not None:
+        if len(missing_keys) != 0:
             warnings.warn("Missing expected keys: {}".format(missing_keys), stacklevel=2)
         return res
 
