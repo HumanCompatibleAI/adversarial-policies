@@ -183,7 +183,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 # reward our agent for producing differences between our venv and lookbacks
                 for key in self.transparent_params:
                     diff_ff = victim_info[key] - lb_victim_info[key]  # typically ff_policy
-                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
 
             rewards[env_idx] += self.lookback_mul * env_diff_reward
