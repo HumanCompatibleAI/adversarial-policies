@@ -133,6 +133,7 @@ def default_score_config():
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
     video_dir = None                    # directory to store videos in.
+    video_per_episode = False           # False: single file, True: file per episode
     # If video_dir set to None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
@@ -213,7 +214,8 @@ class PrettyMujocoWrapper(gym.Wrapper):
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
+                record_traj, record_traj_params, num_env, episodes, render,
+                videos, video_dir, video_per_episode):
     if videos:
         assert num_env == 1, "videos requires num_env=1"
         if video_dir is None:
@@ -230,7 +232,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
         if videos:
             env = PrettyMujocoWrapper(env)
-            env = VideoWrapper(env, osp.join(video_dir, str(i)))
+            env = VideoWrapper(env, osp.join(video_dir, str(i)), video_per_episode)
         return env
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
 

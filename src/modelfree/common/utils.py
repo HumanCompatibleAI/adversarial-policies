@@ -144,10 +144,11 @@ class RandomPolicy(BasePolicy):
 
 
 class VideoWrapper(Wrapper):
-    def __init__(self, env, directory):
+    def __init__(self, env, directory, video_per_episode=True):
         super(VideoWrapper, self).__init__(env)
         self.episode_id = 0
         self.video_recorder = None
+        self.video_per_episode = video_per_episode
 
         self.directory = osp.abspath(directory)
         # Make sure to not put multiple different runs in the same directory,
@@ -162,7 +163,7 @@ class VideoWrapper(Wrapper):
         if done:
             winners = [i for i, d in info.items() if 'winner' in d]
             metadata = {'winners': winners}
-            self._reset_video_recorder(metadata)
+            self.video_recorder.metadata.update(metadata)
         self.video_recorder.capture_frame()
         return obs, rew, done, info
 
@@ -171,16 +172,15 @@ class VideoWrapper(Wrapper):
         self.episode_id += 1
         return self.env.reset()
 
-    def _reset_video_recorder(self, metadata=None):
-        if self.video_recorder:
-            if metadata is not None:
-                self.video_recorder.metadata.update(metadata)
-            self.video_recorder.close()
-        self.video_recorder = VideoRecorder(
-            env=self.env,
-            base_path=osp.join(self.directory, 'video.{:06}'.format(self.episode_id)),
-            metadata={'episode_id': self.episode_id},
-        )
+    def _reset_video_recorder(self):
+        if self.video_recorder is None or self.video_per_episode:
+            if self.video_recorder is not None:
+                self.video_recorder.close()
+            self.video_recorder = VideoRecorder(
+                env=self.env,
+                base_path=osp.join(self.directory, 'video.{:06}'.format(self.episode_id)),
+                metadata={'episode_id': self.episode_id},
+            )
 
     def _close(self):
         if self.video_recorder:
