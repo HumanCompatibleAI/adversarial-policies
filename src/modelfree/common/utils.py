@@ -3,6 +3,7 @@ import datetime
 import itertools
 import os
 from os import path as osp
+import pdb
 import warnings
 
 import gym
@@ -358,16 +359,20 @@ def simulate(venv, policies, render=False):
         actions = []
         new_states = []
         policy_ind = 0
+
         for policy, obs, state in zip(policies, observations, states):
-            return_tuple = policy.predict(obs, state=state, mask=dones, return_data=True)
-            if len(return_tuple) == 3:
-                act, new_state, transparent_data = return_tuple
-                try:
-                    venv.record_transparent_data(transparent_data, policy_ind)
-                except AttributeError:
-                    print("No way to record transparent data on this venv")
-            else:
-                act, new_state = return_tuple
+            try:
+                return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
+                if len(return_tuple) == 3:
+                    act, new_state, transparent_data = return_tuple
+                    try:
+                        venv.record_transparent_data(transparent_data, policy_ind)
+                    except AttributeError:
+                        print("No way to record transparent data on this venv")
+                else:
+                    act, new_state = return_tuple
+            except AttributeError:
+                act, new_state = policy.predict(obs, state=state, mask=dones)
 
             actions.append(act)
             new_states.append(new_state)
