@@ -9,7 +9,7 @@ import numpy as np
 
 class AdversaryMaskedGymCompeteAgent(Agent):
 
-    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
+    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='initialization'):
         if isinstance(agent_to_mask, Agent):
             self.__dict__ = agent_to_mask.__dict__.copy()
         else:
@@ -19,8 +19,10 @@ class AdversaryMaskedGymCompeteAgent(Agent):
         self.masking_type = masking_type
         other_qpos = super(AdversaryMaskedGymCompeteAgent, self).get_other_agent_qpos()
         self.other_agent_shapes = {}
+        self.initial_values = {}
         for other_agent_id in other_qpos:
             self.other_agent_shapes[other_agent_id] = other_qpos[other_agent_id].shape
+            self.initial_values[other_agent_id] = other_qpos[other_agent_id]
 
     def get_other_agent_qpos(self):
         outp = {}
@@ -28,6 +30,11 @@ class AdversaryMaskedGymCompeteAgent(Agent):
             if self.agents_to_hide is None or other_agent in self.agents_to_hide:
                 if self.masking_type == 'zeros':
                     outp[other_agent] = np.zeros(self.other_agent_shapes[other_agent])
+                elif self.masking_type == 'debug':
+                    outp[other_agent] = np.full(self.other_agent_shapes[other_agent],
+                                                fill_value=-4.2)
+                elif self.masking_type == 'initialization':
+                    outp[other_agent] = self.initial_values[other_agent]
                 else:
                     raise NotImplementedError(
                         "Oops, haven't implemented Gaussian noise yet"
@@ -37,7 +44,7 @@ class AdversaryMaskedGymCompeteAgent(Agent):
 
 
 class AdversaryMaskedGymCompeteAntFighter(AdversaryMaskedGymCompeteAgent, AntFighter):
-    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
+    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='initialization'):
         assert isinstance(
             agent_to_mask, AntFighter), \
             "You have passed in {}, requires instance of AntFighter".format(
@@ -49,7 +56,7 @@ class AdversaryMaskedGymCompeteAntFighter(AdversaryMaskedGymCompeteAgent, AntFig
 
 
 class AdversaryMaskedGymCompeteHumanoidKicker(AdversaryMaskedGymCompeteAgent, HumanoidKicker):
-    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
+    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='initialization'):
         assert isinstance(agent_to_mask,
                           HumanoidKicker), \
             "You have passed in {}, requires instance of HumanoidKicker".format(
@@ -61,7 +68,7 @@ class AdversaryMaskedGymCompeteHumanoidKicker(AdversaryMaskedGymCompeteAgent, Hu
 
 
 class AdversaryMaskedGymCompeteHumanoid(AdversaryMaskedGymCompeteAgent, Humanoid):
-    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
+    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='initialization'):
         assert isinstance(agent_to_mask,
                           Humanoid), \
             "You have passed in {}, requires instance of Humanoid".format(
@@ -73,7 +80,7 @@ class AdversaryMaskedGymCompeteHumanoid(AdversaryMaskedGymCompeteAgent, Humanoid
 
 
 class AdversaryMaskedGymCompeteHumanoidBlocker(AdversaryMaskedGymCompeteAgent, HumanoidBlocker):
-    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='zeros'):
+    def __init__(self, agent_to_mask, agents_to_hide=None, masking_type='initialization'):
         assert isinstance(agent_to_mask,
                           HumanoidBlocker),\
             "You have passed in {}, requires instance of HumanoidBlocker".format(

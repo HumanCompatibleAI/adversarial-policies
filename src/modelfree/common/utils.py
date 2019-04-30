@@ -3,6 +3,7 @@ import datetime
 import itertools
 import os
 from os import path as osp
+import pdb
 import warnings
 
 import gym
@@ -340,10 +341,13 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
+        i = 0
+
         for policy, obs, state in zip(policies, observations, states):
             act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
             new_states.append(new_state)
+            i += 1
         actions = tuple(actions)
         states = new_states
 
@@ -352,11 +356,13 @@ def simulate(venv, policies, render=False):
 
 
 def make_env(env_name, seed, i, out_dir, our_idx=None,
-             pre_wrapper=None, post_wrapper=None, agent_wrappers=None):
+             pre_wrapper=None, post_wrapper=None, agent_wrappers=None, agent_wrapper_kwargs=None):
     multi_env = gym.make(env_name)
     if agent_wrappers is not None:
         for agent_id in agent_wrappers:
-            multi_env.agents[agent_id] = agent_wrappers[agent_id](multi_env.agents[agent_id])
+            multi_env.agents[agent_id] = agent_wrappers[agent_id](multi_env.agents[agent_id],
+                                                                  **agent_wrapper_kwargs)
+    pdb.set_trace()
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
     if not isinstance(multi_env, MultiAgentEnv):
