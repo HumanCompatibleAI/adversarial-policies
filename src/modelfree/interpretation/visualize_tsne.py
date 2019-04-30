@@ -20,7 +20,16 @@ import seaborn as sns
 from swissarmy import logger
 
 
-
+PAPER_STYLE = {
+        'font.serif': 'Times New Roman',
+        'font.family': 'serif',
+        'font.size': 9,
+        'legend.fontsize': 9,
+        'axes.titlesize': 9,
+        'axes.labelsize': 9,
+        'xtick.labelsize': 9,
+        'ytick.labelsize': 9
+    }
 tsne_vis_ex = sacred.Experiment('tsne-visualization')
 tsne_vis_ex.observers.append(FileStorageObserver.create(
     '/Users/cody/Data/adversarial_policies/tsne_visualization'))
@@ -38,6 +47,7 @@ def main_config():
     opacity = 0.10
     dot_size = 2
     palette_name = None
+    save_type = "pdf"
     hue_order = ["adversary","zoo", "random"]
     _ = locals()
     del _
@@ -74,7 +84,8 @@ def _get_latest_sacred_dir_with_params(base_path, param_dict=None):
 
 
 @tsne_vis_ex.capture
-def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_name, hue_order):
+def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_name,
+                         hue_order):
     with tempfile.TemporaryDirectory() as td:
         fname = os.path.join(td, fname)
 
@@ -90,16 +101,24 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
                     "random": "#fdb462",
                     "adversary": '#e7298a'
                 }
-            fig, ax = plt.subplots(figsize=(12, 8))
+            if palette_name == "cube_bright":
+                palette_name = {
+                    "zoo": "#b87903",
+                    "random": "#d2b5ff",
+                    "adversary": '#016b61'
+                }
+            fig, ax = plt.subplots(figsize=(2.75, 2.0625))
             sns.scatterplot(data=data, x="ax_1", y="ax_2", hue="opponent_id",
                             alpha=opacity, s=dot_size, edgecolors='none', linewidth=0,
                             palette=palette_name, hue_order=hue_order, ax=ax)
             handles, labels = ax.get_legend_handles_labels()
             ax.xaxis.set_visible(False)
             ax.yaxis.set_visible(False)
-            ax.legend(handles=handles[1:], labels=labels[1:], fontsize=22,
-                      loc=9, ncol=3, bbox_to_anchor=(0.5, -0.005))
-            plt.savefig(fname, dpi=400)
+            plt.style.use(PAPER_STYLE)
+            ax.legend(handles=handles[1:], labels=labels[1:],
+                      loc=9, ncol=3, bbox_to_anchor=(0.48, 1.18))
+            #plt.rc('axes.spines', **{'bottom': False, 'left': False, 'right': False, 'top': False})
+            plt.savefig(fname, dpi=800)
             plt.close()
         tsne_vis_ex.add_artifact(fname)
 
@@ -136,7 +155,7 @@ def sample_points_from_ranges(data):
 
 
 @tsne_vis_ex.automain
-def experiment_main(base_path, sacred_id, subsample_rate, perplexity):
+def experiment_main(base_path, sacred_id, subsample_rate, perplexity, save_type):
 
     if sacred_id is None:
         sacred_id = _get_latest_sacred_dir_with_params(base_path, {'perplexity': perplexity})
@@ -150,11 +169,11 @@ def experiment_main(base_path, sacred_id, subsample_rate, perplexity):
     metadata_df['ax_1'] = cluster_ids[:, 0]
     metadata_df['ax_2'] = cluster_ids[:, 1]
 
-    _plot_and_save_chart(metadata_df.query("opponent_id != 'random'"), "no_random_chart.png")
-    _plot_and_save_chart(metadata_df.query("opponent_id != 'adversary'"), "no_adversary_chart.png")
-    _plot_and_save_chart(metadata_df, "opponent_chart.png")
-    _plot_and_save_chart(metadata_df.sample(frac=subsample_rate), fname="subsample_chart.png")
+    _plot_and_save_chart(metadata_df.query("opponent_id != 'random'"),  "no_random_chart.{}".format(save_type))
+    _plot_and_save_chart(metadata_df.query("opponent_id != 'adversary'"), "no_adversary_chart.{}".format(save_type))
+    _plot_and_save_chart(metadata_df, "opponent_chart.{}".format(save_type))
+    _plot_and_save_chart(metadata_df.sample(frac=subsample_rate), fname="subsample_chart.{}".format(save_type))
     opponent_groups = metadata_df.groupby('opponent_id')
 
     for name, group in opponent_groups:
-        _plot_and_save_chart(group, "{}_chart.png".format(name))
+        _plot_and_save_chart(group, "{}_chart.{}".format(name, save_type))

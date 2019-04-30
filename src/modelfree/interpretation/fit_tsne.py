@@ -6,10 +6,11 @@ import tempfile
 import numpy as np
 import pandas as pd
 import sacred
+import pdb
 from sacred.observers import FileStorageObserver
 from sklearn.manifold import TSNE
 from swissarmy import logger
-
+from sacred_util import get_latest_sacred_dir_with_params
 tsne_experiment = sacred.Experiment('tsne-base-experiment')
 tsne_experiment.observers.append(FileStorageObserver.create(
     '/Users/cody/Data/adversarial_policies/tsne_runs'))
@@ -25,6 +26,7 @@ def base_config():
     sacred_dir_ids = None  # otherwise list
     np_file_name = "victim_activations.npz"
     num_observations = 1000
+    env_name = "multicomp/YouShallNotPassHumans-v0"
     seed = 0
     perplexity = 5
     _ = locals()  # quieten flake8 unused variable warning
@@ -35,22 +37,6 @@ def full_model():
     num_observations = None
     _ = locals()  # quieten flake8 unused variable warning
     del _
-
-def _get_latest_sacred_dirs(base_path, rd_list):
-    latest_dir_ids = []
-    for rd in rd_list:
-        sacred_dirs = os.listdir(os.path.join(base_path, rd))
-        max_int_dir = 0
-        for sd in sacred_dirs:
-            try:
-                int_dir = int(sd)
-                if int_dir > max_int_dir:
-                    max_int_dir = int_dir
-            except ValueError:
-                continue
-        latest_dir_ids.append(str(max_int_dir))
-    return latest_dir_ids
-
 
 @tsne_experiment.capture
 def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
@@ -78,13 +64,19 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_na
 
 @tsne_experiment.automain
 def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
-                    num_observations, perplexity):
+                    num_observations, perplexity, env_name):
     all_file_data = []
     all_metadata = []
+    params = {"env_name": env_name}
+
     if sacred_dir_ids is None:
-        sacred_dir_ids = _get_latest_sacred_dirs(base_path, relative_dirs)
+        sacred_dir_ids = []
+        for rd in relative_dirs:
+            bp = os.path.join(base_path, rd)
+            sacred_dir_ids.append(get_latest_sacred_dir_with_params(bp, param_dict=params))
 
     for i, rd in enumerate(relative_dirs):
+        print("Match params: {}".format(params))
         print("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
         file_data, metadata = _load_and_reshape_single_file(rd, sacred_dir=sacred_dir_ids[i])
         all_file_data.append(file_data)
@@ -94,6 +86,8 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
     merged_metadata = pd.concat(all_metadata)
     if num_observations is None:
         num_observations = len(merged_metadata)
+
+    sub_data = merged_file_data[0:num_observations].reshape(num_observations, 128)
     with tempfile.TemporaryDirectory() as dirname:
         metadata_path = os.path.join(dirname, 'metadata.csv')
         merged_metadata[0:num_observations].to_csv(metadata_path)
@@ -101,7 +95,7 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
 
         tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
         logger_obj.debug("Starting T-SNE fitting")
-        tsne_ids = tsne_obj.fit_transform(merged_file_data[0:num_observations])
+        tsne_ids = tsne_obj.fit_transform(sub_data)
         logger_obj.debug("Completed T-SNE fitting")
         print(tsne_ids.shape)
         tsne_weights_path = os.path.join(dirname, 'saved_tsne_weights.pkl')
