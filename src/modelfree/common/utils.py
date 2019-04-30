@@ -22,6 +22,7 @@ class DummyModel(BaseRLModel):
 
     Provides stub implementations that raise NotImplementedError.
     The predict method is left as abstract and must be implemented in base class."""
+
     def __init__(self, policy, sess):
         """Constructs a DummyModel with given policy and session.
         :param policy: (BasePolicy) a loaded policy.
@@ -52,6 +53,7 @@ class DummyModel(BaseRLModel):
 
 class PolicyToModel(DummyModel):
     """Converts BasePolicy to a BaseRLModel with only predict implemented."""
+
     def __init__(self, policy):
         """Constructs a BaseRLModel using policy for predictions.
         :param policy: (BasePolicy) a loaded policy.
@@ -84,6 +86,7 @@ class PolicyToModel(DummyModel):
 
 class OpenAIToStablePolicy(BasePolicy):
     """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
+
     def __init__(self, old_policy):
         self.old = old_policy
         self.sess = old_policy.sess
@@ -102,6 +105,7 @@ class OpenAIToStablePolicy(BasePolicy):
 
 class ConstantPolicy(BasePolicy):
     """Policy that returns a constant action."""
+
     def __init__(self, env, constant):
         assert env.action_space.contains(constant)
         super().__init__(sess=None,
@@ -122,6 +126,7 @@ class ConstantPolicy(BasePolicy):
 
 class ZeroPolicy(ConstantPolicy):
     """Policy that returns a zero action."""
+
     def __init__(self, env):
         super().__init__(env, np.zeros(env.action_space.shape))
 
@@ -346,8 +351,12 @@ def simulate(venv, policies, render=False):
         yield observations, rewards, dones, infos
 
 
-def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wrapper=None):
+def make_env(env_name, seed, i, out_dir, our_idx=None,
+             pre_wrapper=None, post_wrapper=None, agent_wrappers=None):
     multi_env = gym.make(env_name)
+    if agent_wrappers is not None:
+        for agent_id in agent_wrappers:
+            multi_env.agents[agent_id] = agent_wrappers[agent_id](multi_env.agents[agent_id])
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
     if not isinstance(multi_env, MultiAgentEnv):
