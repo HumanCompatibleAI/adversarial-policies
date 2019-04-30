@@ -255,6 +255,16 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
+    def record_transparent_data(self, data, agent_idx):
+        # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
+        if agent_idx not in self.agent_indices:
+            return
+        else:
+            dict_index = self.agent_indices.index(agent_idx)
+
+        for env_idx, key in itertools.product(range(self.num_envs), data.keys()):
+            self.traj_dicts[dict_index][env_idx][key].append(data[key][env_idx])
+
     def record_timestep_data(self, prev_obs, actions, rewards, dones, infos):
         """Record observations, actions, rewards, and (optionally) network activations
         of one timestep in dict for current episode. Completed episode trajectories are
@@ -336,10 +346,20 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
-        for policy, obs, state in zip(policies, observations, states):
-            act, new_state = policy.predict(obs, state=state, mask=dones)
+        for agent_idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
+            if hasattr(policy, 'predict_transparent'):
+                policy_out = policy.predict_transparent(obs, state=state, mask=dones)
+                act, new_state, transparent_data = policy_out
+                try:
+                    venv.record_transparent_data(transparent_data, agent_idx)
+                except AttributeError:
+                    print("No way to record transparent data on this venv")
+            else:
+                act, new_state = policy.predict(obs, state=state, mask=dones)
+
             actions.append(act)
             new_states.append(new_state)
+
         actions = tuple(actions)
         states = new_states
 
