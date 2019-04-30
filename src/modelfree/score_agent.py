@@ -1,5 +1,6 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
+import collections
 import functools
 import glob
 import logging
@@ -9,6 +10,9 @@ import re
 import tempfile
 import warnings
 
+from PIL import Image, ImageDraw, ImageFont
+import gym
+import numpy as np
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
@@ -137,10 +141,81 @@ def default_score_config():
     del _
 
 
+class PrettyMujocoWrapper(gym.Wrapper):
+    def __init__(self, env, font="times", font_size=24, spacing=0.02,
+                 color=(0, 0, 0, 255), color_changed=(255, 255, 255, 255)):
+        super(PrettyMujocoWrapper, self).__init__(env)
+        self.result = collections.defaultdict(int)
+        self.changed = collections.defaultdict(bool)
+        self.font = ImageFont.truetype(f'{font}.ttf', font_size)
+        self.font_bold = ImageFont.truetype(f'{font}bd.ttf', font_size)
+        self.spacing = spacing
+        self.color = color
+        self.color_changed = color_changed
+        self.result = collections.defaultdict(int)
+        self.changed = collections.defaultdict(int)
+        self.last_won = None
+
+    def _step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        if done:
+            # TODO: code duplication
+            winner = game_outcome(info)
+            print('winner', winner)
+            if winner is None:
+                k = 'ties'
+            else:
+                k = f'win{winner}'
+            self.result[k] += 1
+            self.last_won = k
+        return obs, rew, done, info
+
+    def _render(self, mode='human', close=False):
+        res = self.env.render(mode, close)
+        if mode == 'rgb_array':
+            img = Image.fromarray(res)
+            draw = ImageDraw.Draw(img)
+
+            width, height = img.size
+            ypos = height * 0.9
+            # TODO: Make configurable
+            # TODO: handle victim_path
+            texts = collections.OrderedDict([
+                ('win0', 'Win 0'),
+                ('win1', 'Win 1'),
+                ('ties', 'Ties'),
+            ])
+
+            to_draw = []
+            for k, label in texts.items():
+                msg = f'{label} = {self.result[k]}'
+                font = self.font
+                color = self.color
+                if k == self.last_won:
+                    font = self.font_bold
+                    color = self.color_changed
+
+                to_draw.append((msg, font, color))
+
+            lengths = [font.getsize(msg)[0] + self.spacing * width
+                       for (msg, font, color) in to_draw]
+            total_length = sum(lengths)
+            xpos = (width - total_length) / 2
+
+            for (msg, font, color), length in zip(to_draw, lengths):
+                draw.text((xpos, ypos), msg, font=font, fill=color)
+                xpos += length
+
+            res = np.array(img)
+
+        return res
+
+
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, num_env, episodes, render, videos, video_dir):
     if videos:
+        assert num_env == 1, "videos requires num_env=1"
         if video_dir is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
                                  "but videos will be saved to Sacred run directory")
@@ -154,6 +229,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     def env_fn(i):
         env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
         if videos:
+            env = PrettyMujocoWrapper(env)
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
         return env
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
