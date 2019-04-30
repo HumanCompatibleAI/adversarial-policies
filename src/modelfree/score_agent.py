@@ -1,6 +1,7 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
 import collections
+import ctypes
 import functools
 import glob
 import logging
@@ -19,6 +20,7 @@ from sacred.observers import FileStorageObserver
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
+from modelfree.configs.multi.common import VICTIM_INDEX
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 
 score_ex = Experiment('score')
@@ -142,17 +144,94 @@ def default_score_config():
     del _
 
 
+VICTIM_OPPONENT_COLORS = {
+    'victim': (77, 175, 74, 255),
+    'opponent': (228, 26, 28, 255),
+}
+
+
+POLICY_TYPE_COLORS = {
+    'zoo': (128, 128, 128, 255),  # grey
+    'ppo2': (255, 0, 0, 255),  # red
+    'zero': (0, 0, 0, 255),  # black
+    'random': (0, 0, 255, 255),  # blue
+}
+
+# Brewer Accent
+PATH_COLORS = {
+    '1': (127, 201, 127, 255),
+    '2': (190, 174, 212, 255),
+    '3': (253, 192, 134, 255),
+    '4': (255, 255, 153, 255),
+}
+
+
+def body_color(is_victim, agent_type, agent_path):
+    key = 'victim' if is_victim else 'opponent'
+    return VICTIM_OPPONENT_COLORS[key]
+
+
+def head_color(is_victim, agent_type, agent_path):
+    return POLICY_TYPE_COLORS[agent_type]
+
+
+GEOM_MAPPINGS = {
+    '*': body_color,
+    # Ant
+    'torso_geom': head_color,
+    # Humanoid
+    'torso1': head_color,
+    'uwaist': head_color,
+    'lwaist': head_color,
+    'head': head_color,
+}
+
+
+def set_geom_rgba(model, value):
+    """Does what model.geom_rgba = ... should do, but doesn't because of a bug in mujoco-py."""
+    val_ptr = np.array(value, dtype=np.float32).ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+    ctypes.memmove(model._wrapped.contents.geom_rgba, val_ptr,
+                   model.ngeom * 4 * ctypes.sizeof(ctypes.c_float))
+
+
+def set_geom_colors(model, patterns):
+    names = [name.decode('utf-8') for name in model.geom_names]
+    patterns = {re.compile(k): tuple(x / 255 for x in v) for k, v in patterns.items()}
+
+    modified = np.array(model.geom_rgba)
+    for row_idx, name in enumerate(names):
+        for pattern, color in patterns.items():
+            if pattern.match(name):
+                modified[row_idx, :] = color
+
+    set_geom_rgba(model, modified)
+
+
 class PrettyMujocoWrapper(gym.Wrapper):
-    def __init__(self, env, font="times", font_size=24, spacing=0.02,
+    def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
+                 font="times", font_size=24, spacing=0.02,
                  color=(0, 0, 0, 255), color_changed=(255, 255, 255, 255)):
         super(PrettyMujocoWrapper, self).__init__(env)
-        self.result = collections.defaultdict(int)
-        self.changed = collections.defaultdict(bool)
+
+        # Set agent colors
+        self.victim_index = VICTIM_INDEX[env_name]
+        agent_mapping = {
+            'agent0': (0 == self.victim_index, agent_a_type, agent_a_path),
+            'agent1': (1 == self.victim_index, agent_b_type, agent_b_path)
+        }
+        color_patterns = {f'{agent_key}/{geom_key}': geom_fn(*agent_val)
+                          for geom_key, geom_fn in GEOM_MAPPINGS.items()
+                          for agent_key, agent_val in agent_mapping.items()}
+        set_geom_colors(self.env.unwrapped.env_scene.model, color_patterns)
+
+        # Text overlay
         self.font = ImageFont.truetype(f'{font}.ttf', font_size)
         self.font_bold = ImageFont.truetype(f'{font}bd.ttf', font_size)
         self.spacing = spacing
         self.color = color
         self.color_changed = color_changed
+
+        # Internal state
         self.result = collections.defaultdict(int)
         self.changed = collections.defaultdict(int)
         self.last_won = None
@@ -179,11 +258,9 @@ class PrettyMujocoWrapper(gym.Wrapper):
 
             width, height = img.size
             ypos = height * 0.9
-            # TODO: Make configurable
-            # TODO: handle victim_path
             texts = collections.OrderedDict([
-                ('win0', 'Win 0'),
-                ('win1', 'Win 1'),
+                (f'win{1 - self.victim_index}', 'Opponent'),
+                (f'win{self.victim_index}', 'Victim'),
                 ('ties', 'Ties'),
             ])
 
@@ -231,7 +308,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     def env_fn(i):
         env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
         if videos:
-            env = PrettyMujocoWrapper(env)
+            env = PrettyMujocoWrapper(env, env_name, agent_a_type, agent_a_path,
+                                      agent_b_type, agent_b_path)
             env = VideoWrapper(env, osp.join(video_dir, str(i)), video_per_episode)
         return env
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
