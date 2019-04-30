@@ -163,7 +163,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     def env_fn(i):
-        env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper,
+        env = make_env(env_name, _seed, i, None,
+                       pre_wrapper=pre_wrapper,
                        agent_wrappers=agent_wrappers)
         if videos:
             env = VideoWrapper(env, osp.join(video_dir, str(i)))
