@@ -145,8 +145,9 @@ def default_score_config():
 
 
 VICTIM_OPPONENT_COLORS = {
-    'victim': (77, 175, 74, 255),
-    'opponent': (228, 26, 28, 255),
+    'Victim': (77, 175, 74, 255),
+    'Opponent': (228, 26, 28, 255),
+    'Ties': (0, 0, 0, 255),
 }
 
 
@@ -167,7 +168,7 @@ PATH_COLORS = {
 
 
 def body_color(is_victim, agent_type, agent_path):
-    key = 'victim' if is_victim else 'opponent'
+    key = 'Victim' if is_victim else 'Opponent'
     return VICTIM_OPPONENT_COLORS[key]
 
 
@@ -220,8 +221,7 @@ CAMERA_CONFIG = {
 
 class PrettyMujocoWrapper(gym.Wrapper):
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 font="times", font_size=24, spacing=0.02,
-                 color=(0, 0, 0, 255), color_changed=(255, 255, 255, 255)):
+                 font="times", font_size=24, spacing=0.02, color=(0, 0, 0, 255)):
         super(PrettyMujocoWrapper, self).__init__(env)
 
         # Set agent colors
@@ -238,10 +238,9 @@ class PrettyMujocoWrapper(gym.Wrapper):
 
         # Text overlay
         self.font = ImageFont.truetype(f'{font}.ttf', font_size)
-        self.font_bold = ImageFont.truetype(f'{font}bd.ttf', font_size)
+        self.font_bold = ImageFont.truetype(f'{font}bi.ttf', font_size)
         self.spacing = spacing
         self.color = color
-        self.color_changed = color_changed
 
         # Internal state
         self.result = collections.defaultdict(int)
@@ -297,12 +296,8 @@ class PrettyMujocoWrapper(gym.Wrapper):
             to_draw = []
             for k, label in texts.items():
                 msg = f'{label} = {self.result[k]}'
-                font = self.font
-                color = self.color
-                if k == self.last_won:
-                    font = self.font_bold
-                    color = self.color_changed
-
+                color = VICTIM_OPPONENT_COLORS[label]
+                font = self.font_bold if k == self.last_won else self.font
                 to_draw.append((msg, font, color))
 
             lengths = [font.getsize(msg)[0] + self.spacing * width
