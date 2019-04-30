@@ -21,7 +21,7 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_mul
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.configs.multi.common import VICTIM_INDEX
-from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
+from modelfree.envs.gym_compete import GymCompeteToOurs, env_name_to_canonical, game_outcome
 
 score_ex = Experiment('score')
 score_ex_logger = logging.getLogger('score_agent')
@@ -207,6 +207,17 @@ def set_geom_colors(model, patterns):
     set_geom_rgba(model, modified)
 
 
+CAMERA_CONFIG = {
+    # From behind
+    'KickAndDefend-v0': {'azimuth': 0, 'distance': 10, 'elevation': -23},
+    # From side, slightly behind (runner always goes forward, never back)
+    'YouShallNotPassHumans-v0': {'azimuth': 110, 'distance': 9, 'elevation': -21},
+    # Defaults fine for Sumo
+    'SumoHumans-v0': {},
+    'SumoAnts-v0': {},
+}
+
+
 class PrettyMujocoWrapper(gym.Wrapper):
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
                  font="times", font_size=24, spacing=0.02,
@@ -214,6 +225,7 @@ class PrettyMujocoWrapper(gym.Wrapper):
         super(PrettyMujocoWrapper, self).__init__(env)
 
         # Set agent colors
+        self.env_name = env_name
         self.victim_index = VICTIM_INDEX[env_name]
         agent_mapping = {
             'agent0': (0 == self.victim_index, agent_a_type, agent_a_path),
@@ -236,12 +248,30 @@ class PrettyMujocoWrapper(gym.Wrapper):
         self.changed = collections.defaultdict(int)
         self.last_won = None
 
+        self.env.unwrapped.env_scene._get_viewer()  # force viewer to start
+        self.camera_setup()
+
+    def camera_setup(self):
+        canonical_env_name = env_name_to_canonical(self.env_name)
+        camera_cfg = CAMERA_CONFIG[canonical_env_name]
+        viewer = self.env.unwrapped.env_scene.viewer
+
+        for k, v in camera_cfg.items():
+            setattr(viewer.cam, k, v)
+
+    def _reset(self):
+        ob = super(PrettyMujocoWrapper, self)._reset()
+
+        if self.env.unwrapped.env_scene.viewer is not None:
+            self.camera_setup()
+
+        return ob
+
     def _step(self, action):
         obs, rew, done, info = self.env.step(action)
         if done:
             # TODO: code duplication
             winner = game_outcome(info)
-            print('winner', winner)
             if winner is None:
                 k = 'ties'
             else:
