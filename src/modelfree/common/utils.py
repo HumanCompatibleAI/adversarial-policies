@@ -3,6 +3,7 @@ import datetime
 import itertools
 import os
 from os import path as osp
+import pdb
 import warnings
 
 import gym
@@ -335,6 +336,7 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
+
         for policy, obs, state in zip(policies, observations, states):
             act, new_state = policy.predict(obs, state=state, mask=dones)
             actions.append(act)
