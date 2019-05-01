@@ -1,7 +1,5 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
-import collections
-import ctypes
 import functools
 import glob
 import logging
@@ -11,17 +9,14 @@ import re
 import tempfile
 import warnings
 
-from PIL import Image, ImageDraw, ImageFont
-import gym
-import numpy as np
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
-from modelfree.configs.multi.common import VICTIM_INDEX
-from modelfree.envs.gym_compete import GymCompeteToOurs, env_name_to_canonical, game_outcome
+from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
+from modelfree.visualize.pretty_gym_compete import PrettyGymCompete
 
 score_ex = Experiment('score')
 score_ex_logger = logging.getLogger('score_agent')
@@ -134,7 +129,12 @@ def default_score_config():
     episodes = 20                       # number of episodes to evaluate
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
-    video_dir = None                    # directory to store videos in.
+    video_params = {
+        'save_dir': None,               # directory to store videos in.
+        'single_file': True,            # if False, stores one file per episode
+        'annotated': True,              # for gym_compete, color-codes the agents and adds scores
+    }
+    video_dir = None
     video_per_episode = False           # False: single file, True: file per episode
     # If video_dir set to None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
@@ -144,200 +144,31 @@ def default_score_config():
     del _
 
 
-VICTIM_OPPONENT_COLORS = {
-    'Victim': (77, 175, 74, 255),
-    'Opponent': (228, 26, 28, 255),
-    'Ties': (0, 0, 0, 255),
-}
-
-
-POLICY_TYPE_COLORS = {
-    'zoo': (128, 128, 128, 255),  # grey
-    'ppo2': (255, 0, 0, 255),  # red
-    'zero': (0, 0, 0, 255),  # black
-    'random': (0, 0, 255, 255),  # blue
-}
-
-# Brewer Accent
-PATH_COLORS = {
-    '1': (127, 201, 127, 255),
-    '2': (190, 174, 212, 255),
-    '3': (253, 192, 134, 255),
-    '4': (255, 255, 153, 255),
-}
-
-
-def body_color(is_victim, agent_type, agent_path):
-    key = 'Victim' if is_victim else 'Opponent'
-    return VICTIM_OPPONENT_COLORS[key]
-
-
-def head_color(is_victim, agent_type, agent_path):
-    return POLICY_TYPE_COLORS[agent_type]
-
-
-GEOM_MAPPINGS = {
-    '*': body_color,
-    # Ant
-    'torso_geom': head_color,
-    # Humanoid
-    'torso1': head_color,
-    'uwaist': head_color,
-    'lwaist': head_color,
-    'head': head_color,
-}
-
-
-def set_geom_rgba(model, value):
-    """Does what model.geom_rgba = ... should do, but doesn't because of a bug in mujoco-py."""
-    val_ptr = np.array(value, dtype=np.float32).ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-    ctypes.memmove(model._wrapped.contents.geom_rgba, val_ptr,
-                   model.ngeom * 4 * ctypes.sizeof(ctypes.c_float))
-
-
-def set_geom_colors(model, patterns):
-    names = [name.decode('utf-8') for name in model.geom_names]
-    patterns = {re.compile(k): tuple(x / 255 for x in v) for k, v in patterns.items()}
-
-    modified = np.array(model.geom_rgba)
-    for row_idx, name in enumerate(names):
-        for pattern, color in patterns.items():
-            if pattern.match(name):
-                modified[row_idx, :] = color
-
-    set_geom_rgba(model, modified)
-
-
-CAMERA_CONFIG = {
-    # From behind
-    'KickAndDefend-v0': {'azimuth': 0, 'distance': 10, 'elevation': -23},
-    # From side, slightly behind (runner always goes forward, never back)
-    'YouShallNotPassHumans-v0': {'azimuth': 110, 'distance': 9, 'elevation': -21},
-    # Defaults fine for Sumo
-    'SumoHumans-v0': {},
-    'SumoAnts-v0': {},
-}
-
-
-class PrettyMujocoWrapper(gym.Wrapper):
-    def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 font="times", font_size=24, spacing=0.02, color=(0, 0, 0, 255)):
-        super(PrettyMujocoWrapper, self).__init__(env)
-
-        # Set agent colors
-        self.env_name = env_name
-        self.victim_index = VICTIM_INDEX[env_name]
-        agent_mapping = {
-            'agent0': (0 == self.victim_index, agent_a_type, agent_a_path),
-            'agent1': (1 == self.victim_index, agent_b_type, agent_b_path)
-        }
-        color_patterns = {f'{agent_key}/{geom_key}': geom_fn(*agent_val)
-                          for geom_key, geom_fn in GEOM_MAPPINGS.items()
-                          for agent_key, agent_val in agent_mapping.items()}
-        set_geom_colors(self.env.unwrapped.env_scene.model, color_patterns)
-
-        # Text overlay
-        self.font = ImageFont.truetype(f'{font}.ttf', font_size)
-        self.font_bold = ImageFont.truetype(f'{font}bi.ttf', font_size)
-        self.spacing = spacing
-        self.color = color
-
-        # Internal state
-        self.result = collections.defaultdict(int)
-        self.changed = collections.defaultdict(int)
-        self.last_won = None
-
-        self.env.unwrapped.env_scene._get_viewer()  # force viewer to start
-        self.camera_setup()
-
-    def camera_setup(self):
-        canonical_env_name = env_name_to_canonical(self.env_name)
-        camera_cfg = CAMERA_CONFIG[canonical_env_name]
-        viewer = self.env.unwrapped.env_scene.viewer
-
-        for k, v in camera_cfg.items():
-            setattr(viewer.cam, k, v)
-
-    def _reset(self):
-        ob = super(PrettyMujocoWrapper, self)._reset()
-
-        if self.env.unwrapped.env_scene.viewer is not None:
-            self.camera_setup()
-
-        return ob
-
-    def _step(self, action):
-        obs, rew, done, info = self.env.step(action)
-        if done:
-            # TODO: code duplication
-            winner = game_outcome(info)
-            if winner is None:
-                k = 'ties'
-            else:
-                k = f'win{winner}'
-            self.result[k] += 1
-            self.last_won = k
-        return obs, rew, done, info
-
-    def _render(self, mode='human', close=False):
-        res = self.env.render(mode, close)
-        if mode == 'rgb_array':
-            img = Image.fromarray(res)
-            draw = ImageDraw.Draw(img)
-
-            width, height = img.size
-            ypos = height * 0.9
-            texts = collections.OrderedDict([
-                (f'win{1 - self.victim_index}', 'Opponent'),
-                (f'win{self.victim_index}', 'Victim'),
-                ('ties', 'Ties'),
-            ])
-
-            to_draw = []
-            for k, label in texts.items():
-                msg = f'{label} = {self.result[k]}'
-                color = VICTIM_OPPONENT_COLORS[label]
-                font = self.font_bold if k == self.last_won else self.font
-                to_draw.append((msg, font, color))
-
-            lengths = [font.getsize(msg)[0] + self.spacing * width
-                       for (msg, font, color) in to_draw]
-            total_length = sum(lengths)
-            xpos = (width - total_length) / 2
-
-            for (msg, font, color), length in zip(to_draw, lengths):
-                draw.text((xpos, ypos), msg, font=font, fill=color)
-                xpos += length
-
-            res = np.array(img)
-
-        return res
-
-
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, num_env, episodes, render,
-                videos, video_dir, video_per_episode):
+                videos, video_params):
     if videos:
-        assert num_env == 1, "videos requires num_env=1"
-        if video_dir is None:
+        if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
                                  "but videos will be saved to Sacred run directory")
             tmp_dir = tempfile.TemporaryDirectory()
-            video_dir = tmp_dir.name
+            video_params['save_dir'] = tmp_dir.name
         else:
             tmp_dir = None
-        video_dirs = [osp.join(video_dir, str(i)) for i in range(num_env)]
+        video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
-    def env_fn(i):
+    def env_fn(i, video_dir):
         env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
         if videos:
-            env = PrettyMujocoWrapper(env, env_name, agent_a_type, agent_a_path,
-                                      agent_b_type, agent_b_path)
-            env = VideoWrapper(env, osp.join(video_dir, str(i)), video_per_episode)
+            if video_params['annotated'] and 'multicomp' in env_name:
+                assert num_env == 1, "pretty videos requires num_env=1"
+                env = PrettyGymCompete(env, env_name, agent_a_type, agent_a_path,
+                                       agent_b_type, agent_b_path)
+            env = VideoWrapper(env, video_dir, video_params['single_file'])
         return env
-    env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
+    env_fns = [functools.partial(env_fn, i, video_dirs[i]) for i in range(num_env)]
 
     if num_env > 1:
         venv = make_subproc_vec_multi_env(env_fns)
@@ -361,6 +192,12 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     if record_traj:
         venv.save(save_dir=record_traj_params['save_dir'])
 
+    for agent in agents:
+        if agent.sess is not None:
+            agent.sess.close()
+
+    venv.close()
+
     if videos:
         for env_video_dir in video_dirs:
             try:
@@ -378,11 +215,6 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         if hasattr(observer, 'dir'):
             _clean_video_directory_structure(observer)
 
-    for agent in agents:
-        if agent.sess is not None:
-            agent.sess.close()
-
-    venv.close()
     return score
 
 

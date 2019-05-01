@@ -144,11 +144,11 @@ class RandomPolicy(BasePolicy):
 
 
 class VideoWrapper(Wrapper):
-    def __init__(self, env, directory, video_per_episode=True):
+    def __init__(self, env, directory, single_video=True):
         super(VideoWrapper, self).__init__(env)
         self.episode_id = 0
         self.video_recorder = None
-        self.video_per_episode = video_per_episode
+        self.single_video = single_video
 
         self.directory = osp.abspath(directory)
         # Make sure to not put multiple different runs in the same directory,
@@ -173,7 +173,7 @@ class VideoWrapper(Wrapper):
         return self.env.reset()
 
     def _reset_video_recorder(self):
-        if self.video_recorder is None or self.video_per_episode:
+        if self.video_recorder is None or not self.single_video:
             if self.video_recorder is not None:
                 self.video_recorder.close()
             self.video_recorder = VideoRecorder(
@@ -183,7 +183,7 @@ class VideoWrapper(Wrapper):
             )
 
     def _close(self):
-        if self.video_recorder:
+        if self.video_recorder is not None:
             self.video_recorder.close()
             self.video_recorder = None
         super(VideoWrapper, self)._close()
