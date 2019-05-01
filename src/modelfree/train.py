@@ -20,7 +20,8 @@ from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAge
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
+from modelfree.common.policy_loader import (load_backward_compatible_model,
+                                            load_normalization_statistics, load_policy)
 from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.density import DensityRewardVecWrapper
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
@@ -395,6 +396,8 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy, rew
                              "implicitly. Please set normalize=False to disable VecNormalize.")
 
         normalized_venv = VecNormalize(single_venv)
+        if load_policy['path'] is not None:
+            load_normalization_statistics(normalized_venv, root_dir=load_policy['path'].split('/')[0])
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
 

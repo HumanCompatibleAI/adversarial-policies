@@ -347,14 +347,15 @@ def simulate(venv, policies, render=False):
         actions = []
         new_states = []
         for agent_idx, (policy, obs, state) in enumerate(zip(policies, observations, states)):
-            if hasattr(policy, 'predict_transparent'):
+            try:
                 policy_out = policy.predict_transparent(obs, state=state, mask=dones)
                 act, new_state, transparent_data = policy_out
                 try:
                     venv.record_transparent_data(transparent_data, agent_idx)
                 except AttributeError:
-                    print("No way to record transparent data on this venv")
-            else:
+                    #print("No way to record transparent data on this venv")
+                    pass
+            except:
                 act, new_state = policy.predict(obs, state=state, mask=dones)
 
             actions.append(act)

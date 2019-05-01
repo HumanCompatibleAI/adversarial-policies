@@ -105,8 +105,9 @@ class DensityRewardVecWrapper(VecEnvWrapper):
                 sample = data_dict[key].reshape(1, -1)
                 if model_dict['pca'] is not None:
                     sample = model_dict['pca'].transform(sample)
-                density = model_dict['density'].score(sample)
-                rew[env_idx] += self.density_mul * density
+                density = model_dict['density'].score(sample) + 90
+                # density is always negative (log-likelihood), so we subtract for reward
+                rew[env_idx] -= self.density_mul * density
         return obs, rew, dones, infos
 
 
@@ -159,15 +160,17 @@ def sumo_humans_ex(pca_dim, episodes, skip_scoring):
     if not skip_scoring:
         base_config = get_base_config(episodes, env_name='multicomp/SumoHumansAutoContact-v0')
         config_copy = base_config.copy()
-        dir_name = 'shac-zoo'
-        config_copy['record_traj_params']['save_dir'] = f'data/{dir_name}'
+        config_copy['agent_a_path'] = 1
+        config_copy['agent_b_path'] = 1
+        dir_name = 'shac-zoo-vic1'
+        config_copy['record_traj_params']['save_dir'] = f'density-data/{dir_name}'
         run = score_ex.run(config_updates=config_copy)
         print('finished run')
         assert run.status == 'COMPLETED'
 
-    density_modeler = ActivationDensityModeler('data/shac-zoo/agent_0.npz')
+    density_modeler = ActivationDensityModeler('density-data/shac-zoo-vic1/agent_0.npz')
     density_modeler.get_density_model('ff_policy', pca_dim=pca_dim)
-    density_modeler.save_model('ff_policy', f'data/densities/shac-zoo-policy.model')
+    density_modeler.save_model('ff_policy', f'density-data/shac-zoo-vic1-policy.model')
     density_modeler.get_density_model('ff_value', pca_dim=pca_dim)
     print(f'fit model')
 

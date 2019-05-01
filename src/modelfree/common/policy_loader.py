@@ -38,14 +38,9 @@ def load_stable_baselines(cls):
         model_path = os.path.join(root_dir, 'model.pkl')
         pylog.info(f"Loading Stable Baselines policy for '{cls}' from '{model_path}'")
         model = load_backward_compatible_model(cls, model_path, denv)
-        try:
-            vec_normalize = VecNormalize(denv, training=False)
-            vec_normalize.load_running_average(root_dir)
-            model = NormalizeModel(model, vec_normalize)
-            pylog.info(f"Loaded normalization statistics from '{root_dir}'")
-        except FileNotFoundError:
-            # We did not use VecNormalize during training, skip
-            pass
+        vec_normalize = VecNormalize(denv, training=False)
+        load_normalization_statistics(vec_normalize, root_dir)
+        model = NormalizeModel(model, vec_normalize)
 
         return model
 
@@ -140,3 +135,12 @@ def load_backward_compatible_model(cls, model_path, denv=None, **kwargs):
     model = cls.load(model_path, env=denv, **kwargs)
     del sys.modules['modelfree.scheduling']
     return model
+
+
+def load_normalization_statistics(vec_normalize, root_dir):
+    try:
+        vec_normalize.load_running_average(root_dir)
+        pylog.info(f"Loaded normalization statistics from '{root_dir}'")
+    except FileNotFoundError:
+        # We did not use VecNormalize during training, skip
+        pass
