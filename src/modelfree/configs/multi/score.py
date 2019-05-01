@@ -13,13 +13,15 @@ from modelfree.envs import VICTIM_INDEX, gym_compete
 logger = logging.getLogger('modelfree.configs.multi.score')
 
 
-def _gen_configs(victim_fn, adversary_fn, envs=None):
+def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
     if envs is None:
         envs = BANSAL_GOOD_ENVS
 
     configs = []
     for env in envs:
         num_zoo = gym_compete.num_zoo_policies(env)
+        if max_zoo is not None:
+            num_zoo = min(num_zoo, max_zoo)
         victim_index = VICTIM_INDEX[env]
         for victim_id in range(num_zoo):
             for adversary_id in range(num_zoo):
@@ -46,8 +48,8 @@ def _zoo_identity(_env, _victim_index, our_id, _opponent_id):
     return 'zoo', str(our_id + 1)
 
 
-def _env_agents(envs=None):
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=_zoo_identity, envs=envs)
+def _env_agents(**kwargs):
+    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=_zoo_identity, **kwargs)
 
 
 def _fixed_vs_victim(fixed_type, envs=None):
@@ -103,6 +105,12 @@ def make_configs(multi_score_ex):
         score['videos'] = True
         score['num_env'] = 1
         score['episodes'] = 20
+        score['video_params'] = {
+            'annotation_params': {
+                'resolution': (1920, 1080),
+                'font_size': 96,
+            }
+        }
         exp_name = 'video_' + exp_name  # noqa: F401
 
     @multi_score_ex.named_config
@@ -111,7 +119,7 @@ def make_configs(multi_score_ex):
         score['episodes'] = 2
         spec = {
             'config': {
-                PATHS_AND_TYPES: tune.grid_search(_env_agents()[0:2]),
+                PATHS_AND_TYPES: tune.grid_search(_env_agents(max_zoo=1)),
             }
         }
         exp_name = 'debug'

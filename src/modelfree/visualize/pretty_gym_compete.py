@@ -11,8 +11,8 @@ from modelfree.envs import VICTIM_INDEX
 from modelfree.envs.gym_compete import env_name_to_canonical, game_outcome
 
 VICTIM_OPPONENT_COLORS = {
-    'Victim': (77, 175, 74, 255),
-    'Opponent': (228, 26, 28, 255),
+    'Victim': (128, 128, 128, 255),
+    'Opponent': (255, 0, 0, 255),
     'Ties': (0, 0, 0, 255),
 }
 
@@ -22,14 +22,6 @@ POLICY_TYPE_COLORS = {
     'ppo2': (255, 0, 0, 255),  # red
     'zero': (0, 0, 0, 255),  # black
     'random': (0, 0, 255, 255),  # blue
-}
-
-# Brewer Accent
-PATH_COLORS = {
-    '1': (127, 201, 127, 255),
-    '2': (190, 174, 212, 255),
-    '3': (253, 192, 134, 255),
-    '4': (255, 255, 153, 255),
 }
 
 
@@ -87,8 +79,7 @@ CAMERA_CONFIG = {
 
 class PrettyGymCompete(gym.Wrapper):
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 resolution=(1920, 1080), font="times", font_size=96, spacing=0.02,
-                 color=(0, 0, 0, 255)):
+                 resolution, font, font_size, spacing=0.02):
         super(PrettyGymCompete, self).__init__(env)
 
         # Set agent colors
@@ -107,7 +98,6 @@ class PrettyGymCompete(gym.Wrapper):
         self.font = ImageFont.truetype(f'{font}.ttf', font_size)
         self.font_bold = ImageFont.truetype(f'{font}bi.ttf', font_size)
         self.spacing = spacing
-        self.color = color
 
         # Internal state
         self.result = collections.defaultdict(int)
