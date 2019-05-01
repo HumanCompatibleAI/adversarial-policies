@@ -24,6 +24,7 @@ def default_config():
                               '2019-04-29T14:11:08-07:00_best_adversaries.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on baremetal
     score_configs = ['zoo_baseline', 'fixed_baseline', 'adversary_transfer']
+    config_updates = {}
     root_dir = 'data/videos'
     exp_name = 'default'
     _ = locals()  # quieten flake8 unused variable warning
@@ -32,18 +33,22 @@ def default_config():
 
 @make_videos_ex.named_config
 def debug_config():
-    score_configs = ['debug']  # noqa: F841
+    score_configs = ['debug']
+    config_updates = {'score': {'episodes': 2}}
+    exp_name = 'debug'
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 
 @make_videos_ex.capture
-def generate_videos(adversary_path, score_configs):
+def generate_videos(adversary_path, score_configs, config_updates):
     # Sad workaround for Sacred config limitation,
     # see modelfree.configs.multi.score:_get_adversary_paths
     os.putenv('ADVERSARY_PATHS', adversary_path)
 
     video_dirs = {}
     for config in score_configs:
-        run = multi_score_ex.run(named_configs=[config, 'video'])
+        run = multi_score_ex.run(named_configs=[config, 'video'], config_updates=config_updates)
         exp_id = run.result['exp_id']
         video_dirs[config] = exp_id
 
