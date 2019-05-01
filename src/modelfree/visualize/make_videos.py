@@ -10,7 +10,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from modelfree.common import utils
-from modelfree.configs.multi.common import VICTIM_INDEX
+from modelfree.envs import VICTIM_INDEX
 from modelfree.envs.gym_compete import env_name_to_canonical
 from modelfree.multi.score import multi_score_ex
 

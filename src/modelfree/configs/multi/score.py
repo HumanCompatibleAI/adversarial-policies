@@ -7,8 +7,8 @@ import pkgutil
 
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_GOOD_ENVS, VICTIM_INDEX
-from modelfree.envs import gym_compete
+from modelfree.configs.multi.common import BANSAL_GOOD_ENVS
+from modelfree.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('modelfree.configs.multi.score')
 

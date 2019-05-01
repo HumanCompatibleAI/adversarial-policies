@@ -7,7 +7,7 @@ import gym
 import mujoco_py
 import numpy as np
 
-from modelfree.configs.multi.common import VICTIM_INDEX
+from modelfree.envs import VICTIM_INDEX
 from modelfree.envs.gym_compete import env_name_to_canonical, game_outcome
 
 VICTIM_OPPONENT_COLORS = {
