@@ -98,11 +98,26 @@ def make_configs(multi_score_ex):
         score['num_env'] = 16
 
     @multi_score_ex.named_config
-    def video(score):
+    def video(exp_name, score):
         score = dict(score)
         score['videos'] = True
         score['num_env'] = 1
-        score['exp_name'] = 'video_' + score['exp_name']
+        score['episodes'] = 20
+        exp_name = 'video_' + exp_name  # noqa: F401
+
+    @multi_score_ex.named_config
+    def debug(score):
+        score = dict(score)
+        score['episodes'] = 2
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(_env_agents()[0:2]),
+            }
+        }
+        exp_name = 'debug'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
 
     @multi_score_ex.named_config
     def zoo_baseline(score):

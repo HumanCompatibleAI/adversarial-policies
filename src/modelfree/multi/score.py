@@ -74,7 +74,7 @@ def multi_score(score, save_path):
         if save_path is not None:
             f = open(save_path, 'w')  # open it now so we fail fast if file is unwriteable
 
-        trials = run(base_config=score)
+        trials, exp_id = run(base_config=score)
         results = {}
         for trial in trials:
             idx = trial.last_result['idx']
@@ -88,7 +88,7 @@ def multi_score(score, save_path):
         if f is not None:
             f.close()
 
-    return results
+    return {'scores': results, 'exp_id': exp_id}
 
 
 def main():

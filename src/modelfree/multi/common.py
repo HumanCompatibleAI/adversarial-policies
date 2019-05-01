@@ -135,6 +135,6 @@ def make_sacred(ex, worker_name, worker_fn):
         result = tune.run_experiments({exp_id: spec})
 
         ray.shutdown()  # run automatically on exit, but needed here to not break tests
-        return result
+        return result, exp_id
 
     return run
