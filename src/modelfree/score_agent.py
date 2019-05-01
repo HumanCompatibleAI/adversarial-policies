@@ -159,16 +159,16 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
-    def env_fn(i, video_dir):
+    def env_fn(i):
         env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
         if videos:
             if video_params['annotated'] and 'multicomp' in env_name:
                 assert num_env == 1, "pretty videos requires num_env=1"
                 env = PrettyGymCompete(env, env_name, agent_a_type, agent_a_path,
                                        agent_b_type, agent_b_path)
-            env = VideoWrapper(env, video_dir, video_params['single_file'])
+            env = VideoWrapper(env, video_dirs[i], video_params['single_file'])
         return env
-    env_fns = [functools.partial(env_fn, i, video_dirs[i]) for i in range(num_env)]
+    env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
 
     if num_env > 1:
         venv = make_subproc_vec_multi_env(env_fns)
