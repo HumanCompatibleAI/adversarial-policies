@@ -1,6 +1,7 @@
 """Hyperparameter search for train.py using Ray Tune."""
 
 import logging
+import math
 import os.path as osp
 
 from ray import tune
@@ -25,7 +26,7 @@ make_configs(multi_train_ex)
 @multi_train_ex.config
 def default_config(train):
     spec = {  # experiment specification
-        'resources_per_trial': {'cpu': train['num_env'] // 2},
+        'resources_per_trial': {'cpu': math.ceil(train['num_env'] / 2)},
     }
 
     _ = locals()  # quieten flake8 unused variable warning

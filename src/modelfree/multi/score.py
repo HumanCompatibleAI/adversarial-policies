@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os.path as osp
 
 from ray import tune
@@ -26,7 +27,7 @@ make_configs(multi_score_ex)
 @multi_score_ex.config
 def default_config(score):
     spec = {  # experiment specification
-        'resources_per_trial': {'cpu': score['num_env'] // 2},
+        'resources_per_trial': {'cpu': math.ceil(score['num_env'] / 2)},
     }
 
     save_path = None      # path to save JSON results. If None, do not save.
