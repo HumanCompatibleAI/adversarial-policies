@@ -6,6 +6,7 @@ matplotlib.use('Agg')
 import json
 import logging
 import os
+import pdb
 import tempfile
 
 import altair as alt
@@ -35,7 +36,11 @@ tsne_vis_ex.observers.append(FileStorageObserver.create(
     '/Users/cody/Data/adversarial_policies/tsne_visualization'))
 logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
 
-
+abbreviation_lookup = {
+   "adversary": "Adv",
+    "zoo": "Zoo1",
+    "random": "Rand"
+}
 @tsne_vis_ex.config
 def main_config():
     base_path = "/Users/cody/Data/adversarial_policies/tsne_runs"
@@ -44,11 +49,11 @@ def main_config():
     perplexity = 250
     video_path = "/Users/cody/Data/adversarial_policies/video_frames"
     chart_type = "seaborn"
-    opacity = 0.10
-    dot_size = 2
-    palette_name = None
+    opacity = 1.0
+    dot_size = 0.25
+    palette_name = "cube_bright"
     save_type = "pdf"
-    hue_order = ["adversary","zoo", "random"]
+    hue_order = ["Adv","Zoo1", "Rand"]
     _ = locals()
     del _
 
@@ -97,18 +102,18 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
         elif chart_type == 'seaborn':
             if palette_name is "bright" or palette_name is None:
                 palette_name = {
-                    "zoo": "#66c2a5",
-                    "random": "#fdb462",
-                    "adversary": '#e7298a'
+                    "Zoo1": "#66c2a5",
+                    "Rand": "#fdb462",
+                    "Adv": '#e7298a'
                 }
             if palette_name == "cube_bright":
                 palette_name = {
-                    "zoo": "#b87903",
-                    "random": "#d2b5ff",
-                    "adversary": '#016b61'
+                    "Zoo1": "#b87903",
+                    "Rand": "#d2b5ff",
+                    "Adv": '#016b61'
                 }
             fig, ax = plt.subplots(figsize=(2.75, 2.0625))
-            sns.scatterplot(data=data, x="ax_1", y="ax_2", hue="opponent_id",
+            sns.scatterplot(data=data, x="ax_1", y="ax_2", hue="opponent_id_remapped",
                             alpha=opacity, s=dot_size, edgecolors='none', linewidth=0,
                             palette=palette_name, hue_order=hue_order, ax=ax)
             handles, labels = ax.get_legend_handles_labels()
@@ -117,7 +122,7 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
             plt.style.use(PAPER_STYLE)
             ax.legend(handles=handles[1:], labels=labels[1:],
                       loc=9, ncol=3, bbox_to_anchor=(0.48, 1.18))
-            #plt.rc('axes.spines', **{'bottom': False, 'left': False, 'right': False, 'top': False})
+            plt.rc('axes.spines', **{'bottom': False, 'left': False, 'right': False, 'top': False})
             plt.savefig(fname, dpi=800)
             plt.close()
         tsne_vis_ex.add_artifact(fname)
@@ -171,6 +176,7 @@ def experiment_main(base_path, sacred_id, subsample_rate, perplexity, save_type)
     cluster_ids = np.load(os.path.join(full_sacred_dir, 'cluster_ids.npy'))
     metadata_df['ax_1'] = cluster_ids[:, 0]
     metadata_df['ax_2'] = cluster_ids[:, 1]
+    metadata_df['opponent_id_remapped'] = metadata_df['opponent_id'].apply(lambda x: abbreviation_lookup.get(x, None))
 
     _plot_and_save_chart(metadata_df.query("opponent_id != 'random'"),  "no_random_chart.{}".format(save_type))
     _plot_and_save_chart(metadata_df.query("opponent_id != 'adversary'"), "no_adversary_chart.{}".format(save_type))
