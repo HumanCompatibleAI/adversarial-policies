@@ -101,7 +101,8 @@ def make_configs(multi_score_ex):
     def video(score):
         score = dict(score)
         score['videos'] = True
-        # TODO: more parameters here?
+        score['num_env'] = 1
+        score['exp_name'] = 'video_' + score['exp_name']
 
     @multi_score_ex.named_config
     def zoo_baseline(score):
