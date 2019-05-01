@@ -4,6 +4,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont
 import gym
+import mujoco_py
 import numpy as np
 
 from modelfree.configs.multi.common import VICTIM_INDEX
@@ -86,7 +87,8 @@ CAMERA_CONFIG = {
 
 class PrettyGymCompete(gym.Wrapper):
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 font="times", font_size=24, spacing=0.02, color=(0, 0, 0, 255)):
+                 resolution=(1920, 1080), font="times", font_size=96, spacing=0.02,
+                 color=(0, 0, 0, 255)):
         super(PrettyGymCompete, self).__init__(env)
 
         # Set agent colors
@@ -112,7 +114,14 @@ class PrettyGymCompete(gym.Wrapper):
         self.changed = collections.defaultdict(int)
         self.last_won = None
 
-        self.env.unwrapped.env_scene._get_viewer()  # force viewer to start
+        env_scene = self.env.unwrapped.env_scene
+        # Start the viewer ourself to control dimensions.
+        # env_scene only sets this if None so will not be overwritten.
+        width, height = resolution
+        env_scene.viewer = mujoco_py.MjViewer(init_width=width, init_height=height)
+        env_scene.viewer.start()
+        env_scene.viewer.set_model(env_scene.model)
+        env_scene.viewer_setup()
         self.camera_setup()
 
     def camera_setup(self):
@@ -151,7 +160,7 @@ class PrettyGymCompete(gym.Wrapper):
             draw = ImageDraw.Draw(img)
 
             width, height = img.size
-            ypos = height * 0.9
+            ypos = height * 0.85
             texts = collections.OrderedDict([
                 (f'win{1 - self.victim_index}', 'Opponent'),
                 (f'win{self.victim_index}', 'Victim'),
