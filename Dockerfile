@@ -2,7 +2,7 @@
 
 FROM nvidia/cuda:10.0-runtime-ubuntu18.04
 
-RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections \\
+RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections \
     && apt-get update -q \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl \
