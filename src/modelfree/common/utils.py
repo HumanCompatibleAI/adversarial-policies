@@ -362,7 +362,6 @@ def make_env(env_name, seed, i, out_dir, our_idx=None,
         for agent_id in agent_wrappers:
             multi_env.agents[agent_id] = agent_wrappers[agent_id](multi_env.agents[agent_id],
                                                                   **agent_wrapper_kwargs)
-    pdb.set_trace()
     if pre_wrapper is not None:
         multi_env = pre_wrapper(multi_env)
     if not isinstance(multi_env, MultiAgentEnv):
