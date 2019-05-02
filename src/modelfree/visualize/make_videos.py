@@ -69,22 +69,32 @@ def extract_videos(out_dir, video_dirs, ray_upload_dir):
                 cfg = json.load(f)
 
             def agent_key(agent):
-                return cfg[agent + '_type'] + '_' + cfg[agent + '_path']
+                return cfg[agent + '_type'], cfg[agent + '_path']
 
             env_name = cfg['env_name']
             if VICTIM_INDEX[env_name] == 0:
-                victim_key = agent_key('agent_a')
-                opponent_key = agent_key('agent_b')
+                victim_type, victim_path = agent_key('agent_a')
+                opponent_type, opponent_path = agent_key('agent_b')
             else:
-                victim_key = agent_key('agent_b')
-                opponent_key = agent_key('agent_a')
+                victim_type, victim_path = agent_key('agent_b')
+                opponent_type, opponent_path = agent_key('agent_a')
 
             if 'multicomp' in cfg['env_name']:
                 env_name = env_name_to_canonical(env_name)
             env_name = env_name.replace('/', '-')  # sanitize
 
             src_path = osp.join(sacred_root, 'videos', 'env_0_episode_0_recording.mp4')
-            new_name = f'{env_name}_victim_{victim_key}_opponent_{opponent_key}.mp4'
+            if opponent_path.startswith('/'):  # is path name
+                opponent_root = osp.sep.join(opponent_path.split(osp.sep)[:-3])
+                opponent_sacred = osp.join(opponent_root, 'sacred', 'train', '1', 'config.json')
+
+                with open(opponent_sacred, 'r') as f:
+                    opponent_cfg = json.load(f)
+
+                opponent_path = opponent_cfg['victim_path']
+
+            new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
+                        f'_opponent_{opponent_type}_{opponent_path}.mp4')
             dst_path = osp.join(out_dir, new_name)
             shutil.copy(src_path, dst_path)
 
