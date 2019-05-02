@@ -63,6 +63,8 @@ def extract_videos(out_dir, video_dirs, ray_upload_dir):
         # These directories have names of form score-<hash>_<id_num>_<k=v>...
         for trial_name in os.listdir(experiment_root):
             # Each trial contains the Sacred output from score_agent.
+            # Note Ray Tune is running with a fresh working directory per trial, so Sacred
+            # output will always be at score/1.
             sacred_root = osp.join(experiment_root, trial_name, 'data', 'sacred', 'score', '1')
 
             with open(osp.join(sacred_root, 'config.json'), 'r') as f:

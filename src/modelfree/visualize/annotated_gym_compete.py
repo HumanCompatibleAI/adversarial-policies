@@ -77,10 +77,10 @@ CAMERA_CONFIG = {
 }
 
 
-class PrettyGymCompete(gym.Wrapper):
+class AnnotatedGymCompete(gym.Wrapper):
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
                  resolution, font, font_size, spacing=0.02):
-        super(PrettyGymCompete, self).__init__(env)
+        super(AnnotatedGymCompete, self).__init__(env)
 
         # Set agent colors
         self.env_name = env_name
@@ -123,7 +123,7 @@ class PrettyGymCompete(gym.Wrapper):
             setattr(viewer.cam, k, v)
 
     def _reset(self):
-        ob = super(PrettyGymCompete, self)._reset()
+        ob = super(AnnotatedGymCompete, self)._reset()
 
         if self.env.unwrapped.env_scene.viewer is not None:
             self.camera_setup()
