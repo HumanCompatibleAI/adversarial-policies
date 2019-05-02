@@ -71,9 +71,9 @@ CAMERA_CONFIG = {
     'KickAndDefend-v0': {'azimuth': 0, 'distance': 10, 'elevation': -23},
     # From side, slightly behind (runner always goes forward, never back)
     'YouShallNotPassHumans-v0': {'azimuth': 110, 'distance': 9, 'elevation': -21},
-    # Defaults fine for Sumo
-    'SumoHumans-v0': {},
-    'SumoAnts-v0': {},
+    # From side, close up
+    'SumoHumans-v0': {'azimuth': 90, 'distance': 8, 'elevation': -25},
+    'SumoAnts-v0': {'azimuth': 90, 'distance': 10, 'elevation': -25},
 }
 
 
