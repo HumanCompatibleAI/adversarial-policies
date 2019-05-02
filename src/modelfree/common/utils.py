@@ -347,13 +347,23 @@ def simulate(venv, policies, render=False):
         yield observations, rewards, dones, infos
 
 
-def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wrapper=None,
-             resettable=False):
+def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wrapper=None):
+
+    def maybe_apply_wrappers(wrappers, multi_env):
+        """Helper method to apply zero, one or multiple wrappers. Returns wrapped multi_env"""
+        if wrappers is None:
+            return multi_env
+
+        if not hasattr(wrappers, '__iter__'):
+            wrappers = [wrappers]
+        for wrap in wrappers:
+            multi_env = wrap(multi_env)
+
+        return multi_env
+
     multi_env = gym.make(env_name)
-    if pre_wrapper is not None:
-        multi_env = pre_wrapper(multi_env)
-    if resettable:
-        multi_env = OldMujocoResettableWrapper(multi_env)
+    multi_env = maybe_apply_wrappers(pre_wrapper, multi_env)
+
     if not isinstance(multi_env, MultiAgentEnv):
         multi_env = SingleToMulti(multi_env)
     multi_env.seed(seed + i)
@@ -363,9 +373,7 @@ def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wr
         os.makedirs(mon_dir, exist_ok=True)
         multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)), our_idx)
 
-    if post_wrapper is not None:
-        multi_env = post_wrapper(multi_env)
-
+    multi_env = maybe_apply_wrappers(post_wrapper, multi_env)
     return multi_env
 
 

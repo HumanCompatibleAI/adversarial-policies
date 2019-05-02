@@ -22,13 +22,13 @@ class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
         qvel = flattened[sim.model.nq:sim.model.nq + sim.model.nv]
         return MujocoState(qpos, qvel)
 
-    def set_mjdata(self, data, old_mujoco=False):
-        if old_mujoco:
-            data.qpos = self.qpos
-            data.qvel = self.qvel
-        else:
+    def set_mjdata(self, data):
+        try:
             data.qpos[:] = self.qpos
             data.qvel[:] = self.qvel
+        except ValueError:  # older mujoco version
+            data.qpos = self.qpos
+            data.qvel = self.qvel
 
     def flatten(self):
         return np.concatenate((self.qpos, self.qvel))
@@ -62,50 +62,55 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
         gym.Wrapper.__init__(self, env)
         self.sim = env.unwrapped.env_scene
 
-    def get_full_state(self):
+    def get_sim_data(self):
+        """Get the contents of an MjData object in dict form for the environment
+
+        :return: (dict<str, [float]) state_dict
+        """
         state_dict = {}
         for k, v in type(self.sim.data._wrapped.contents).__dict__['_fields_']:
             if k not in ['contact', 'buffer']:
                 state_dict[k] = getattr(self.sim.data, k)
         return state_dict
 
-    def get_state(self, all_data=False):
+    def get_radius(self):
+        """Get the radius of the environment, assuming it has one.
+
+        :return: (float) radius
+        """
+        return self.env.env.RADIUS
+
+    def get_state(self):
         """Serializes the qpos and qvel state of the MuJoCo emulator.
 
-        :param all_data (bool) whether to return full MjData dict and env radius if it exists
-        :return: ([float], dict<str,[float]>, float) state, full_state, radius
-                 with the latter two only being returned with all_data=True
+        :return: ([float]) state
         """
         state = MujocoState.from_mjdata(self.sim.data).flatten()
-        if all_data:
-            full_state = self.get_full_state()
-            try:
-                radius = self.env.env.RADIUS
-            except AttributeError:
-                # this environment does not have a radius.
-                radius = None
-            return (state, full_state, radius)
         return state
 
-    def set_state(self, x, sim_data=None, radius=None, forward=True):
+    def set_state(self, x, forward=True):
         """Restores qpos and qvel, calling forward() to derive other values.
 
-        :param sim_data (dict<str, [float]) dict with MjData fields extracted using get_state
-        :param radius (float) size of environment, if it exists
         :param forward (bool) whether to call forward on the environment.
         """
         state = MujocoState.from_flattened(x, self.sim)
-        if radius is not None:
-            # call this first since it runs forward automatically.
-            self.env.env.RADIUS = radius
-            self.env.env._set_geom_radius()
-        state.set_mjdata(self.sim.data, old_mujoco=True)
-        if sim_data is not None:
-            # set more than just qacc, qvel, qpos
-            for k, v in sim_data.items():
-                setattr(self.sim.data, k, v)
+        state.set_mjdata(self.sim.data)
         if forward:
             self.sim.model.forward()  # put mjData in consistent state
+
+    def set_radius(self, radius):
+        """Set the radius of this environment.
+
+        :param radius (float) size of environment, if it exists"""
+        self.env.env.RADIUS = radius
+        self.env.env._set_geom_radius()
+
+    def set_sim_data(self, sim_data):
+        """Set the fields of the MjData object of this environment
+
+        :param sim_data (dict<str, [float]) dict with MjData fields extracted using get_state"""
+        for k, v in sim_data.items():
+            setattr(self.sim.data, k, v)
 
     def reset(self):
         """See base class."""

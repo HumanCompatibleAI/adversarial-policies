@@ -253,10 +253,6 @@ class _ActionTranspose(VecMultiWrapper):
         rews = rews.T
         return obs, rews, done, info
 
-    def get_base_venv(self):
-        """Helper method to locate self in a stack of nested VecEnvWrappers"""
-        return self
-
 
 def _make_vec_multi_env(cls):
     def f(*args, **kwargs):

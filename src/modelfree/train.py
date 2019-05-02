@@ -16,11 +16,12 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
+from aprl.common.mujoco import OldMujocoResettableWrapper
 from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    VecMultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.common.lookback import DebugVenv, LookbackRewardVecWrapper
+from modelfree.training.lookback import DebugVenv, LookbackRewardVecWrapper
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
 from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
@@ -266,7 +267,7 @@ def train_config():
     transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
     lookback_params = {             # parameters for doing lookback white-box attacks
-        'num_lb': 0,                # number of lookback venvs
+        'num_lb': 0,                # number of lookback venvs, if zero, lookback is disabled
         'mul': 0.05,                # amount by which we weight differences in lookback
         'path': None,               # path of lookback base policy
         'type': rl_algo,            # type of lookback base policy
@@ -308,7 +309,8 @@ def wrappers_config(env_name):
 def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
               debug, lookback_params):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
-    resettable = lookback_params['num_lb'] > 0
+    if lookback_params['num_lb'] > 0:
+        pre_wrapper = list(filter(lambda x: x, [pre_wrapper, OldMujocoResettableWrapper]))
 
     if victim_type == 'none':
         our_idx = 0
@@ -316,8 +318,7 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
         our_idx = 1 - victim_index
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper,
-                              resettable=resettable)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
@@ -457,8 +458,8 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
     multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
 
     single_venv = FlattenSingletonVecEnv(multi_venv)
-    single_venv = single_wrappers(single_venv, scheduler, our_idx, lookback_params=lookback_params,
-                                  log_callbacks=log_callbacks, save_callbacks=save_callbacks)
+    single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks=log_callbacks,
+                                  save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
     res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),
