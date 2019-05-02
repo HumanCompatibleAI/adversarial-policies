@@ -119,7 +119,11 @@ def make_configs(multi_score_ex):
         score['episodes'] = 2
         spec = {
             'config': {
-                PATHS_AND_TYPES: tune.grid_search(_env_agents(max_zoo=1)),
+                PATHS_AND_TYPES: tune.grid_search(
+                    _env_agents(max_zoo=1) +
+                    _fixed_vs_victim('zero')[0:1] +
+                    _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
+                ),
             }
         }
         exp_name = 'debug'

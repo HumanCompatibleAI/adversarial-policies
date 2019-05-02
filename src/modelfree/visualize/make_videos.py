@@ -44,7 +44,7 @@ def debug_config():
 def generate_videos(adversary_path, score_configs, config_updates):
     # Sad workaround for Sacred config limitation,
     # see modelfree.configs.multi.score:_get_adversary_paths
-    os.putenv('ADVERSARY_PATHS', adversary_path)
+    os.environ['ADVERSARY_PATHS'] = adversary_path
 
     video_dirs = {}
     for config in score_configs:
