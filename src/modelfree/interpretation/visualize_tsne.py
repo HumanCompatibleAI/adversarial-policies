@@ -1,25 +1,21 @@
-import matplotlib
-matplotlib.use('Agg')
-## Breaking linting here so that this runs in a Virtualenv; this command needs to run prior to
-## Pyplot or Seaborn being imported
-
 import json
 import logging
 import os
-import pdb
 import tempfile
 
 import altair as alt
 import cv2
-
-import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import pandas as pd
 import sacred
 from sacred.observers import FileStorageObserver
-import seaborn as sns
-from swissarmy import logger
 
+# WARNING: isort has been disabled on this file to allow this.
+# Needed as matplotlib.use has to run before pyplot is imported.
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt  # noqa: E402
+import seaborn as sns  # noqa: E402
 
 PAPER_STYLE = {
         'font.serif': 'Times New Roman',
@@ -34,10 +30,10 @@ PAPER_STYLE = {
 tsne_vis_ex = sacred.Experiment('tsne-visualization')
 tsne_vis_ex.observers.append(FileStorageObserver.create(
     '/Users/cody/Data/adversarial_policies/tsne_visualization'))
-logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
+logger_obj = logging.getLogger('modelfree.interpretation.visualize_tsne')
 
 abbreviation_lookup = {
-   "adversary": "Adv",
+    "adversary": "Adv",
     "zoo": "Zoo1",
     "random": "Rand"
 }
@@ -53,7 +49,7 @@ def main_config():
     dot_size = 0.25
     palette_name = "cube_bright"
     save_type = "pdf"
-    hue_order = ["Adv","Zoo1", "Rand"]
+    hue_order = ["Adv", "Zoo1", "Rand"]
     _ = locals()
     del _
 
@@ -83,8 +79,8 @@ def _get_latest_sacred_dir_with_params(base_path, param_dict=None):
         except ValueError:
             continue
     if max_int_dir < 0:
-        raise ValueError(
-            "No sacred directory found for base path {}, param dict {}".format(base_path, param_dict))
+        format_str = "No sacred directory found for base path {}, param dict {}"
+        raise ValueError(format_str.format(base_path, param_dict))
     return str(max_int_dir)
 
 
@@ -100,7 +96,7 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
                 x='ax_1', y='ax_2', color='opponent_id')
             chart.save(fname)
         elif chart_type == 'seaborn':
-            if palette_name is "bright" or palette_name is None:
+            if palette_name == "bright" or palette_name is None:
                 palette_name = {
                     "Zoo1": "#66c2a5",
                     "Rand": "#fdb462",
@@ -176,12 +172,16 @@ def experiment_main(base_path, sacred_id, subsample_rate, perplexity, save_type)
     cluster_ids = np.load(os.path.join(full_sacred_dir, 'cluster_ids.npy'))
     metadata_df['ax_1'] = cluster_ids[:, 0]
     metadata_df['ax_2'] = cluster_ids[:, 1]
-    metadata_df['opponent_id_remapped'] = metadata_df['opponent_id'].apply(lambda x: abbreviation_lookup.get(x, None))
+    remapped = metadata_df['opponent_id'].apply(lambda x: abbreviation_lookup.get(x, None))
+    metadata_df['opponent_id_remapped'] = remapped
 
-    _plot_and_save_chart(metadata_df.query("opponent_id != 'random'"),  "no_random_chart.{}".format(save_type))
-    _plot_and_save_chart(metadata_df.query("opponent_id != 'adversary'"), "no_adversary_chart.{}".format(save_type))
+    _plot_and_save_chart(metadata_df.query("opponent_id != 'random'"),
+                         "no_random_chart.{}".format(save_type))
+    _plot_and_save_chart(metadata_df.query("opponent_id != 'adversary'"),
+                         "no_adversary_chart.{}".format(save_type))
     _plot_and_save_chart(metadata_df, "opponent_chart.{}".format(save_type))
-    _plot_and_save_chart(metadata_df.sample(frac=subsample_rate), fname="subsample_chart.{}".format(save_type))
+    _plot_and_save_chart(metadata_df.sample(frac=subsample_rate),
+                         fname="subsample_chart.{}".format(save_type))
     opponent_groups = metadata_df.groupby('opponent_id')
 
     for name, group in opponent_groups:

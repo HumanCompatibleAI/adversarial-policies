@@ -1,21 +1,19 @@
-import argparse
 import os
-
-from get_best_adversary import get_best_adversary_path
-from sacred.observers import FileStorageObserver
-
-from modelfree.score_agent import score_ex
-import sacred
-from fit_tsne import tsne_experiment as tsne_fitting_experiment
-from visualize_tsne import tsne_vis_ex
-import pdb
 import tempfile
 
+import sacred
+from sacred.observers import FileStorageObserver
+
+from modelfree.interpretation.fit_tsne import tsne_experiment as tsne_fitting_experiment
+from modelfree.interpretation.get_best_adversary import get_best_adversary_path
+from modelfree.interpretation.visualize_tsne import tsne_vis_ex
+from modelfree.score_agent import score_ex
 
 global_save_dir = "/Users/cody/Data/adversarial_policies/master_runs/"
 master_exp = sacred.Experiment('master_tsne_pipeline')
 master_observer = FileStorageObserver.create(global_save_dir)
 master_exp.observers.append(master_observer)
+
 
 @master_exp.config
 def activation_storing_config():
@@ -25,7 +23,6 @@ def activation_storing_config():
         transparent_params={'ff_policy': True, 'ff_value': True},
         record_traj_params={'agent_indices': 0},
         env_name='multicomp/SumoAnts-v0',
-        # multicomp/YouShallNotPassHumans-v0 // multicomp/KickAndDefend-v0
         num_env=1,
         record_traj=True,
         videos=True,
@@ -36,27 +33,27 @@ def activation_storing_config():
 
     fit_tsne_configs = dict(
         relative_dirs=['adversary', 'random', 'zoo'],
-        data_type = 'ff_policy',
-        num_components = 2,
-        sacred_dir_ids = None,
-        np_file_name = "victim_activations.npz",
-        num_observations = None,
-        env_name = "multicomp/YouShallNotPassHumans-v0",
-        seed = 0,
-        perplexity = perplexity[0],
+        data_type='ff_policy',
+        num_components=2,
+        sacred_dir_ids=None,
+        np_file_name="victim_activations.npz",
+        num_observations=None,
+        env_name="multicomp/YouShallNotPassHumans-v0",
+        seed=0,
+        perplexity=perplexity[0],
     )
 
     visualize_configs = dict(
         base_path=None,
-        subsample_rate = 0.15,
-        perplexity = perplexity[0],
-        video_path = "/Users/cody/Data/adversarial_policies/video_frames",
-        chart_type = "seaborn",
-        opacity = 0.75,
-        dot_size = 0.25,
-        palette_name = "cube_bright",
-        save_type = "pdf",
-        hue_order = ["adversary", "zoo", "random"],
+        subsample_rate=0.15,
+        perplexity=perplexity[0],
+        video_path="/Users/cody/Data/adversarial_policies/video_frames",
+        chart_type="seaborn",
+        opacity=0.75,
+        dot_size=0.25,
+        palette_name="cube_bright",
+        save_type="pdf",
+        hue_order=["adversary", "zoo", "random"],
     )
 
     skip_scoring = False
@@ -66,8 +63,6 @@ def activation_storing_config():
 
 @master_exp.capture
 def store_activations(sacred_base_dir, adversary_path, score_agent_configs):
-
-
     best_adversary_path_agent_1 = get_best_adversary_path(
                     environment=score_agent_configs[0]['env_name'],
                     zoo_id=1, base_path=adversary_path)
@@ -97,6 +92,7 @@ def store_activations(sacred_base_dir, adversary_path, score_agent_configs):
         assert run.status == 'COMPLETED'
         score_ex.observers.pop()
 
+
 @master_exp.automain
 def pipeline(fit_tsne_configs, visualize_configs):
     activation_path = os.path.join(master_exp.observers[0].dir, "store_activations")
@@ -117,5 +113,3 @@ def pipeline(fit_tsne_configs, visualize_configs):
     visualize_configs["sacred_id"] = fitting_observer.dir
     tsne_vis_ex.run(config_updates=visualize_configs)
     print("Visualization complete")
-
-

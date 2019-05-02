@@ -6,20 +6,21 @@ import tempfile
 import numpy as np
 import pandas as pd
 import sacred
-import pdb
 from sacred.observers import FileStorageObserver
 from sklearn.manifold import TSNE
-from swissarmy import logger
-from sacred_util import get_latest_sacred_dir_with_params
+
+from modelfree.interpretation.sacred_util import get_latest_sacred_dir_with_params
+
 tsne_experiment = sacred.Experiment('tsne-base-experiment')
 tsne_experiment.observers.append(FileStorageObserver.create(
     '/Users/cody/Data/adversarial_policies/tsne_runs'))
-logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
+logger = logging.getLogger('modelfree.interpretation.fit_tsne')
 
 
 @tsne_experiment.config
 def base_config():
     relative_dirs = ['adversary', 'random', 'zoo']
+    # TODO: cross-platform
     base_path = "/Users/cody/Data/adversarial_policies/tsne_save_activations"
     data_type = 'ff_policy'
     num_components = 2
@@ -32,11 +33,13 @@ def base_config():
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
+
 @tsne_experiment.named_config
 def full_model():
     num_observations = None
     _ = locals()  # quieten flake8 unused variable warning
     del _
+
 
 @tsne_experiment.capture
 def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
@@ -81,8 +84,8 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
             sacred_dir_ids.append(get_latest_sacred_dir_with_params(bp, param_dict=params))
 
     for i, rd in enumerate(relative_dirs):
-        print("Match params: {}".format(params))
-        print("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
+        logger.debug("Match params: {}".format(params))
+        logger.deubg("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
         file_data, metadata = _load_and_reshape_single_file(rd, sacred_dir=sacred_dir_ids[i])
         all_file_data.append(file_data)
         all_metadata.append(metadata)
@@ -100,9 +103,9 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
         tsne_experiment.add_artifact(metadata_path)
 
         tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
-        logger_obj.debug("Starting T-SNE fitting")
+        logger.debug("Starting T-SNE fitting")
         tsne_ids = tsne_obj.fit_transform(sub_data)
-        logger_obj.debug("Completed T-SNE fitting")
+        logger.debug("Completed T-SNE fitting")
         print(tsne_ids.shape)
         tsne_weights_path = os.path.join(dirname, 'saved_tsne_weights.pkl')
         with open(tsne_weights_path, "wb") as fp:

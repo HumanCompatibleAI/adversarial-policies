@@ -1,9 +1,9 @@
 import argparse
 import os
 
-from get_best_adversary import get_best_adversary_path
 from sacred.observers import FileStorageObserver
 
+from modelfree.interpretation.get_best_adversary import get_best_adversary_path
 from modelfree.score_agent import score_ex
 
 # TODO
@@ -19,7 +19,7 @@ def score_and_store(episodes, skip_scoring, sacred_dir):
 
     base_config = dict(transparent_params={'ff_policy': True, 'ff_value': True},
                        record_traj_params={'agent_indices': 0},
-                       env_name='multicomp/SumoAnts-v0', #multicomp/YouShallNotPassHumans-v0 // multicomp/KickAndDefend-v0
+                       env_name='multicomp/SumoAnts-v0',
                        num_env=1, record_traj=True,
                        videos=True,
                        video_dir=None,

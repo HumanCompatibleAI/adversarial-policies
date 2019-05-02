@@ -1,9 +1,9 @@
-import os
 import json
-from swissarmy import logger
 import logging
+import os
 
-logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
+logger = logging.getLogger('modelfree.interpretation.sacred_util')
+
 
 def get_latest_sacred_dir_with_params(base_path, param_dict):
     sacred_dirs = os.listdir(base_path)
@@ -14,7 +14,7 @@ def get_latest_sacred_dir_with_params(base_path, param_dict):
                 with open(os.path.join(base_path, sd, "config.json")) as fp:
                     config_params = json.load(fp)
             except (NotADirectoryError, FileNotFoundError):
-                logger_obj.info("No config json found at {}".format(sd))
+                logger.info("No config json found at {}".format(sd))
                 continue
             all_match = True
             for param in param_dict:
@@ -30,6 +30,6 @@ def get_latest_sacred_dir_with_params(base_path, param_dict):
         except ValueError:
             continue
     if max_int_dir < 0:
-        raise ValueError(
-            "No sacred directory found for base path {}, param dict {}".format(base_path, param_dict))
+        format_str = "No sacred directory found for base path {}, param dict {}"
+        raise ValueError(format_str.format(base_path, param_dict))
     return str(max_int_dir)

@@ -1,18 +1,16 @@
-import numpy as np
-import cv2
-import sacred
-import os
-from swissarmy import logger
 import logging
-from sacred.observers import FileStorageObserver
-import argparse
-from visualize_tsne import _get_latest_sacred_dir_with_params
+import os
 import re
+
+import cv2
 from tqdm import tqdm
 
-logger_obj = logger.get_logger_object(cl_level=logging.DEBUG)
+from modelfree.interpretation.visualize_tsne import _get_latest_sacred_dir_with_params
+
+logger = logging.getLogger('modelfree.interpretation.get_observation_frame')
 base_path = "/Users/cody/Data/adversarial_policies/tsne_save_activations/"
 output_path = "/Users/cody/Data/adversarial_policies/video_frames/"
+
 
 def get_frames(opponent_type, sacred_id=None):
     if sacred_id is None:
@@ -42,10 +40,11 @@ def get_frames(opponent_type, sacred_id=None):
             cv2.imwrite(os.path.join(episode_path, file_name), frame)
             frames_seen += 1
 
+
 if __name__ == "__main__":
-    logger_obj.info("Parsing adversary videos")
+    logger.info("Parsing adversary videos")
     get_frames(opponent_type='adversary')
-    logger_obj.info("Parsing random videos")
+    logger.info("Parsing random videos")
     get_frames(opponent_type='random')
-    logger_obj.info("Parsing zoo videos")
+    logger.info("Parsing zoo videos")
     get_frames(opponent_type='zoo')
