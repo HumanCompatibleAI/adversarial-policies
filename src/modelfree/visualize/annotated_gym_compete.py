@@ -1,5 +1,6 @@
 import collections
 import ctypes
+import math
 import re
 
 from PIL import Image, ImageDraw, ImageFont
@@ -68,7 +69,7 @@ PRETTY_POLICY_TYPES = {
 
 class AnnotatedGymCompete(gym.Wrapper):
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 resolution, font, font_size, ypos=0.0, spacing=0.05):
+                 resolution, font, font_size, ypos=0.0, spacing=0.05, num_frames=120):
         super(AnnotatedGymCompete, self).__init__(env)
 
         # Set agent colors
@@ -81,7 +82,7 @@ class AnnotatedGymCompete(gym.Wrapper):
 
         # Text overlay
         self.font = ImageFont.truetype(f'{font}.ttf', font_size)
-        self.font_bold = ImageFont.truetype(f'{font}bi.ttf', font_size)
+        self.font_bold = ImageFont.truetype(f'{font}bd.ttf', font_size)
         self.ypos = ypos
         self.spacing = spacing
 
@@ -89,6 +90,7 @@ class AnnotatedGymCompete(gym.Wrapper):
         self.result = collections.defaultdict(int)
         self.changed = collections.defaultdict(int)
         self.last_won = None
+        self.num_frames = num_frames
 
         env_scene = self.env.unwrapped.env_scene
         # Start the viewer ourself to control dimensions.
@@ -137,7 +139,9 @@ class AnnotatedGymCompete(gym.Wrapper):
             else:
                 k = f'win{winner}'
             self.result[k] += 1
+            self.changed[k] = self.num_frames
             self.last_won = k
+        self.changed[self.last_won] -= 1
         return obs, rew, done, info
 
     def _render(self, mode='human', close=False):
@@ -168,6 +172,9 @@ class AnnotatedGymCompete(gym.Wrapper):
                 scores = f"{label} = {self.result[k]}"
 
                 color = VICTIM_OPPONENT_COLORS[label]
+                if self.changed[k] > 0:
+                    weight = math.sqrt(self.changed[k] / self.num_frames)
+                    color = tuple(int((255 * weight + (1 - weight) * x)) for x in color)
                 font = self.font_bold if k == self.last_won else self.font
                 to_draw.append(([scores, header], font, color))
 
