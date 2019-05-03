@@ -190,6 +190,20 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
+    def random_baseline(score):
+        """Try random-agent against pre-trained zoo policies."""
+        score = dict(score)
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random')),
+            }
+        }
+        exp_name = 'random_baseline'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
     def adversary_transfer(score):
         """Do adversarial policies trained on victim X transfer to victim Y?"""
         score = dict(score)

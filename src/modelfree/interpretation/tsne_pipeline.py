@@ -21,7 +21,7 @@ def activation_storing_config():
                               '2019-04-29T14:11:08-07:00_best_adversaries.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on local
     root_dir = 'data/tsne'
-    score_configs = ['zoo_baseline', 'fixed_baseline', 'adversary_trained']
+    score_configs = ['zoo_baseline', 'random_baseline', 'adversary_trained']
     score_update = {}
 
     perplexity = 250
