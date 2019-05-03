@@ -63,7 +63,7 @@ PRETTY_POLICY_TYPES = {
     'ppo2': 'Adversary (Adv)',
     'zoo': 'Normal (Zoo)',
     'zero': 'Lifeless (Zero)',
-    'rand': 'Random (Rand)',
+    'random': 'Random (Rand)',
 }
 
 

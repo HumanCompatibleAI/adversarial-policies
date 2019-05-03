@@ -74,7 +74,8 @@ def test_score_agent(config):
 
 
 SCORE_AGENT_VIDEO_CONFIGS = {
-    'none_dir': {'videos': True, 'video_dir': None, 'episodes': 1, 'render': False},
+    'none_dir': {'videos': True, 'video_params': {'save_dir': None},
+                 'episodes': 1, 'render': False},
     'specified_dir': {'videos': True, 'video_params': {'save_dir': 'specific_video_dir'},
                       'episodes': 1, 'render': False}
 }
