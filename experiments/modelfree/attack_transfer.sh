@@ -13,5 +13,5 @@ fi
 
 mkdir -p ${OUT_DIR}
 python ${DIR}/highest_win_rate.py ${ADVERSARY_PATHS} --logdir $*
-ADVERSARY_PATHS=${ADVERSARY_PATHS} python -m modelfree.multi.score with adversary_transfer \
-                                             save_path=${OUT_PATH}
+ADVERSARY_PATHS=${ADVERSARY_PATHS} python -m modelfree.multi.score with \
+                                             high_accuracy adversary_transfer save_path=${OUT_PATH}
