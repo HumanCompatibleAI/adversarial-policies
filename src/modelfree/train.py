@@ -17,43 +17,19 @@ from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.common.mujoco import OldMujocoResettableWrapper
-from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
-                                   VecMultiWrapper, make_dummy_vec_multi_env,
-                                   make_subproc_vec_multi_env)
+from aprl.envs.multi_agent import (EmbedVictimWrapper, FlattenSingletonVecEnv, MergeAgentVecEnv,
+                                   make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.training.lookback import DebugVenv, LookbackRewardVecWrapper
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
-from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.training.logger import setup_logger
+from modelfree.training.lookback import DebugVenv, LookbackRewardVecWrapper
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
-
-
-class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index, transparent, deterministic):
-        self.victim = victim
-        cls = TransparentCurryVecEnv if transparent else CurryVecEnv
-        curried_env = cls(multi_env, self.victim, agent_idx=victim_index,
-                          deterministic=deterministic)
-        super().__init__(curried_env)
-
-    def get_policy(self):
-        return self.venv.get_policy()
-
-    def reset(self):
-        return self.venv.reset()
-
-    def step_wait(self):
-        return self.venv.step_wait()
-
-    def close(self):
-        self.victim.sess.close()
-        super().close()
 
 
 def _save(model, root_dir, save_callbacks):
@@ -267,10 +243,10 @@ def train_config():
     transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
     lookback_params = {             # parameters for doing lookback white-box attacks
-        'num_lb': 0,                # number of lookback venvs, if zero, lookback is disabled
-        'mul': 0.05,                # amount by which we weight differences in lookback
-        'path': None,               # path of lookback base policy
-        'type': rl_algo,            # type of lookback base policy
+        'lb_num': 0,                # number of lookback venvs, if zero, lookback is disabled
+        'lb_mul': 0.05,             # amount by which we weight differences in lookback
+        'lb_path': None,            # path of lookback base policy
+        'lb_type': rl_algo,         # type of lookback base policy
     }
 
     # General
@@ -309,7 +285,7 @@ def wrappers_config(env_name):
 def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
               debug, lookback_params):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
-    if lookback_params['num_lb'] > 0:
+    if lookback_params['lb_num'] > 0:
         pre_wrapper = list(filter(lambda x: x, [pre_wrapper, OldMujocoResettableWrapper]))
 
     if victim_type == 'none':
@@ -325,7 +301,8 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
     else:
         make_vec_env = make_dummy_vec_multi_env
     multi_venv = make_vec_env([functools.partial(env_fn, i) for i in range(num_env)])
-    multi_venv = DebugVenv(multi_venv)
+    if debug and lookback_params['lb_num'] > 0:
+        multi_venv = DebugVenv(multi_venv)
 
     if victim_type == 'none':
         assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
@@ -408,10 +385,10 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
             if scheduler.is_conditional(anneal_type):
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
-    if lookback_params['num_lb'] > 0:
-        lookback_venv = LookbackRewardVecWrapper(single_venv, lookback_params, env_name, debug,
+    if lookback_params['lb_num'] > 0:
+        lookback_venv = LookbackRewardVecWrapper(single_venv, env_name, debug,
                                                  victim_index, victim_path, victim_type,
-                                                 transparent_params)
+                                                 transparent_params, **lookback_params)
         single_venv = lookback_venv
 
     if normalize:

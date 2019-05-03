@@ -146,7 +146,7 @@ TRAIN_CONFIGS = [
     },
     {
         'env_name': 'multicomp/SumoHumans-v0',
-        'lookback_params': {'num_lb': 2, 'path': 1, 'type': 'zoo'},
+        'lookback_params': {'lb_num': 2, 'lb_path': 1, 'lb_type': 'zoo'},
         'adv_noise_params': {'noise_val': 0.1},
         'transparent_params': ['ff_policy'],
     }
