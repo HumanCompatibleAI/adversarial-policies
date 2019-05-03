@@ -71,11 +71,6 @@ def _adversary_vs_victims(adversary_type, adversary_paths, envs=None):
     return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
 
 
-def _high_accuracy(score):
-    score['episodes'] = 1000
-    score['num_env'] = 16
-
-
 def load_json(path):
     content = pkgutil.get_data('modelfree', path)
     return json.loads(content)
@@ -96,11 +91,50 @@ def _get_adversary_paths():
 
 
 def make_configs(multi_score_ex):
+    @multi_score_ex.config
+    def high_accuracy(score):
+        score = dict(score)
+        score['episodes'] = 1000
+        score['num_env'] = 16
+
+    @multi_score_ex.named_config
+    def save_activations(exp_name, score, spec):
+        score = dict(score)
+        score['episodes'] = 2  # TODO: check with Cody whether this is a sensible default
+        score['record_traj'] = True
+        score['transparent_params'] = {'ff_policy': True, 'ff_value': True}
+        score['record_traj_params'] = {
+            'save_dir': 'data/trajectories',
+        }
+        spec['config']['record_traj_params'] = {
+            'agent_indices': tune.sample_from(
+                lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+            ),
+        }
+        exp_name = 'activations_' + exp_name
+
+    @multi_score_ex.named_config
+    def debug(score):
+        score = dict(score)
+        score['episodes'] = 2
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(
+                    _env_agents()[0:1] +
+                    _fixed_vs_victim('zero')[0:1] +
+                    _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
+                ),
+            }
+        }
+        exp_name = 'debug'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
     @multi_score_ex.named_config
     def zoo_baseline(score):
         """Try all pre-trained policies from Bansal et al's gym_compete zoo against each other."""
         score = dict(score)
-        _high_accuracy(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_env_agents()),
@@ -115,7 +149,6 @@ def make_configs(multi_score_ex):
     def fixed_baseline(score):
         """Try zero-agent and random-agent against pre-trained zoo policies."""
         score = dict(score)
-        _high_accuracy(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random') +
@@ -131,7 +164,6 @@ def make_configs(multi_score_ex):
     def adversary_transfer(score):
         """Do adversarial policies trained on victim X transfer to victim Y?"""
         score = dict(score)
-        _high_accuracy(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(

@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 
 
 def get_best_adversary_path(best_path, environment, zoo_id, base_path, victim_idx=None):
@@ -15,5 +14,4 @@ def get_best_adversary_path(best_path, environment, zoo_id, base_path, victim_id
 
     best_adv_for_victim_idx = best_adv_for_env[victim_idx]
     best_adv_for_zoo_agent_path = best_adv_for_victim_idx[str(zoo_id)]
-    full_path = os.path.join(base_path, best_adv_for_zoo_agent_path)
-    return full_path
+    return best_adv_for_zoo_agent_path

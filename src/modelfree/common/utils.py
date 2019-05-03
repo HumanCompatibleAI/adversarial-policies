@@ -362,14 +362,13 @@ def simulate(venv, policies, render=False):
         for policy, obs, state in zip(policies, observations, states):
             try:
                 return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
-                if len(return_tuple) == 3:
-                    act, new_state, transparent_data = return_tuple
-                    try:
-                        venv.record_transparent_data(transparent_data, policy_ind)
-                    except AttributeError:
-                        print("No way to record transparent data on this venv")
-                else:
-                    act, new_state = return_tuple
+                act, new_state, transparent_data = return_tuple
+                print('transparent', transparent_data)
+                try:
+                    venv.record_transparent_data(transparent_data, policy_ind)
+                except AttributeError as e:
+                    print(e)
+                    warnings.warn("No way to record transparent data on this venv")
             except AttributeError:
                 act, new_state = policy.predict(obs, state=state, mask=dones)
 
