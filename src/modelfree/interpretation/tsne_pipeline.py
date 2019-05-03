@@ -53,7 +53,7 @@ def activation_storing_config():
 
 @tsne_ex.named_config
 def debug_config():
-    score_configs = ['debug']
+    score_configs = ['debug_one_each_type']
     exp_name = 'debug'
 
     _ = locals()

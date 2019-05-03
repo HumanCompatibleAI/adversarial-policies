@@ -29,7 +29,7 @@ def default_config():
 
 @make_videos_ex.named_config
 def debug_config():
-    score_configs = ['debug']
+    score_configs = ['debug_one_each_type']
     config_updates = {'score': {'episodes': 2}}
     exp_name = 'debug'
     _ = locals()  # quieten flake8 unused variable warning

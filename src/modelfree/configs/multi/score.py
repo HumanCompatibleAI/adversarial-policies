@@ -142,7 +142,9 @@ def make_configs(multi_score_ex):
         exp_name = 'video_' + exp_name  # noqa: F401
 
     @multi_score_ex.named_config
-    def debug(score):
+    def debug_one_each_type(score):
+        """One Zoo agent from each environment, plus one opponent of each type.
+           Intended for debugging purposes as a quick experiment that is still diverse.."""
         score = dict(score)
         score['episodes'] = 2
         spec = {
