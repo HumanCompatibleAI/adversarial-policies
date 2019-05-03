@@ -389,7 +389,6 @@ def simulate(venv, policies, render=False):
             try:
                 return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
                 act, new_state, transparent_data = return_tuple
-                print('transparent', transparent_data)
                 try:
                     venv.record_transparent_data(transparent_data, policy_ind)
                 except AttributeError as e:

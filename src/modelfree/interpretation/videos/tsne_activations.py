@@ -3,7 +3,7 @@ import os
 
 from sacred.observers import FileStorageObserver
 
-from modelfree.interpretation.get_best_adversary import get_best_adversary_path
+from modelfree.interpretation.videos.get_best_adversary import get_best_adversary_path
 from modelfree.score_agent import score_ex
 
 # TODO
