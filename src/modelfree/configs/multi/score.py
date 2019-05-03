@@ -108,7 +108,7 @@ def make_configs(multi_score_ex):
         score['video_params'] = {
             'annotation_params': {
                 'resolution': (1920, 1080),
-                'font_size': 96,
+                'font_size': 70,
             }
         }
         exp_name = 'video_' + exp_name  # noqa: F401
