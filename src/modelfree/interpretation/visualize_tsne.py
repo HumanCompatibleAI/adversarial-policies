@@ -24,13 +24,11 @@ logger = logging.getLogger('modelfree.interpretation.visualize_tsne')
 
 @vis_tsne_ex.config
 def main_config():
-    # TODO: cross-platform
-    model_dir = 'data/tsne/debug/20190502_203906/fitted/SumoAnts-v0_victim_zoo_1'
+    model_dir = None
     output_dir = None
     subsample_rate = 0.15
-    video_path = None
     chart_type = 'seaborn'
-    opacity = 1.0
+    opacity = 0.75
     dot_size = 0.25
     palette_name = 'cube_bright'
     save_type = 'pdf'

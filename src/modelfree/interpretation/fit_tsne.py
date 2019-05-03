@@ -17,20 +17,20 @@ logger = logging.getLogger('modelfree.interpretation.fit_tsne')
 
 @fit_tsne_ex.config
 def base_config():
-    activation_dir = 'data/tsne/debug/20190502_203906'  # TODO: cross-platform
+    activation_dir = None
     output_root = None
     data_type = 'ff_policy'
     num_components = 2
-    num_observations = 1000
+    num_observations = None
     seed = 0
-    perplexity = 5
+    perplexity = 250
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @fit_tsne_ex.named_config
-def full_model():
-    num_observations = None
+def debug_config():
+    num_observations = 1000
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

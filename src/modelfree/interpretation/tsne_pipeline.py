@@ -10,7 +10,7 @@ from modelfree.interpretation.fit_tsne import fit_tsne_ex
 from modelfree.interpretation.visualize_tsne import vis_tsne_ex
 from modelfree.multi.score import extract_data, run_external
 
-tsne_ex = sacred.Experiment('tsne')
+tsne_ex = sacred.Experiment('tsne', ingredients=[fit_tsne_ex, vis_tsne_ex])
 logger = logging.getLogger('modelfree.interpretation.tsne_pipeline')
 
 
@@ -19,35 +19,15 @@ def activation_storing_config():
     # TODO: portability
     adversary_path = osp.join('data', 'score_agents',
                               '2019-04-29T14:11:08-07:00_best_adversaries.json')
-    ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on local
-    root_dir = 'data/tsne'
+    ray_upload_dir = 'data'     # where Ray will upload multi.score outputs. 'data' works on local
+    output_root = 'data/tsne'   # where to produce output
+
     score_configs = ['zoo_baseline', 'random_baseline', 'adversary_trained']
     score_update = {}
 
-    perplexity = 250
-    fit_tsne_configs = dict(
-        data_type='ff_policy',
-        num_components=2,
-        num_observations=None,
-        seed=0,
-        perplexity=perplexity,
-    )
+    exp_name = 'default'        # experiment name
 
-    visualize_configs = dict(
-        subsample_rate=0.15,
-        video_path="data/video_frames",
-        chart_type="seaborn",
-        opacity=0.75,
-        dot_size=0.25,
-        palette_name="cube_bright",
-        save_type="pdf",
-        hue_order=['Adv', 'Rand', 'Zoo']
-    )
-
-    skip_scoring = False
-    exp_name = 'default'
-
-    _ = locals()
+    _ = locals()    # quieten flake8 unused variable warning
     del _
 
 
@@ -56,7 +36,7 @@ def debug_config():
     score_configs = ['debug_one_each_type']
     exp_name = 'debug'
 
-    _ = locals()
+    _ = locals()    # quieten flake8 unused variable warning
     del _
 
 
@@ -82,8 +62,8 @@ def extract_activations(out_dir, activation_dirs, ray_upload_dir):
 
 
 @tsne_ex.main
-def pipeline(root_dir, exp_name, fit_tsne_configs, visualize_configs):
-    out_dir = osp.join(root_dir, exp_name, utils.make_timestamp())
+def pipeline(output_root, exp_name, fit_tsne, visualize_tsne):
+    out_dir = osp.join(output_root, exp_name, utils.make_timestamp())
     os.makedirs(out_dir)
 
     logger.info("Generating activations")
@@ -94,17 +74,17 @@ def pipeline(root_dir, exp_name, fit_tsne_configs, visualize_configs):
     logger.info("Activations saved")
 
     logger.info("Fitting t-SNE")
-    fit_tsne_configs['activation_dir'] = activation_dst_dir
+    fit_tsne['activation_dir'] = activation_dst_dir
     model_dir = osp.join(out_dir, 'fitted')
-    fit_tsne_configs['output_root'] = model_dir
-    fit_tsne_ex.run(config_updates=fit_tsne_configs)
+    fit_tsne['output_root'] = model_dir
+    fit_tsne_ex.run(config_updates=fit_tsne)
     logger.info("Fitting complete")
 
     logger.info("Generating figures")
     for fitted_model in os.listdir(model_dir):
-        visualize_configs['model_dir'] = osp.join(model_dir, fitted_model)
-        visualize_configs['output_dir'] = osp.join(out_dir, 'figures', fitted_model)
-        vis_tsne_ex.run(config_updates=visualize_configs)
+        visualize_tsne['model_dir'] = osp.join(model_dir, fitted_model)
+        visualize_tsne['output_dir'] = osp.join(out_dir, 'figures', fitted_model)
+        vis_tsne_ex.run(config_updates=visualize_tsne)
     logger.info("Visualization complete")
 
 
