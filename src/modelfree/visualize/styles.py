@@ -19,6 +19,12 @@ STYLES = {
     'threecol': {
         'figure.figsize': (1.83, 1.7),
     },
+    'scores_monolithic': {
+        'figure.figsize': (5.5, 1.4),
+    },
+    'scores_threecol': {
+        'figure.figsize': (1.76, 1.2),
+    },
     'a4': {
         'figure.figsize': (8.27, 11.69),
     },
