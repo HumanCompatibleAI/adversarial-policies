@@ -139,8 +139,6 @@ def default_score_config():
             'font_size': 24,
         },
     }
-    video_dir = None
-    video_per_episode = False           # False: single file, True: file per episode
     # If video_dir set to None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
