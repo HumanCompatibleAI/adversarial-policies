@@ -22,7 +22,8 @@ def heatmap_opponent(single_env):
 @visualize_score_ex.config
 def default_config():
     fig_dir = os.path.join('data', 'figs', 'scores')
-    score_dir = os.path.join('data', 'score_agents')
+    transfer_score_path = os.path.join('data', 'score_agents',
+                                       '2019-04-29T14:11:08-07:00_adversary_transfer.json')
     styles = ['paper', 'a4']
     command = util.heatmap_full
     publication = False
@@ -39,7 +40,7 @@ def use_heatmap_opponent():
 @visualize_score_ex.named_config
 def paper_config():
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores_single')
-    styles = ['paper', 'threecol']
+    styles = ['paper', 'scores_threecol']
     command = heatmap_opponent
     publication = True
     _ = locals()  # quieten flake8 unused variable warning
@@ -49,15 +50,15 @@ def paper_config():
 @visualize_score_ex.named_config
 def supplementary_config():
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores')
-    styles = ['paper']
+    styles = ['paper', 'scores_monolithic']
     publication = True
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @visualize_score_ex.main
-def visualize_score(command, styles, publication, score_dir, fig_dir):
-    dataset = util.load_datasets(score_dir)
+def visualize_score(command, styles, publication, transfer_score_path, fig_dir):
+    dataset = util.load_datasets(transfer_score_path)
 
     for style in styles:
         plt.style.use(STYLES[style])
