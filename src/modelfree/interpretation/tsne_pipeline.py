@@ -34,9 +34,7 @@ def activation_storing_config():
     )
 
     visualize_configs = dict(
-        base_path=None,
         subsample_rate=0.15,
-        perplexity=perplexity,
         video_path="data/video_frames",
         chart_type="seaborn",
         opacity=0.75,
@@ -99,9 +97,15 @@ def pipeline(root_dir, exp_name, fit_tsne_configs, visualize_configs):
     # TODO: parallelize?
     logger.info("Fitting t-SNE")
     fit_tsne_configs['activation_path'] = activation_dst_dir
+    model_dir = osp.join(out_dir, 'fitted')
+    fit_tsne_configs['output_root'] = model_dir
     fit_tsne_ex.run(config_updates=fit_tsne_configs)
     logger.info("Fitting complete")
 
+    logger.info("Generating figures")
+    # TODO: multiple applications, remove hardcoding
+    visualize_configs['model_dir'] = osp.join(model_dir, 'SumoAnts-v0_victim_zoo_1')
+    visualize_configs['output_dir'] = osp.join(out_dir, 'figures')
     vis_tsne_ex.run(config_updates=visualize_configs)
     logger.info("Visualization complete")
 

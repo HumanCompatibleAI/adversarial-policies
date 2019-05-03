@@ -20,6 +20,7 @@ logger = logging.getLogger('modelfree.interpretation.fit_tsne')
 def base_config():
     activation_path = 'data/tsne/debug/20190502_203906'  # TODO: cross-platform
     activation_glob = 'SumoAnts-v0_victim_zoo_1_*.npz'
+    output_root = None
     data_type = 'ff_policy'
     num_components = 2
     num_observations = 1000
@@ -61,18 +62,27 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
 
 
 @fit_tsne_ex.main
-def fit_tsne(activation_path, activation_glob, num_components, num_observations, perplexity):
+def fit_tsne(activation_path, activation_glob, output_root,
+             num_components, num_observations, perplexity):
     all_file_data = []
     all_metadata = []
 
-    pattern = re.compile(r'.*_opponent_([a-z]+)_[0-9]\.npz')
+    opponent_pattern = re.compile(r'.*_opponent_([a-z]+)_[0-9]\.npz')
+    stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
+    last_stem = None
     for path in glob.glob(osp.join(activation_path, activation_glob)):
         fname = os.path.basename(path)
-        match = pattern.match(fname)
+        match = opponent_pattern.match(fname)
         opponent_type = match.groups()[0]
+        logger.debug(f'Loading data for {opponent_type} from {path}')
         file_data, metadata = _load_and_reshape_single_file(path, opponent_type)
         all_file_data.append(file_data)
         all_metadata.append(metadata)
+
+        match = stem_pattern.match(fname)
+        stem = match.groups()[0]
+        assert last_stem is None or last_stem == stem
+        last_stem = stem
 
     merged_file_data = np.concatenate(all_file_data)
     merged_metadata = pd.concat(all_metadata)
@@ -81,24 +91,33 @@ def fit_tsne(activation_path, activation_glob, num_components, num_observations,
 
     sub_data = merged_file_data[0:num_observations].reshape(num_observations, 128)
 
-    with tempfile.TemporaryDirectory() as dirname:
-        metadata_path = os.path.join(dirname, 'metadata.csv')
-        merged_metadata[0:num_observations].to_csv(metadata_path)
-        fit_tsne_ex.add_artifact(metadata_path)
+    tmp_dir = None
+    if output_root is None:
+        tmp_dir = tempfile.TemporaryDirectory()
+        output_root = tmp_dir
+    output_dir = osp.join(output_root, stem)
+    os.makedirs(output_dir)
 
-        tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
-        logger.debug("Starting T-SNE fitting")
-        tsne_ids = tsne_obj.fit_transform(sub_data)
-        logger.debug("Completed T-SNE fitting")
-        print(tsne_ids.shape)
-        tsne_weights_path = os.path.join(dirname, 'saved_tsne_weights.pkl')
-        with open(tsne_weights_path, "wb") as fp:
-            pickle.dump(tsne_obj, fp)
-        fit_tsne_ex.add_artifact(tsne_weights_path)
+    metadata_path = os.path.join(output_dir, 'metadata.csv')
+    merged_metadata[0:num_observations].to_csv(metadata_path)
+    fit_tsne_ex.add_artifact(metadata_path)
 
-        cluster_ids_path = os.path.join(dirname, 'cluster_ids.npy')
-        np.save(cluster_ids_path, tsne_ids)
-        fit_tsne_ex.add_artifact(cluster_ids_path)
+    tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
+    logger.debug("Starting T-SNE fitting")
+    tsne_ids = tsne_obj.fit_transform(sub_data)
+    logger.debug("Completed T-SNE fitting")
+    print(tsne_ids.shape)
+    tsne_weights_path = os.path.join(output_dir, 'tsne_weights.pkl')
+    with open(tsne_weights_path, "wb") as fp:
+        pickle.dump(tsne_obj, fp)
+    fit_tsne_ex.add_artifact(tsne_weights_path)
+
+    cluster_ids_path = os.path.join(output_dir, 'cluster_ids.npy')
+    np.save(cluster_ids_path, tsne_ids)
+    fit_tsne_ex.add_artifact(cluster_ids_path)
+
+    if tmp_dir is not None:
+        tmp_dir.clean()
 
 
 def main():
