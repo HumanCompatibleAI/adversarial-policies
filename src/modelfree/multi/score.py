@@ -131,9 +131,9 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
             # Note Ray Tune is running with a fresh working directory per trial, so Sacred
             # output will always be at score/1.
             trial_root = osp.join(experiment_root, trial_name)
-            sacred_root = osp.join(trial_root, 'data', 'sacred', 'score', '1')
 
-            with open(osp.join(sacred_root, 'config.json'), 'r') as f:
+            sacred_config = osp.join(trial_root, 'data', 'sacred', 'score', '1', 'config.json')
+            with open(sacred_config, 'r') as f:
                 cfg = json.load(f)
 
             def agent_key(agent):
@@ -161,15 +161,17 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
 
                 opponent_path = opponent_cfg['victim_path']
 
-            src_path, new_name = path_generator(trial_root=trial_root,
-                                                env_name=env_name,
-                                                victim_index=victim_index,
-                                                victim_type=victim_type,
-                                                victim_path=victim_path,
-                                                opponent_type=opponent_type,
-                                                opponent_path=opponent_path)
-            dst_path = osp.join(out_dir, new_name)
+            src_path, new_name, suffix = path_generator(trial_root=trial_root,
+                                                        env_name=env_name,
+                                                        victim_index=victim_index,
+                                                        victim_type=victim_type,
+                                                        victim_path=victim_path,
+                                                        opponent_type=opponent_type,
+                                                        opponent_path=opponent_path)
+            dst_path = osp.join(out_dir, f'{new_name}.{suffix}')
             shutil.copy(src_path, dst_path)
+            dst_config = osp.join(out_dir, f'{new_name}.sacred')
+            shutil.copy(sacred_config, dst_config)
 
 
 def main():

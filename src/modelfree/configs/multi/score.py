@@ -59,10 +59,22 @@ def _fixed_vs_victim(fixed_type, envs=None):
     return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
 
 
-def _adversary_vs_victims(adversary_type, adversary_paths, envs=None):
-    def adversary_fn(env, victim_index, our_id, _opponent_id):
+def _adversary_vs_victim(adversary_type, adversary_paths, envs=None, only_trained=False):
+    """Generates configs for adversaries.
+
+    :param adversary_type: (str) the policy type of the adversary.
+    :param adversary_paths: (dict) paths to adversaries, loaded by _get_adversary_paths
+    :param envs: (list<str> or None) optional list of environments to restrict to
+    :param only_trained: (bool) when True, only return the adversary trained against that victim;
+                                otherwise, returns all adversaries (useful for testing transfer).
+    """
+    def adversary_fn(env, victim_index, our_id, opponent_id):
+        if only_trained and our_id != opponent_id:
+            return None
+
         victim_index = str(victim_index)
         our_id = str(our_id + 1)
+
         path = adversary_paths.get(env, {}).get(victim_index, {}).get(our_id)
         if path is None:
             logger.warning(f"Missing adversary path {env} {victim_index} {our_id}")
@@ -138,7 +150,8 @@ def make_configs(multi_score_ex):
                 PATHS_AND_TYPES: tune.grid_search(
                     _env_agents(max_zoo=1) +
                     _fixed_vs_victim('zero')[0:1] +
-                    _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
+                    _fixed_vs_victim('random')[0:1] +
+                    _adversary_vs_victim('ppo2', _get_adversary_paths())[0:1]
                 ),
             }
         }
@@ -183,7 +196,23 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', _get_adversary_paths())
+                    _adversary_vs_victim('ppo2', _get_adversary_paths())
+                ),
+            }
+        }
+        exp_name = 'adversary_transfer'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
+    def adversary_trained(score):
+        """Try adversaries against the victim they were trained against."""
+        score = dict(score)
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(
+                    _adversary_vs_victim('ppo2', _get_adversary_paths(), only_trained=True)
                 ),
             }
         }

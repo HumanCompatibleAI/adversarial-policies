@@ -1,7 +1,9 @@
+import glob
 import logging
 import os
 import os.path as osp
 import pickle
+import re
 import tempfile
 
 import numpy as np
@@ -10,23 +12,17 @@ import sacred
 from sacred.observers import FileStorageObserver
 from sklearn.manifold import TSNE
 
-from modelfree.interpretation.sacred_util import get_latest_sacred_dir_with_params
-
 fit_tsne_ex = sacred.Experiment('fit_tsne')
 logger = logging.getLogger('modelfree.interpretation.fit_tsne')
 
 
 @fit_tsne_ex.config
 def base_config():
-    relative_dirs = ['adversary', 'random', 'zoo']
-    # TODO: cross-platform
-    base_path = 'data/tsne_save_activations/'
+    activation_path = 'data/tsne/debug/20190502_203906'  # TODO: cross-platform
+    activation_glob = 'SumoAnts-v0_victim_zoo_1_*.npz'
     data_type = 'ff_policy'
     num_components = 2
-    sacred_dir_ids = None  # otherwise list
-    np_file_name = "victim_activations.npz"
     num_observations = 1000
-    env_name = "multicomp/YouShallNotPassHumans-v0"
     seed = 0
     perplexity = 5
     _ = locals()  # quieten flake8 unused variable warning
@@ -41,13 +37,8 @@ def full_model():
 
 
 @fit_tsne_ex.capture
-def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
-    if base_path is None:
-        traj_data = np.load(os.path.join(sacred_dir, np_file_name),
-                            allow_pickle=True)
-    else:
-        traj_data = np.load(os.path.join(base_path, relative_dir, sacred_dir, np_file_name),
-                            allow_pickle=True)
+def _load_and_reshape_single_file(np_path, opponent_type, data_type):
+    traj_data = np.load(np_path, allow_pickle=True)
     episode_list = traj_data[data_type].tolist()
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
@@ -59,33 +50,27 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_na
         observation_index += episode_observation_ids
         relative_observation_index += [el / episode_length for el in episode_observation_ids]
 
-    concated_data = np.concatenate(episode_list)
-    opponent_id = [relative_dir] * len(concated_data)
+    concatenated_data = np.concatenate(episode_list)
+    opponent_type = [opponent_type] * len(concatenated_data)
 
     metadata_df = pd.DataFrame({'episode_id': episode_id,
                                 'observation_index': observation_index,
                                 'relative_observation_index': relative_observation_index,
-                                'opponent_id': opponent_id})
-    return concated_data, metadata_df
+                                'opponent_id': opponent_type})
+    return concatenated_data, metadata_df
 
 
 @fit_tsne_ex.main
-def fit_tsne(relative_dirs, num_components, base_path, sacred_dir_ids,
-             num_observations, perplexity, env_name):
+def fit_tsne(activation_path, activation_glob, num_components, num_observations, perplexity):
     all_file_data = []
     all_metadata = []
-    params = {"env_name": env_name}
 
-    if sacred_dir_ids is None:
-        sacred_dir_ids = []
-        for rd in relative_dirs:
-            bp = os.path.join(base_path, rd)
-            sacred_dir_ids.append(get_latest_sacred_dir_with_params(bp, param_dict=params))
-
-    for i, rd in enumerate(relative_dirs):
-        logger.debug("Match params: {}".format(params))
-        logger.debug("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
-        file_data, metadata = _load_and_reshape_single_file(rd, sacred_dir=sacred_dir_ids[i])
+    pattern = re.compile(r'.*_opponent_([a-z]+)_[0-9]\.npz')
+    for path in glob.glob(osp.join(activation_path, activation_glob)):
+        fname = os.path.basename(path)
+        match = pattern.match(fname)
+        opponent_type = match.groups()[0]
+        file_data, metadata = _load_and_reshape_single_file(path, opponent_type)
         all_file_data.append(file_data)
         all_metadata.append(metadata)
 

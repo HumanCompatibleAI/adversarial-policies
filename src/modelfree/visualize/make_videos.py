@@ -50,8 +50,8 @@ def extract_videos(out_dir, video_dirs, ray_upload_dir):
         src_path = osp.join(trial_root, 'data', 'sacred', '1', 'scores',
                             'videos', 'env_0_episode_0_recording.mp4')
         new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
-                    f'_opponent_{opponent_type}_{opponent_path}.mp4')
-        return src_path, new_name
+                    f'_opponent_{opponent_type}_{opponent_path}')
+        return src_path, new_name, 'mp4'
 
     return extract_data(path_generator, out_dir, video_dirs, ray_upload_dir)
 

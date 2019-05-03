@@ -21,18 +21,14 @@ def activation_storing_config():
                               '2019-04-29T14:11:08-07:00_best_adversaries.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on local
     root_dir = 'data/tsne'
-    score_configs = ['zoo_baseline', 'fixed_baseline', 'adversary_transfer']
+    score_configs = ['zoo_baseline', 'fixed_baseline', 'adversary_trained']
     score_update = {}
 
     perplexity = 250
     fit_tsne_configs = dict(
-        relative_dirs=['adversary', 'random', 'zoo'],
         data_type='ff_policy',
         num_components=2,
-        sacred_dir_ids=None,
-        np_file_name="victim_activations.npz",
         num_observations=None,
-        env_name='multicomp/YouShallNotPassHumans-v0',
         seed=0,
         perplexity=perplexity,
     )
@@ -81,8 +77,8 @@ def extract_activations(out_dir, activation_dirs, ray_upload_dir):
         src_path = osp.join(trial_root, 'data',
                             'trajectories', f'agent_{victim_index}.npz')
         new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
-                    f'_opponent_{opponent_type}_{opponent_path}.npz')
-        return src_path, new_name
+                    f'_opponent_{opponent_type}_{opponent_path}')
+        return src_path, new_name, 'npz'
 
     return extract_data(path_generator, out_dir, activation_dirs, ray_upload_dir)
 
@@ -93,22 +89,19 @@ def pipeline(root_dir, exp_name, fit_tsne_configs, visualize_configs):
     os.makedirs(out_dir)
 
     logger.info("Generating activations")
-    activation_dirs = store_activations()
-    extract_activations(out_dir, activation_dirs)
+    activation_src_dirs = store_activations()
+    activation_dst_dir = osp.join(out_dir, 'activations')
+    os.makedirs(activation_dst_dir)
+    extract_activations(activation_dst_dir, activation_src_dirs)
     logger.info("Activations saved")
 
+    # TODO: multiple applications
+    # TODO: parallelize?
     logger.info("Fitting t-SNE")
-    fitted_tsne_path = os.path.join(tsne_ex.observers[0].dir, "fit")
-    fitting_observer = FileStorageObserver.create(fitted_tsne_path)
-    fit_tsne_ex.observers.append(fitting_observer)
-    fit_tsne_configs['sacred_dir_ids'] = activation_dirs
+    fit_tsne_configs['activation_path'] = activation_dst_dir
     fit_tsne_ex.run(config_updates=fit_tsne_configs)
     logger.info("Fitting complete")
 
-    visualize_tsne_path = os.path.join(tsne_ex.observers[0].dir, "visualize")
-    visualize_observer = FileStorageObserver.create(visualize_tsne_path)
-    vis_tsne_ex.observers.append(visualize_observer)
-    visualize_configs["sacred_id"] = fitting_observer.dir
     vis_tsne_ex.run(config_updates=visualize_configs)
     logger.info("Visualization complete")
 
