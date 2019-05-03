@@ -41,7 +41,7 @@ def activation_storing_config():
         dot_size=0.25,
         palette_name="cube_bright",
         save_type="pdf",
-        hue_order=["adversary", "zoo", "random"],
+        hue_order=['Adv', 'Rand', 'Zoo']
     )
 
     skip_scoring = False
@@ -93,20 +93,18 @@ def pipeline(root_dir, exp_name, fit_tsne_configs, visualize_configs):
     extract_activations(activation_dst_dir, activation_src_dirs)
     logger.info("Activations saved")
 
-    # TODO: multiple applications
-    # TODO: parallelize?
     logger.info("Fitting t-SNE")
-    fit_tsne_configs['activation_path'] = activation_dst_dir
+    fit_tsne_configs['activation_dir'] = activation_dst_dir
     model_dir = osp.join(out_dir, 'fitted')
     fit_tsne_configs['output_root'] = model_dir
     fit_tsne_ex.run(config_updates=fit_tsne_configs)
     logger.info("Fitting complete")
 
     logger.info("Generating figures")
-    # TODO: multiple applications, remove hardcoding
-    visualize_configs['model_dir'] = osp.join(model_dir, 'SumoAnts-v0_victim_zoo_1')
-    visualize_configs['output_dir'] = osp.join(out_dir, 'figures')
-    vis_tsne_ex.run(config_updates=visualize_configs)
+    for fitted_model in os.listdir(model_dir):
+        visualize_configs['model_dir'] = osp.join(model_dir, fitted_model)
+        visualize_configs['output_dir'] = osp.join(out_dir, 'figures', fitted_model)
+        vis_tsne_ex.run(config_updates=visualize_configs)
     logger.info("Visualization complete")
 
 

@@ -126,6 +126,7 @@ def fit_tsne(activation_dir, output_root,
         output_root = tmp_dir.name
 
     # Fit t-SNE and save model weights
+    # TODO: parallelize?
     for stem, paths in activation_paths.items():
         output_dir = osp.join(output_root, stem)
         os.makedirs(output_dir)
