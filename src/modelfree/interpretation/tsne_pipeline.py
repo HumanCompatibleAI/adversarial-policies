@@ -1,28 +1,28 @@
+import logging
 import os
+import os.path as osp
 import tempfile
 
 import sacred
 from sacred.observers import FileStorageObserver
 
-from modelfree.interpretation.fit_tsne import tsne_experiment as tsne_fitting_experiment
+from modelfree.interpretation.fit_tsne import fit_tsne_ex
 from modelfree.interpretation.get_best_adversary import get_best_adversary_path
-from modelfree.interpretation.visualize_tsne import tsne_vis_ex
+from modelfree.interpretation.visualize_tsne import vis_tsne_ex
 from modelfree.score_agent import score_ex
 
-global_save_dir = "/Users/cody/Data/adversarial_policies/master_runs/"
-master_exp = sacred.Experiment('master_tsne_pipeline')
-master_observer = FileStorageObserver.create(global_save_dir)
-master_exp.observers.append(master_observer)
+tsne_ex = sacred.Experiment('tsne')
+logger = logging.getLogger('modelfree.interpretation.tsne_pipeline')
 
 
-@master_exp.config
+@tsne_ex.config
 def activation_storing_config():
-    adversary_path = "/Users/cody/Data/adversarial_policies/"
+    adversary_path = "."
     perplexity = 250,
     score_agent_configs = dict(
         transparent_params={'ff_policy': True, 'ff_value': True},
         record_traj_params={'agent_indices': 0},
-        env_name='multicomp/SumoAnts-v0',
+        env_name='multicomp/YouShallNotPassHumans-v0',
         num_env=1,
         record_traj=True,
         videos=True,
@@ -38,7 +38,7 @@ def activation_storing_config():
         sacred_dir_ids=None,
         np_file_name="victim_activations.npz",
         num_observations=None,
-        env_name="multicomp/YouShallNotPassHumans-v0",
+        env_name='multicomp/YouShallNotPassHumans-v0',
         seed=0,
         perplexity=perplexity[0],
     )
@@ -47,7 +47,7 @@ def activation_storing_config():
         base_path=None,
         subsample_rate=0.15,
         perplexity=perplexity[0],
-        video_path="/Users/cody/Data/adversarial_policies/video_frames",
+        video_path="data/video_frames",
         chart_type="seaborn",
         opacity=0.75,
         dot_size=0.25,
@@ -61,9 +61,11 @@ def activation_storing_config():
     del _
 
 
-@master_exp.capture
+@tsne_ex.capture
 def store_activations(sacred_base_dir, adversary_path, score_agent_configs):
+    # TODO: make adversary_path a config parameter
     best_adversary_path_agent_1 = get_best_adversary_path(
+                    best_path="data/score_agents/best_adversaries.json",
                     environment=score_agent_configs[0]['env_name'],
                     zoo_id=1, base_path=adversary_path)
 
@@ -93,23 +95,32 @@ def store_activations(sacred_base_dir, adversary_path, score_agent_configs):
         score_ex.observers.pop()
 
 
-@master_exp.automain
+@tsne_ex.main
 def pipeline(fit_tsne_configs, visualize_configs):
-    activation_path = os.path.join(master_exp.observers[0].dir, "store_activations")
+    activation_path = os.path.join(tsne_ex.observers[0].dir, "store_activations")
     activation_directories = store_activations(sacred_base_dir=activation_path)
+    logger.info("Activations saved")
 
-    print("Activations saved")
-
-    fitted_tsne_path = os.path.join(master_exp.observers[0].dir, "fit")
+    fitted_tsne_path = os.path.join(tsne_ex.observers[0].dir, "fit")
     fitting_observer = FileStorageObserver.create(fitted_tsne_path)
-    tsne_fitting_experiment.observers.append(fitting_observer)
+    fit_tsne_ex.observers.append(fitting_observer)
     fit_tsne_configs['sacred_dir_ids'] = activation_directories
-    tsne_fitting_experiment.run(config_updates=fit_tsne_configs)
-    print("Fitting complete")
+    fit_tsne_ex.run(config_updates=fit_tsne_configs)
+    logger.info("Fitting complete")
 
-    visualize_tsne_path = os.path.join(master_exp.observers[0].dir, "visualize")
+    visualize_tsne_path = os.path.join(tsne_ex.observers[0].dir, "visualize")
     visualize_observer = FileStorageObserver.create(visualize_tsne_path)
-    tsne_vis_ex.observers.append(visualize_observer)
+    vis_tsne_ex.observers.append(visualize_observer)
     visualize_configs["sacred_id"] = fitting_observer.dir
-    tsne_vis_ex.run(config_updates=visualize_configs)
-    print("Visualization complete")
+    vis_tsne_ex.run(config_updates=visualize_configs)
+    logger.info("Visualization complete")
+
+
+def main():
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne'))
+    tsne_ex.observers.append(observer)
+    tsne_ex.run_commandline()
+
+
+if __name__ == '__main__':
+    main()

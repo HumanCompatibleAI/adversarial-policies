@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import os.path as osp
 import tempfile
 
 import altair as alt
@@ -11,25 +12,15 @@ import pandas as pd
 import sacred
 from sacred.observers import FileStorageObserver
 
+from modelfree.visualize.styles import STYLES
+
 # WARNING: isort has been disabled on this file to allow this.
 # Needed as matplotlib.use has to run before pyplot is imported.
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
 import seaborn as sns  # noqa: E402
 
-PAPER_STYLE = {
-        'font.serif': 'Times New Roman',
-        'font.family': 'serif',
-        'font.size': 9,
-        'legend.fontsize': 9,
-        'axes.titlesize': 9,
-        'axes.labelsize': 9,
-        'xtick.labelsize': 9,
-        'ytick.labelsize': 9
-    }
-tsne_vis_ex = sacred.Experiment('tsne-visualization')
-tsne_vis_ex.observers.append(FileStorageObserver.create(
-    '/Users/cody/Data/adversarial_policies/tsne_visualization'))
+vis_tsne_ex = sacred.Experiment('vis_tsne')
 logger_obj = logging.getLogger('modelfree.interpretation.visualize_tsne')
 
 abbreviation_lookup = {
@@ -37,13 +28,15 @@ abbreviation_lookup = {
     "zoo": "Zoo1",
     "random": "Rand"
 }
-@tsne_vis_ex.config
+
+
+@vis_tsne_ex.config
 def main_config():
-    base_path = "/Users/cody/Data/adversarial_policies/tsne_runs"
+    base_path = None
     sacred_id = None
     subsample_rate = 0.15
     perplexity = 250
-    video_path = "/Users/cody/Data/adversarial_policies/video_frames"
+    video_path = None
     chart_type = "seaborn"
     opacity = 1.0
     dot_size = 0.25
@@ -84,7 +77,7 @@ def _get_latest_sacred_dir_with_params(base_path, param_dict=None):
     return str(max_int_dir)
 
 
-@tsne_vis_ex.capture
+@vis_tsne_ex.capture
 def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_name,
                          hue_order):
     with tempfile.TemporaryDirectory() as td:
@@ -115,13 +108,13 @@ def _plot_and_save_chart(data, fname, chart_type, opacity, dot_size, palette_nam
             handles, labels = ax.get_legend_handles_labels()
             ax.xaxis.set_visible(False)
             ax.yaxis.set_visible(False)
-            plt.style.use(PAPER_STYLE)
+            plt.style.use(STYLES['paper'])
             ax.legend(handles=handles[1:], labels=labels[1:],
                       loc=9, ncol=3, bbox_to_anchor=(0.48, 1.18))
             plt.rc('axes.spines', **{'bottom': False, 'left': False, 'right': False, 'top': False})
             plt.savefig(fname, dpi=800)
             plt.close()
-        tsne_vis_ex.add_artifact(fname)
+        vis_tsne_ex.add_artifact(fname)
 
 
 def sample_range(df, xrange, yrange):
@@ -131,7 +124,7 @@ def sample_range(df, xrange, yrange):
     return both_satisfies.sample(1).iloc[0]
 
 
-@tsne_vis_ex.capture
+@vis_tsne_ex.capture
 def get_frame_shot(opponent, episode, observation, video_path):
     latest_dir = _get_latest_sacred_dir_with_params(os.path.join(video_path, opponent))
     fname = "{}_episode_{}_frame_{}.jpg".format(opponent, episode, observation)
@@ -155,8 +148,8 @@ def sample_points_from_ranges(data):
             print(sample_series)
 
 
-@tsne_vis_ex.automain
-def experiment_main(base_path, sacred_id, subsample_rate, perplexity, save_type):
+@vis_tsne_ex.main
+def visualize_tsne(base_path, sacred_id, subsample_rate, perplexity, save_type):
 
     if sacred_id is None:
         sacred_id = _get_latest_sacred_dir_with_params(base_path, {'perplexity': perplexity})
@@ -186,3 +179,13 @@ def experiment_main(base_path, sacred_id, subsample_rate, perplexity, save_type)
 
     for name, group in opponent_groups:
         _plot_and_save_chart(group, "{}_chart.{}".format(name, save_type))
+
+
+def main():
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'vis_tsne'))
+    vis_tsne_ex.observers.append(observer)
+    vis_tsne_ex.run_commandline()
+
+
+if __name__ == '__main__':
+    main()

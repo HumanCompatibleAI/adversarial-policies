@@ -1,5 +1,6 @@
 import logging
 import os
+import os.path as osp
 import pickle
 import tempfile
 
@@ -11,17 +12,15 @@ from sklearn.manifold import TSNE
 
 from modelfree.interpretation.sacred_util import get_latest_sacred_dir_with_params
 
-tsne_experiment = sacred.Experiment('tsne-base-experiment')
-tsne_experiment.observers.append(FileStorageObserver.create(
-    '/Users/cody/Data/adversarial_policies/tsne_runs'))
+fit_tsne_ex = sacred.Experiment('fit_tsne')
 logger = logging.getLogger('modelfree.interpretation.fit_tsne')
 
 
-@tsne_experiment.config
+@fit_tsne_ex.config
 def base_config():
     relative_dirs = ['adversary', 'random', 'zoo']
     # TODO: cross-platform
-    base_path = "/Users/cody/Data/adversarial_policies/tsne_save_activations"
+    base_path = 'data/tsne_save_activations/'
     data_type = 'ff_policy'
     num_components = 2
     sacred_dir_ids = None  # otherwise list
@@ -34,14 +33,14 @@ def base_config():
     del _
 
 
-@tsne_experiment.named_config
+@fit_tsne_ex.named_config
 def full_model():
     num_observations = None
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
-@tsne_experiment.capture
+@fit_tsne_ex.capture
 def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_name, sacred_dir):
     if base_path is None:
         traj_data = np.load(os.path.join(sacred_dir, np_file_name),
@@ -70,9 +69,9 @@ def _load_and_reshape_single_file(relative_dir, base_path, data_type, np_file_na
     return concated_data, metadata_df
 
 
-@tsne_experiment.automain
-def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
-                    num_observations, perplexity, env_name):
+@fit_tsne_ex.main
+def fit_tsne(relative_dirs, num_components, base_path, sacred_dir_ids,
+             num_observations, perplexity, env_name):
     all_file_data = []
     all_metadata = []
     params = {"env_name": env_name}
@@ -85,7 +84,7 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
 
     for i, rd in enumerate(relative_dirs):
         logger.debug("Match params: {}".format(params))
-        logger.deubg("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
+        logger.debug("Pulling data out of {}, with sacred run ID {}".format(rd, sacred_dir_ids[i]))
         file_data, metadata = _load_and_reshape_single_file(rd, sacred_dir=sacred_dir_ids[i])
         all_file_data.append(file_data)
         all_metadata.append(metadata)
@@ -100,7 +99,7 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
     with tempfile.TemporaryDirectory() as dirname:
         metadata_path = os.path.join(dirname, 'metadata.csv')
         merged_metadata[0:num_observations].to_csv(metadata_path)
-        tsne_experiment.add_artifact(metadata_path)
+        fit_tsne_ex.add_artifact(metadata_path)
 
         tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
         logger.debug("Starting T-SNE fitting")
@@ -110,8 +109,18 @@ def experiment_main(relative_dirs, num_components, base_path, sacred_dir_ids,
         tsne_weights_path = os.path.join(dirname, 'saved_tsne_weights.pkl')
         with open(tsne_weights_path, "wb") as fp:
             pickle.dump(tsne_obj, fp)
-        tsne_experiment.add_artifact(tsne_weights_path)
+        fit_tsne_ex.add_artifact(tsne_weights_path)
 
         cluster_ids_path = os.path.join(dirname, 'cluster_ids.npy')
         np.save(cluster_ids_path, tsne_ids)
-        tsne_experiment.add_artifact(cluster_ids_path)
+        fit_tsne_ex.add_artifact(cluster_ids_path)
+
+
+def main():
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'fit_tsne'))
+    fit_tsne_ex.observers.append(observer)
+    fit_tsne_ex.run_commandline()
+
+
+if __name__ == '__main__':
+    main()
