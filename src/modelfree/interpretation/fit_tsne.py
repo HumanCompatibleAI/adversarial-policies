@@ -67,7 +67,7 @@ def fit_tsne(activation_path, activation_glob, output_root,
     all_file_data = []
     all_metadata = []
 
-    opponent_pattern = re.compile(r'.*_opponent_([a-z]+)_[0-9]\.npz')
+    opponent_pattern = re.compile(r'.*_opponent_([^\s]+)_[^\s]+\.npz')
     stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
     last_stem = None
     for path in glob.glob(osp.join(activation_path, activation_glob)):

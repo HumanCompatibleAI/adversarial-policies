@@ -216,7 +216,7 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_name = 'adversary_transfer'
+        exp_name = 'adversary_trained'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
