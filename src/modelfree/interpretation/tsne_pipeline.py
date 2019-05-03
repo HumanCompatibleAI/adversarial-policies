@@ -17,7 +17,7 @@ logger = logging.getLogger('modelfree.interpretation.tsne_pipeline')
 
 @tsne_ex.config
 def activation_storing_config():
-    adversary_path = "."
+    base_path = "data"
     perplexity = 250,
     score_agent_configs = dict(
         transparent_params={'ff_policy': True, 'ff_value': True},
@@ -29,7 +29,7 @@ def activation_storing_config():
         video_dir=None,
         episodes=2,
         render=False
-    ),
+    )
 
     fit_tsne_configs = dict(
         relative_dirs=['adversary', 'random', 'zoo'],
@@ -62,12 +62,12 @@ def activation_storing_config():
 
 
 @tsne_ex.capture
-def store_activations(sacred_base_dir, adversary_path, score_agent_configs):
+def store_activations(sacred_base_dir, base_path, score_agent_configs):
     # TODO: make adversary_path a config parameter
     best_adversary_path_agent_1 = get_best_adversary_path(
-                    best_path="data/score_agents/best_adversaries.json",
-                    environment=score_agent_configs[0]['env_name'],
-                    zoo_id=1, base_path=adversary_path)
+                    best_path=osp.join(base_path, "score_agents", "best_adversaries.json"),
+                    environment=score_agent_configs['env_name'],
+                    zoo_id=1, base_path=base_path)
 
     tests_to_run = [
         {'dir': 'kad-adv', 'path': best_adversary_path_agent_1,
@@ -85,9 +85,11 @@ def store_activations(sacred_base_dir, adversary_path, score_agent_configs):
                                                            test_config['opponent_type']))
         score_ex.observers.append(observer)
         observer_dirs.append(observer.dir)
-        config_copy = score_agent_configs[0].copy()
-        with tempfile.TemporaryDirectory() as td:
-            config_copy['record_traj_params']['save_dir'] = td
+        config_copy = score_agent_configs.copy()
+        with tempfile.TemporaryDirectory() as td:  # noqa: F841
+            # config_copy['record_traj_params']['save_dir'] = td
+            # TODO: use temporary directory but copy it somewhere?
+            config_copy['record_traj_params']['save_dir'] = 'data/tsne_save_activations'
             config_copy.update({'agent_b_type': test_config["policy_type"],
                                 'agent_b_path': test_config["path"]})
             run = score_ex.run(config_updates=config_copy)
