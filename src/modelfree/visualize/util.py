@@ -8,7 +8,6 @@ import pandas as pd
 import seaborn as sns
 
 from modelfree.envs import VICTIM_INDEX, gym_compete
-from modelfree.visualize.styles import STYLES
 
 logger = logging.getLogger('modelfree.visualize.util')
 
@@ -240,19 +239,3 @@ def heatmap_one_col(single_env, col, cbar, ylabel):
     rotate_labels(ax)
 
     return fig
-
-
-# Argument parsing
-
-def directory(path):
-    if not os.path.exists(path):
-        raise ValueError(f"Path '{path}' does not exist")
-    if not os.path.isdir(path):
-        raise ValueError(f"Path '{path}' is not a directory")
-    return path
-
-
-def style(key):
-    if key not in STYLES:
-        raise ValueError(f"Unrecognized style '{key}'")
-    return key

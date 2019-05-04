@@ -1,6 +1,7 @@
 import collections
 import ctypes
 import math
+import os.path as osp
 import re
 
 from PIL import Image, ImageDraw, ImageFont
@@ -9,7 +10,8 @@ import mujoco_py
 import numpy as np
 
 from modelfree.envs import VICTIM_INDEX
-from modelfree.envs.gym_compete import env_name_to_canonical, game_outcome
+from modelfree.envs.gym_compete import env_name_to_canonical, game_outcome, is_symmetric
+from modelfree.visualize.tb import read_sacred_config
 
 VICTIM_OPPONENT_COLORS = {
     'Victim': (55, 126, 184, 255),
@@ -58,13 +60,36 @@ CAMERA_CONFIG = {
     'SumoAnts-v0': {'azimuth': 90, 'distance': 10, 'elevation': -25},
 }
 
-
 PRETTY_POLICY_TYPES = {
     'ppo2': 'Adversary (Adv)',
     'zoo': 'Normal (Zoo)',
     'zero': 'Lifeless (Zero)',
     'random': 'Random (Rand)',
 }
+
+
+def pretty_policy_type(env_name, is_victim, policy_type, policy_path):
+    if policy_type == 'zero':
+        return 'Lifeless (Zero)'
+    elif policy_type == 'random':
+        return 'Random (Rand)'
+    elif policy_type == 'ppo2':
+        try:
+            path_components = policy_path.split(osp.sep)
+            experiment_root = osp.sep.join(path_components[:-4])
+            cfg = read_sacred_config(experiment_root, 'train')
+            victim_path = cfg['victim_path']
+        except (IndexError, FileNotFoundError):
+            victim_path = ''
+        return f'Adversary (Adv{victim_path})'
+    elif policy_type == 'zoo':
+        if not is_symmetric(env_name):
+            prefix = 'ZooV' if is_victim else 'ZooO'
+        else:
+            prefix = 'Zoo'
+        return f'Normal ({prefix}{policy_path})'
+    else:
+        raise ValueError(f"Unrecognized policy type '{policy_type}'")
 
 
 class AnnotatedGymCompete(gym.Wrapper):
@@ -79,6 +104,10 @@ class AnnotatedGymCompete(gym.Wrapper):
         self.agent_a_path = agent_a_path
         self.agent_b_type = agent_b_type
         self.agent_b_path = agent_b_path
+        self.agent_mapping = {
+            0: (0 == self.victim_index, self.agent_a_type, self.agent_a_path),
+            1: (1 == self.victim_index, self.agent_b_type, self.agent_b_path),
+        }
 
         # Text overlay
         self.font = ImageFont.truetype(f'{font}.ttf', font_size)
@@ -104,13 +133,9 @@ class AnnotatedGymCompete(gym.Wrapper):
 
     def camera_setup(self):
         # Color mapping
-        agent_mapping = {
-            'agent0': (0 == self.victim_index, self.agent_a_type, self.agent_a_path),
-            'agent1': (1 == self.victim_index, self.agent_b_type, self.agent_b_path),
-        }
-        color_patterns = {f'{agent_key}/{geom_key}': geom_fn(*agent_val)
+        color_patterns = {f'agent{agent_key}/{geom_key}': geom_fn(*agent_val)
                           for geom_key, geom_fn in GEOM_MAPPINGS.items()
-                          for agent_key, agent_val in agent_mapping.items()}
+                          for agent_key, agent_val in self.agent_mapping.items()}
         set_geom_colors(self.env.unwrapped.env_scene.model, color_patterns)
 
         # Camera setup
@@ -160,14 +185,14 @@ class AnnotatedGymCompete(gym.Wrapper):
 
             to_draw = []
             for k, label in texts.items():
-                pol_type = None
+                cur_agent = None
                 header = ""
                 if label == 'Opponent':
-                    pol_type = self.agent_b_type if self.victim_index == 0 else self.agent_a_type
+                    cur_agent = self.agent_mapping[1 - self.victim_index]
                 elif label == 'Victim':
-                    pol_type = self.agent_a_type if self.victim_index == 0 else self.agent_b_type
-                if pol_type is not None:
-                    header = PRETTY_POLICY_TYPES[pol_type]
+                    cur_agent = self.agent_mapping[self.victim_index]
+                if cur_agent is not None:
+                    header = pretty_policy_type(self.env_name, *cur_agent)
 
                 scores = f"{label} = {self.result[k]}"
 
