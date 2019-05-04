@@ -11,6 +11,7 @@ import pandas as pd
 import sacred
 from sacred.observers import FileStorageObserver
 
+from modelfree.common import utils
 from modelfree.visualize.styles import STYLES
 
 visualize_ex = sacred.Experiment('tsne_visualize')
@@ -108,8 +109,6 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
         fig.savefig(save_path, dpi=800, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
 
-    visualize_ex.add_artifact(save_path)
-
 
 @visualize_ex.capture(prefix='external_legend_params')
 def _external_legend(save_path, legend_styles, legend_height):
@@ -155,7 +154,7 @@ def _visualize_helper(model_dir, output_dir, subsample_rate, save_type,
 
 
 @visualize_ex.main
-def visualize(model_glob, output_root):
+def visualize(_run, model_glob, output_root):
     # Output directory
     tmp_dir = None
     if output_root is None:
@@ -168,6 +167,7 @@ def visualize(model_glob, output_root):
         os.makedirs(output_dir)
         _visualize_helper(model_dir, output_dir)
 
+    utils.add_artifacts(_run, output_root, ingredient=visualize_ex)
     if tmp_dir is not None:
         tmp_dir.cleanup()
 

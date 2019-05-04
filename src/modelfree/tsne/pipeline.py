@@ -35,7 +35,7 @@ def debug_config(tsne_activations):
 
 
 @tsne_ex.main
-def pipeline(output_root, exp_name):
+def pipeline(_run, output_root, exp_name):
     out_dir = osp.join(output_root, exp_name, utils.make_timestamp())
     os.makedirs(out_dir)
 

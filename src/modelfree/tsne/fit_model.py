@@ -12,6 +12,8 @@ import sacred
 from sacred.observers import FileStorageObserver
 from sklearn.manifold import TSNE
 
+from modelfree.common import utils
+
 fit_model_ex = sacred.Experiment('tsne_fit_model')
 logger = logging.getLogger('modelfree.tsne.fit_model')
 
@@ -67,7 +69,6 @@ def fit_tsne_helper(activation_paths, output_dir, num_components, num_observatio
 
     all_file_data = []
     all_metadata = []
-    artifacts = []
     for opponent_type, path in activation_paths.items():
         logger.debug(f"Loaded data for {opponent_type} from {path}")
         file_data, metadata = _load_and_reshape_single_file(path, opponent_type, data_type)
@@ -85,7 +86,6 @@ def fit_tsne_helper(activation_paths, output_dir, num_components, num_observatio
     # Save metadata
     metadata_path = os.path.join(output_dir, 'metadata.csv')
     merged_metadata[0:num_observations].to_csv(metadata_path)
-    artifacts.append(metadata_path)
 
     # Fit t-SNE
     tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
@@ -95,20 +95,16 @@ def fit_tsne_helper(activation_paths, output_dir, num_components, num_observatio
     tsne_weights_path = os.path.join(output_dir, 'tsne_weights.pkl')
     with open(tsne_weights_path, "wb") as fp:
         pickle.dump(tsne_obj, fp)
-    artifacts.append(tsne_weights_path)
 
     # Save cluster IDs
     cluster_ids_path = os.path.join(output_dir, 'cluster_ids.npy')
     np.save(cluster_ids_path, tsne_ids)
-    artifacts.append(cluster_ids_path)
 
     logger.info(f"Completed T-SNE fitting, saved to {output_dir}")
 
-    return artifacts
-
 
 @fit_model_ex.main
-def fit_model(ray_server, activation_dir, output_root,
+def fit_model(_run, ray_server, activation_dir, output_root,
               num_components, num_observations, perplexity, data_type):
     ray.init(redis_address=ray_server)
 
@@ -136,18 +132,16 @@ def fit_model(ray_server, activation_dir, output_root,
         output_root = tmp_dir.name
 
     # Fit t-SNE and save model weights
-    artifacts = {}
+    results = []
     for stem, paths in activation_paths.items():
         output_dir = osp.join(output_root, stem)
         os.makedirs(output_dir)
         future = fit_tsne_helper.remote(paths, output_dir, num_components,
                                         num_observations, perplexity, data_type)
-        artifacts[stem] = future
+        results.append(future)
 
-    for stem, paths_future in artifacts.items():
-        paths = ray.get(paths_future)
-        for path in paths:
-            fit_model_ex.add_artifact(path)
+    ray.get(results)  # block until all jobs have finished
+    utils.add_artifacts(_run, output_root, ingredient=fit_model_ex)
 
     # Clean up temporary directory (if needed)
     if tmp_dir is not None:

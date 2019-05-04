@@ -1,9 +1,11 @@
 import logging
+import os
 import os.path as osp
 
 import sacred
 from sacred.observers import FileStorageObserver
 
+from modelfree.common import utils
 from modelfree.multi.score import extract_data, run_external
 
 generate_activations_ex = sacred.Experiment('tsne_activations')
@@ -25,7 +27,8 @@ def activation_storing_config():
 
 
 @generate_activations_ex.main
-def generate_activations(out_dir, score_configs, score_update, adversary_path, ray_upload_dir):
+def generate_activations(_run, out_dir, score_configs, score_update,
+                         adversary_path, ray_upload_dir):
     """Uses multi.score to generate activations, then extracts them into a convenient
        directory structure."""
     logger.info("Generating activations")
@@ -40,8 +43,11 @@ def generate_activations(out_dir, score_configs, score_update, adversary_path, r
                     f'_opponent_{opponent_type}_{opponent_path}')
         return src_path, new_name, 'npz'
 
+    os.makedirs(out_dir)
     extract_data(path_generator, out_dir, activation_dirs, ray_upload_dir)
     logger.info("Activations saved")
+
+    utils.add_artifacts(_run, out_dir)
 
 
 def main():
