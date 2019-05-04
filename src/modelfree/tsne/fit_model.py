@@ -12,11 +12,11 @@ import sacred
 from sacred.observers import FileStorageObserver
 from sklearn.manifold import TSNE
 
-fit_tsne_ex = sacred.Experiment('fit_tsne')
-logger = logging.getLogger('modelfree.interpretation.fit_tsne')
+fit_model_ex = sacred.Experiment('tsne_fit_model')
+logger = logging.getLogger('modelfree.tsne.fit_model')
 
 
-@fit_tsne_ex.config
+@fit_model_ex.config
 def base_config():
     ray_server = None  # by default will launch a server
     activation_dir = None
@@ -30,7 +30,7 @@ def base_config():
     del _
 
 
-@fit_tsne_ex.named_config
+@fit_model_ex.named_config
 def debug_config():
     num_observations = 1000
     _ = locals()  # quieten flake8 unused variable warning
@@ -63,6 +63,8 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
 @ray.remote
 def fit_tsne_helper(activation_paths, output_dir, num_components, num_observations,
                     perplexity, data_type):
+    logger.info(f"Starting T-SNE fitting, saving to {output_dir}")
+
     all_file_data = []
     all_metadata = []
     artifacts = []
@@ -87,9 +89,7 @@ def fit_tsne_helper(activation_paths, output_dir, num_components, num_observatio
 
     # Fit t-SNE
     tsne_obj = TSNE(n_components=num_components, verbose=1, perplexity=perplexity)
-    logger.info(f"Starting T-SNE fitting, saving to {output_dir}")
     tsne_ids = tsne_obj.fit_transform(sub_data)
-    logger.info(f"Completed T-SNE fitting, saved to {output_dir}")
 
     # Save weights
     tsne_weights_path = os.path.join(output_dir, 'tsne_weights.pkl')
@@ -102,12 +102,14 @@ def fit_tsne_helper(activation_paths, output_dir, num_components, num_observatio
     np.save(cluster_ids_path, tsne_ids)
     artifacts.append(cluster_ids_path)
 
+    logger.info(f"Completed T-SNE fitting, saved to {output_dir}")
+
     return artifacts
 
 
-@fit_tsne_ex.main
-def fit_tsne(ray_server, activation_dir, output_root,
-             num_components, num_observations, perplexity, data_type):
+@fit_model_ex.main
+def fit_model(ray_server, activation_dir, output_root,
+              num_components, num_observations, perplexity, data_type):
     ray.init(redis_address=ray_server)
 
     # Find activation paths for each environment & victim-path tuple
@@ -145,7 +147,7 @@ def fit_tsne(ray_server, activation_dir, output_root,
     for stem, paths_future in artifacts.items():
         paths = ray.get(paths_future)
         for path in paths:
-            fit_tsne_ex.add_artifact(path)
+            fit_model_ex.add_artifact(path)
 
     # Clean up temporary directory (if needed)
     if tmp_dir is not None:
@@ -155,9 +157,9 @@ def fit_tsne(ray_server, activation_dir, output_root,
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'fit_tsne'))
-    fit_tsne_ex.observers.append(observer)
-    fit_tsne_ex.run_commandline()
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne_fit'))
+    fit_model_ex.observers.append(observer)
+    fit_model_ex.run_commandline()
 
 
 if __name__ == '__main__':

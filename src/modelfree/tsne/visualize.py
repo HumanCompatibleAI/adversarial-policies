@@ -5,7 +5,7 @@ import os.path as osp
 import tempfile
 
 import matplotlib
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sacred
@@ -13,11 +13,11 @@ from sacred.observers import FileStorageObserver
 
 from modelfree.visualize.styles import STYLES
 
-vis_tsne_ex = sacred.Experiment('visualize_tsne')
-logger = logging.getLogger('modelfree.interpretation.visualize_tsne')
+visualize_ex = sacred.Experiment('tsne_visualize')
+logger = logging.getLogger('modelfree.tsne.visualize')
 
 
-@vis_tsne_ex.config
+@visualize_ex.config
 def main_config():
     model_glob = None
     output_root = None
@@ -58,7 +58,7 @@ PALETTES = {
 }
 
 
-@vis_tsne_ex.capture
+@visualize_ex.capture
 def _make_handles(palette_name, ordering):
     palette = PALETTES[palette_name]
     handles, labels = [], []
@@ -71,7 +71,7 @@ def _make_handles(palette_name, ordering):
     return handles, labels
 
 
-@vis_tsne_ex.capture
+@visualize_ex.capture
 def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
                          styles, external_legend_params):
     legend = external_legend_params is None
@@ -108,10 +108,10 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
         fig.savefig(save_path, dpi=800, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
 
-    vis_tsne_ex.add_artifact(save_path)
+    visualize_ex.add_artifact(save_path)
 
 
-@vis_tsne_ex.capture(prefix='external_legend_params')
+@visualize_ex.capture(prefix='external_legend_params')
 def _external_legend(save_path, legend_styles, legend_height):
     with plt.style.context([STYLES[style] for style in legend_styles]):
         width, height = plt.rcParams['figure.figsize']
@@ -125,9 +125,11 @@ def _external_legend(save_path, legend_styles, legend_height):
         plt.close(legend_fig)
 
 
-@vis_tsne_ex.capture
-def _visualize_tsne_helper(model_dir, output_dir, subsample_rate, save_type,
-                           ordering, external_legend_params):
+@visualize_ex.capture
+def _visualize_helper(model_dir, output_dir, subsample_rate, save_type,
+                      ordering, external_legend_params):
+    logger.info("Generating figures")
+
     # Data
     metadata_df = pd.read_csv(os.path.join(model_dir, 'metadata.csv'))
     cluster_ids = np.load(os.path.join(model_dir, 'cluster_ids.npy'))
@@ -149,9 +151,11 @@ def _visualize_tsne_helper(model_dir, output_dir, subsample_rate, save_type,
     if external_legend_params is not None:
         _external_legend(osp.join(output_dir, 'external_legend.pdf'))
 
+    logger.info("Visualization complete")
 
-@vis_tsne_ex.main
-def visualize_tsne(model_glob, output_root):
+
+@visualize_ex.main
+def visualize(model_glob, output_root):
     # Output directory
     tmp_dir = None
     if output_root is None:
@@ -162,16 +166,16 @@ def visualize_tsne(model_glob, output_root):
         model_name = os.path.basename(model_dir)
         output_dir = osp.join(output_root, model_name)
         os.makedirs(output_dir)
-        _visualize_tsne_helper(model_dir, output_dir)
+        _visualize_helper(model_dir, output_dir)
 
     if tmp_dir is not None:
         tmp_dir.cleanup()
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'visualize_tsne'))
-    vis_tsne_ex.observers.append(observer)
-    vis_tsne_ex.run_commandline()
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne_visualize'))
+    visualize_ex.observers.append(observer)
+    visualize_ex.run_commandline()
 
 
 if __name__ == '__main__':

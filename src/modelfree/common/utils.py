@@ -394,7 +394,7 @@ def simulate(venv, policies, render=False):
                 return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
                 act, new_state, transparent_data = return_tuple
                 try:
-                    venv.record_transparent_data(transparent_data, policy_ind)
+                    venv.record_extra_data(transparent_data, policy_ind)
                 except AttributeError:
                     warnings.warn("No way to record transparent data on this venv", stacklevel=3)
             except AttributeError:
