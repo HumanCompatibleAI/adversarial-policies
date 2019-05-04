@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-OUT_DIR=data/score_agents/
+OUT_DIR=data/aws/score_agents/
 TIMESTAMP=`date --iso-8601=seconds`
 ADVERSARY_PATHS=${OUT_DIR}/${TIMESTAMP}_best_adversaries.json
 OUT_PATH=${OUT_DIR}/${TIMESTAMP}_adversary_transfer.json

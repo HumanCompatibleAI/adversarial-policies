@@ -16,8 +16,7 @@ logger = logging.getLogger('modelfree.interpretation.tsne_pipeline')
 
 @tsne_ex.config
 def activation_storing_config():
-    # TODO: portability
-    adversary_path = osp.join('data', 'score_agents',
+    adversary_path = osp.join('data', 'aws', 'score_agents',
                               '2019-04-29T14:11:08-07:00_best_adversaries.json')
     ray_upload_dir = 'data'     # where Ray will upload multi.score outputs. 'data' works on local
     output_root = 'data/tsne'   # where to produce output

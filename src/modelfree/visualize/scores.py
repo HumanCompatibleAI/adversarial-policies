@@ -22,7 +22,7 @@ def heatmap_opponent(single_env):
 @visualize_score_ex.config
 def default_config():
     fig_dir = os.path.join('data', 'figs', 'scores')
-    transfer_score_path = os.path.join('data', 'score_agents',
+    transfer_score_path = os.path.join('data', 'aws', 'score_agents',
                                        '2019-04-29T14:11:08-07:00_adversary_transfer.json')
     styles = ['paper', 'a4']
     command = util.heatmap_full
