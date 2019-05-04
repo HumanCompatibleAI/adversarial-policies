@@ -142,6 +142,20 @@ def make_configs(multi_score_ex):
         exp_name = 'video_' + exp_name  # noqa: F401
 
     @multi_score_ex.named_config
+    def mask_observations_of_victim(exp_name, spec):
+        spec['config']['mask_agent_observations'] = tune.sample_from(
+            lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+        )
+        exp_name = 'victim_mask_' + exp_name
+
+    @multi_score_ex.named_config
+    def mask_observations_of_adversary(exp_name, spec):
+        spec['config']['mask_agent_observations'] = tune.sample_from(
+            lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+        )
+        exp_name = 'adversary_mask_' + exp_name
+
+    @multi_score_ex.named_config
     def debug_one_each_type(score):
         """One Zoo agent from each environment, plus one opponent of each type.
            Intended for debugging purposes as a quick experiment that is still diverse.."""
