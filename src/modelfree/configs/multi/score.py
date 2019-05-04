@@ -163,9 +163,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def zoo_baseline(score):
+    def zoo_baseline():
         """Try all pre-trained policies from Bansal et al's gym_compete zoo against each other."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_env_agents()),
@@ -177,9 +176,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def fixed_baseline(score):
+    def fixed_baseline():
         """Try zero-agent and random-agent against pre-trained zoo policies."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random') +
@@ -192,9 +190,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def random_baseline(score):
+    def random_baseline():
         """Try random-agent against pre-trained zoo policies."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random')),
@@ -206,9 +203,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def adversary_transfer(score):
+    def adversary_transfer():
         """Do adversarial policies trained on victim X transfer to victim Y?"""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
@@ -222,9 +218,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def adversary_trained(score):
+    def adversary_trained():
         """Try adversaries against the victim they were trained against."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
