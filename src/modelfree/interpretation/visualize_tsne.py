@@ -89,7 +89,6 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
         fig, axs = plt.subplots(figsize=(width, height), nrows=1, ncols=ncols, squeeze=False,
                                 sharex=True, sharey=True, gridspec_kw={'wspace': 0.0})
 
-        # TODO: shuffle?
         # Color-coded scatter-plot
         for data, ax in zip(datasets, axs[0]):
             ax.axis('off')

@@ -39,7 +39,6 @@ def debug_config():
     del _
 
 
-# TODO: make separate experiment?
 @tsne_ex.capture
 def store_activations(score_configs, score_update, adversary_path):
     """Uses multi.score to save activations."""
