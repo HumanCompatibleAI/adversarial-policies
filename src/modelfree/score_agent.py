@@ -145,14 +145,11 @@ def default_score_config():
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
-    mask_agent_observations = None
-    # TODO: pick victim index automatically? or specify it at CLI?
-    agent_wrappers = None
-    if mask_agent_observations is not None:
-        agent_wrappers = {mask_agent_observations: make_mask_for_env(env_name)}
-    agent_wrapper_kwargs = {
-        "masking_type": "initialization"
+    mask_agent_observations = None        # index of agent whose observations should be limited
+    mask_agent_kwargs = {                 # control how agent observations are limited
+        'masking_type': 'initialization',
     }
+
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -161,7 +158,7 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params, num_env, episodes, render,
-                videos, video_params, agent_wrappers, agent_wrapper_kwargs):
+                videos, video_params, mask_agent_observations, mask_agent_kwargs):
     if videos:
         if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
@@ -173,11 +170,16 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
+    agent_wrappers = {}
+    if mask_agent_observations is not None:
+        masker = make_mask_for_env(env_name)
+        masker = functools.partial(masker, **mask_agent_kwargs)
+        agent_wrappers = {mask_agent_observations: masker}
+
     def env_fn(i):
         env = make_env(env_name, _seed, i, None,
                        pre_wrapper=pre_wrapper,
-                       agent_wrappers=agent_wrappers,
-                       agent_wrapper_kwargs=agent_wrapper_kwargs)
+                       agent_wrappers=agent_wrappers)
         if videos:
             if video_params['annotated'] and 'multicomp' in env_name:
                 assert num_env == 1, "pretty videos requires num_env=1"
