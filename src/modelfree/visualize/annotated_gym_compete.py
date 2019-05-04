@@ -173,7 +173,7 @@ class AnnotatedGymCompete(gym.Wrapper):
 
                 color = VICTIM_OPPONENT_COLORS[label]
                 if self.changed[k] > 0:
-                    weight = math.sqrt(self.changed[k] / self.num_frames)
+                    weight = 0.7 * math.sqrt(self.changed[k] / self.num_frames)
                     color = tuple(int((255 * weight + (1 - weight) * x)) for x in color)
                 font = self.font_bold if k == self.last_won else self.font
                 to_draw.append(([scores, header], font, color))
