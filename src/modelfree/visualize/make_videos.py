@@ -47,7 +47,7 @@ def generate_videos(score_configs, multi_score, adversary_path):
 def extract_videos(out_dir, video_dirs, ray_upload_dir):
     def path_generator(trial_root, env_name, victim_index, victim_type, victim_path,
                        opponent_type, opponent_path):
-        src_path = osp.join(trial_root, 'data', 'sacred', '1', 'scores',
+        src_path = osp.join(trial_root, 'data', 'sacred', 'score', '1',
                             'videos', 'env_0_episode_0_recording.mp4')
         new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
                     f'_opponent_{opponent_type}_{opponent_path}')
