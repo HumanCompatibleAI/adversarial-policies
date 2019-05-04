@@ -81,10 +81,9 @@ def pipeline(output_root, exp_name, fit_tsne, visualize_tsne):
     logger.info("Fitting complete")
 
     logger.info("Generating figures")
-    for fitted_model in os.listdir(model_dir):
-        visualize_tsne['model_dir'] = osp.join(model_dir, fitted_model)
-        visualize_tsne['output_dir'] = osp.join(out_dir, 'figures', fitted_model)
-        vis_tsne_ex.run(config_updates=visualize_tsne)
+    visualize_tsne['model_dir'] = osp.join(model_dir, '*')
+    visualize_tsne['output_dir'] = osp.join(out_dir, 'figures')
+    vis_tsne_ex.run(config_updates=visualize_tsne)
     logger.info("Visualization complete")
 
 
