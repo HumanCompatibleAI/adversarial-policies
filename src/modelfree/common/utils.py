@@ -370,12 +370,13 @@ class TrajectoryRecorder(VecMultiWrapper):
         return save_paths
 
 
-def simulate(venv, policies, render=False):
+def simulate(venv, policies, render=False, record=True):
     """
     Run Environment env with the policies in `policies`.
     :param venv(VecEnv): vector environment.
     :param policies(list<BaseModel>): a policy per agent.
     :param render: (bool) true if the run should be rendered to the screen
+    :param record: (bool) true if should record transparent data (if any).
     :return: streams information about the simulation
     """
     observations = venv.reset()
@@ -393,10 +394,8 @@ def simulate(venv, policies, render=False):
             try:
                 return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
                 act, new_state, transparent_data = return_tuple
-                try:
+                if record:
                     venv.record_extra_data(transparent_data, policy_ind)
-                except AttributeError:
-                    warnings.warn("No way to record transparent data on this venv", stacklevel=3)
             except AttributeError:
                 act, new_state = policy.predict(obs, state=state, mask=dones)
 

@@ -32,10 +32,11 @@ def announce_winner(sim_stream):
                 yield game_outcome(info)
 
 
-def get_empirical_score(_run, env, agents, episodes, render=False):
+@score_ex.capture
+def get_empirical_score(venv, agents, episodes, render, record_traj, _run):
     """Computes number of wins for each agent and ties.
 
-    :param env: (gym.Env) environment
+    :param venv: (VecEnv) vector environment
     :param agents: (list<BaseModel>) agents/policies to execute.
     :param episodes: (int) number of episodes.
     :param render: (bool) whether to render to screen during simulation.
@@ -46,7 +47,7 @@ def get_empirical_score(_run, env, agents, episodes, render=False):
     # This tells sacred about the intermediate computation so it
     # updates the result as the experiment is running
     _run.result = result
-    sim_stream = simulate(env, agents, render=render)
+    sim_stream = simulate(venv, agents, render=render, record=record_traj)
     for ep, winner in enumerate(announce_winner(sim_stream)):
         if winner is None:
             result['ties'] += 1
@@ -151,7 +152,7 @@ def default_score_config():
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, transparent_params, num_env, episodes, render,
+                record_traj, record_traj_params, transparent_params, num_env, episodes,
                 videos, video_params):
     if videos:
         if video_params['save_dir'] is None:
@@ -193,7 +194,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
 
-    score = get_empirical_score(_run, venv, agents, episodes, render=render)
+    score = get_empirical_score(venv, agents)
 
     for agent in agents:
         if agent.sess is not None:
