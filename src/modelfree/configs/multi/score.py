@@ -143,14 +143,14 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def mask_observations_of_victim(exp_name, spec):
-        spec['config']['mask_agent_observations'] = tune.sample_from(
+        spec['config']['mask_agent_index'] = tune.sample_from(
             lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
         exp_name = 'victim_mask_' + exp_name
 
     @multi_score_ex.named_config
     def mask_observations_of_adversary(exp_name, spec):
-        spec['config']['mask_agent_observations'] = tune.sample_from(
+        spec['config']['mask_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
         exp_name = 'adversary_mask_' + exp_name
@@ -171,7 +171,7 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_name = 'debug'
+        exp_name = 'debug_one_each_type'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _

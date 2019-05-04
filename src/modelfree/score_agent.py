@@ -146,7 +146,7 @@ def default_score_config():
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
-    mask_agent_observations = None        # index of agent whose observations should be limited
+    mask_agent_index = None               # index of agent whose observations should be limited
     mask_agent_kwargs = {                 # control how agent observations are limited
         'masking_type': 'initialization',
     }
@@ -159,7 +159,7 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params, num_env, episodes,
-                videos, video_params, mask_agent_observations, mask_agent_kwargs):
+                videos, video_params, mask_agent_index, mask_agent_kwargs):
     if videos:
         if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
@@ -172,10 +172,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     agent_wrappers = {}
-    if mask_agent_observations is not None:
-        masker = make_mask_for_env(env_name)
+    if mask_agent_index is not None:
+        masker = make_mask_for_env(env_name, mask_agent_index)
         masker = functools.partial(masker, **mask_agent_kwargs)
-        agent_wrappers = {mask_agent_observations: masker}
+        agent_wrappers = {mask_agent_index: masker}
 
     def env_fn(i):
         env = make_env(env_name, _seed, i, None,

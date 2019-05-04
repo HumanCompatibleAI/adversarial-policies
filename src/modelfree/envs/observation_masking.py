@@ -1,11 +1,7 @@
+from gym.envs import registry
 from gym_compete.new_envs.agents.agent import Agent
-from gym_compete.new_envs.agents.ant_fighter import AntFighter
-from gym_compete.new_envs.agents.humanoid_blocker import HumanoidBlocker
-from gym_compete.new_envs.agents.humanoid_fighter import HumanoidFighter
-from gym_compete.new_envs.agents.humanoid_kicker import HumanoidKicker
+from gym_compete.new_envs.multi_agent_env import MultiAgentEnv
 import numpy as np
-
-from modelfree.envs.gym_compete import env_name_to_canonical
 
 
 def make_mask_from_class(cls):
@@ -49,14 +45,9 @@ def make_mask_from_class(cls):
     return AdversaryMaskedGymCompeteAgent
 
 
-AGENT_CLASS = {
-    "SumoAnts-v0": AntFighter,
-    "SumoHumans-v0": HumanoidFighter,
-    "YouShallNotPassHumans-v0": HumanoidBlocker,
-    "KickAndDefend-v0": HumanoidKicker,
-}
-
-
-def make_mask_for_env(env_name):
-    cls = AGENT_CLASS[env_name_to_canonical(env_name)]
-    return make_mask_from_class(cls)
+def make_mask_for_env(env_name, agent_index):
+    spec = registry.spec(env_name)
+    agent_names = spec._kwargs['agent_names']
+    agent_name = agent_names[agent_index]
+    agent_cls = MultiAgentEnv.AGENT_MAP[agent_name][1]
+    return make_mask_from_class(agent_cls)
