@@ -5,17 +5,13 @@ import os.path as osp
 import tempfile
 
 import matplotlib
+import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
 import sacred
 from sacred.observers import FileStorageObserver
 
 from modelfree.visualize.styles import STYLES
-
-# WARNING: isort has been disabled on this file to allow this.
-# Needed as matplotlib.use has to run before pyplot is imported.
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt  # noqa: E402
 
 vis_tsne_ex = sacred.Experiment('visualize_tsne')
 logger = logging.getLogger('modelfree.interpretation.visualize_tsne')
