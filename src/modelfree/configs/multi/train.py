@@ -6,8 +6,8 @@ import itertools
 import numpy as np
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, VICTIM_INDEX
-from modelfree.envs import gym_compete
+from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS
+from modelfree.envs import VICTIM_INDEX, gym_compete
 
 MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
 LSTM_ENVS = [env for env in BANSAL_ENVS if gym_compete.is_stateful(env)]

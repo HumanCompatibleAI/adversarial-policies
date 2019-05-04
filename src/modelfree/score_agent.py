@@ -17,6 +17,7 @@ from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 from modelfree.envs.observation_masking import make_mask_for_env
+from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 score_ex = Experiment('score')
 score_ex_logger = logging.getLogger('score_agent')
@@ -115,22 +116,33 @@ def _save_video_or_metadata(env_dir, saved_video_path):
 
 @score_ex.config
 def default_score_config():
-    env_name = 'multicomp/KickAndDefend-v0'  # Gym env ID
-    agent_a_type = 'zoo'                # type supported by policy_loader.py
-    agent_a_path = '1'                  # path or other unique identifier
-    agent_b_type = 'zoo'                # type supported by policy_loader.py
-    agent_b_path = '2'                  # path or other unique identifier
-    record_traj = False                 # whether to record trajectories
-    record_traj_params = {              # parameters for recording trajectories
-        'save_dir': 'data/experts',     # directory to save trajectories to
-        'agent_indices': None,          # which agent trajectories to save
+    env_name = 'multicomp/SumoAnts-v0'    # Gym env ID
+    agent_a_type = 'zoo'                  # type supported by policy_loader.py
+    agent_a_path = '1'                    # path or other unique identifier
+    agent_b_type = 'zoo'                  # type supported by policy_loader.py
+    agent_b_path = '2'                    # path or other unique identifier
+    record_traj = False                   # whether to record trajectories
+    record_traj_params = {                # parameters for recording trajectories
+        'save_dir': 'data/trajectories',  # directory to save trajectories to
+        'agent_indices': None,            # which agent trajectories to save
     }
-    num_env = 1                         # number of environments to run in parallel
-    episodes = 15                       # number of episodes to evaluate
-    render = True                       # display on screen (warning: slow)
-    videos = False                      # generate videos
-    video_dir = None                    # directory to store videos in.
-    # If video_dir set to None, and videos set to true, videos will store in a
+
+    transparent_params = None             # whether to make the agents transparent
+    num_env = 1                           # number of environments to run in parallel
+    episodes = 20                         # number of episodes to evaluate
+    render = True                         # display on screen (warning: slow)
+    videos = False                        # generate videos
+    video_params = {
+        'save_dir': None,                 # directory to store videos in.
+        'single_file': True,              # if False, stores one file per episode
+        'annotated': True,                # for gym_compete, color-codes the agents and adds scores
+        'annotation_params': {
+            'resolution': (640, 480),
+            'font': 'times',
+            'font_size': 24,
+        },
+    }
+    # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
     mask_agent_observations = None
@@ -148,17 +160,17 @@ def default_score_config():
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, num_env, episodes, render, videos, video_dir,
-                agent_wrappers, agent_wrapper_kwargs):
+                record_traj, record_traj_params, transparent_params, num_env, episodes, render,
+                videos, video_params, agent_wrappers, agent_wrapper_kwargs):
     if videos:
-        if video_dir is None:
+        if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
                                  "but videos will be saved to Sacred run directory")
             tmp_dir = tempfile.TemporaryDirectory()
-            video_dir = tmp_dir.name
+            video_params['save_dir'] = tmp_dir.name
         else:
             tmp_dir = None
-        video_dirs = [osp.join(video_dir, str(i)) for i in range(num_env)]
+        video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
     def env_fn(i):
@@ -167,7 +179,12 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                        agent_wrappers=agent_wrappers,
                        agent_wrapper_kwargs=agent_wrapper_kwargs)
         if videos:
-            env = VideoWrapper(env, osp.join(video_dir, str(i)))
+            if video_params['annotated'] and 'multicomp' in env_name:
+                assert num_env == 1, "pretty videos requires num_env=1"
+                env = AnnotatedGymCompete(env, env_name, agent_a_type, agent_a_path,
+                                          agent_b_type, agent_b_path,
+                                          **video_params['annotation_params'])
+            env = VideoWrapper(env, video_dirs[i], video_params['single_file'])
         return env
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
 
@@ -185,14 +202,21 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]
     zipped = list(zip(agent_types, agent_paths))
-
-    agents = [load_policy(policy_type, policy_path, venv, env_name, i)
+    agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
 
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
+    for agent in agents:
+        if agent.sess is not None:
+            agent.sess.close()
+
     if record_traj:
-        venv.save(save_dir=record_traj_params['save_dir'])
+        save_paths = venv.save(save_dir=record_traj_params['save_dir'])
+        for save_path in save_paths:
+            score_ex.add_artifact(save_path, name="victim_activations.npz")
+
+    venv.close()
 
     if videos:
         for env_video_dir in video_dirs:
@@ -211,11 +235,6 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         if hasattr(observer, 'dir'):
             _clean_video_directory_structure(observer)
 
-    for agent in agents:
-        if agent.sess is not None:
-            agent.sess.close()
-
-    venv.close()
     return score
 
 

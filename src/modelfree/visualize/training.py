@@ -9,7 +9,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import seaborn as sns
 
-from modelfree.configs.multi.train import VICTIM_INDEX
+from modelfree.envs import VICTIM_INDEX
 from modelfree.envs.gym_compete import is_symmetric
 from modelfree.visualize import tb, util
 from modelfree.visualize.styles import STYLES
@@ -274,7 +274,7 @@ def default_config():
     command = win_rate_per_victim_env
     fig_dir = os.path.join('data', 'figs', 'training')
     plot_cfg = None
-    transfer_score_path = os.path.join('data', 'score_agents',
+    transfer_score_path = os.path.join('data', 'aws', 'score_agents',
                                        '2019-04-29T14:11:08-07:00_adversary_transfer.json')
     tb_dir = None
     styles = ['paper', 'a4']
@@ -371,7 +371,6 @@ def debug_paper_config():
     command = opponent_win_rate_per_victim_env
     fig_dir = 'data/debug/figs_training_single'
     plot_cfg = [
-        # TODO: filter, title
         [
             {
                 'filter': {'env_name': 'multicomp/KickAndDefend-v0', 'victim_path': 1},
