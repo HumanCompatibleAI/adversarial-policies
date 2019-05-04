@@ -287,7 +287,13 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
-    def record_transparent_data(self, data, agent_idx):
+    def record_extra_data(self, data, agent_idx):
+        """Record extra data for the specified agents. `record_timestep_data` will automatically
+           record observations, actions, rewards and info dicts. This function is an alternative
+           to placing extra information in the info dicts, which can sometimes be more convenient.
+
+           :param data: (dict) treated like an info dict in `record_timestep_data.
+           :param agent_idx: (int) index of the agent to record data for."""
         # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
         if agent_idx not in self.agent_indices:
             return
@@ -299,7 +305,7 @@ class TrajectoryRecorder(VecMultiWrapper):
                 self.traj_dicts[dict_index][env_idx][key].append(np.squeeze(data[key]))
 
     def record_timestep_data(self, prev_obs, actions, rewards, dones, infos):
-        """Record observations, actions, rewards, and (optionally) network activations
+        """Record observations, actions, rewards, and optional information from the info dicts
         of one timestep in dict for current episode. Completed episode trajectories are
         collected in a list in preparation for being saved to disk.
 
@@ -307,10 +313,10 @@ class TrajectoryRecorder(VecMultiWrapper):
         :param actions: (np.ndarray<float>) actions taken after observing prev_obs
         :param rewards: (np.ndarray<float>) rewards from actions
         :param dones: ([bool]) whether episode ended (not recorded)
-        :param infos: ([dict]) dicts with network activations if networks are transparent
+        :param infos: ([dict]) dicts with additional information, e.g. network activations
+                               for transparent networks.
         :return: None
         """
-
         env_data = {
             'observations': prev_obs,
             'actions': actions,
@@ -329,7 +335,6 @@ class TrajectoryRecorder(VecMultiWrapper):
 
             info_dict = infos[env_idx][agent_idx]
             info_dict = _filter_dict(info_dict, self.info_keys)
-            # pdb.set_trace()
             for key, val in info_dict.items():
                 agent_dicts[env_idx][key].append(val)
 
@@ -383,23 +388,20 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
-        policy_ind = 0
 
-        for policy, obs, state in zip(policies, observations, states):
+        for policy_ind, (policy, obs, state) in enumerate(zip(policies, observations, states)):
             try:
                 return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
                 act, new_state, transparent_data = return_tuple
                 try:
                     venv.record_transparent_data(transparent_data, policy_ind)
-                except AttributeError as e:
-                    print(e)
-                    warnings.warn("No way to record transparent data on this venv")
+                except AttributeError:
+                    warnings.warn("No way to record transparent data on this venv", stacklevel=3)
             except AttributeError:
                 act, new_state = policy.predict(obs, state=state, mask=dones)
 
             actions.append(act)
             new_states.append(new_state)
-            policy_ind += 1
 
         actions = tuple(actions)
         states = new_states
