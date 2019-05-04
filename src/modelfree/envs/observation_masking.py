@@ -1,8 +1,14 @@
 from gym_compete.new_envs.agents.agent import Agent
+from gym_compete.new_envs.agents.ant_fighter import AntFighter
+from gym_compete.new_envs.agents.humanoid_blocker import HumanoidBlocker
+from gym_compete.new_envs.agents.humanoid_fighter import HumanoidFighter
+from gym_compete.new_envs.agents.humanoid_kicker import HumanoidKicker
 import numpy as np
 
+from modelfree.envs.gym_compete import env_name_to_canonical
 
-def make_masker(cls):
+
+def make_mask_from_class(cls):
     if not issubclass(cls, Agent):
         raise TypeError("You have passed in '{cls}', expected subclass of 'Agent'")
 
@@ -34,13 +40,23 @@ def make_masker(cls):
                     elif self.masking_type == 'initialization':
                         outp[other_agent] = self.initial_values[other_agent]
                     else:
-                        raise NotImplementedError(
-                            "Oops, haven't implemented Gaussian noise yet"
-                            " since I haven't found the right variance")
-
+                        raise ValueError(f"Unsupported masking type '{self.masking_type}'")
             return outp
 
         def __getattr__(self, item):
             return getattr(self.agent_to_mask, item)
 
     return AdversaryMaskedGymCompeteAgent
+
+
+AGENT_CLASS = {
+    "SumoAnts-v0": AntFighter,
+    "SumoHumans-v0": HumanoidFighter,
+    "YouShallNotPassHumans-v0": HumanoidBlocker,
+    "KickAndDefend-v0": HumanoidKicker,
+}
+
+
+def make_mask_for_env(env_name):
+    cls = AGENT_CLASS[env_name_to_canonical(env_name)]
+    return make_mask_from_class(cls)

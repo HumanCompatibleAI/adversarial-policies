@@ -9,9 +9,6 @@ import re
 import tempfile
 import warnings
 
-from gym_compete.new_envs.agents.ant_fighter import AntFighter
-from gym_compete.new_envs.agents.humanoid_blocker import HumanoidBlocker
-from gym_compete.new_envs.agents.humanoid_kicker import HumanoidKicker
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
@@ -19,17 +16,10 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_mul
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
-from modelfree.observation_masking import make_masker
+from modelfree.envs.observation_masking import make_mask_for_env
 
 score_ex = Experiment('score')
 score_ex_logger = logging.getLogger('score_agent')
-
-
-MASKED_VICTIM_LOOKUP = {
-    "multicomp/SumoAnts-v0": make_masker(AntFighter),
-    "multicomp/YouShallNotPassHumans-v0": make_masker(HumanoidBlocker),
-    "multicomp/KickAndDefend-v0": make_masker(HumanoidKicker),
-}
 
 
 def announce_winner(sim_stream):
@@ -143,9 +133,11 @@ def default_score_config():
     # If video_dir set to None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
-    mask_victim_observations = False
+    mask_agent_observations = None
     # TODO: pick victim index automatically? or specify it at CLI?
-    agent_wrappers = None if not mask_victim_observations else {0: MASKED_VICTIM_LOOKUP[env_name]}
+    agent_wrappers = None
+    if mask_agent_observations is not None:
+        agent_wrappers = {mask_agent_observations: make_mask_for_env(env_name)}
     agent_wrapper_kwargs = {
         "masking_type": "initialization"
     }
