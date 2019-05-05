@@ -27,7 +27,7 @@ def default_config():
     transfer_score_root = os.path.join('data', 'aws', 'score_agents')
     transfer_score_paths = {}
     if not hasattr(transfer_score_paths, 'fixed'):  # work-around Sacred issue #238
-        transfer_score_paths[None] = os.path.join('normal', '2019-04-29T14:11:08-07:00')
+        transfer_score_paths = [{'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')}]
     styles = ['paper', 'a4']
     palette = 'Blues'
     command = util.heatmap_full
@@ -38,11 +38,23 @@ def default_config():
 
 
 @visualize_score_ex.named_config
-def masked_config():
-    transfer_score_paths = {  # noqa: F841
-        'N': os.path.join('normal', '2019-04-29T14:11:08-07:00'),
-        'B': os.path.join('victim_masked_init', '2019-04-29T14:11:08-07:00'),
-    }
+def full_masked_config():
+    transfer_score_paths = [  # noqa: F841
+        {'victim_suffix': 'N', 'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')},
+        {
+            'victim_suffix': 'BI',
+            'path': os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00')
+        },
+        {
+            'victim_suffix': 'BZ',
+            'path': os.path.join('victim_masked_zero', '2019-05-05T18:12:24+00:00'),
+        },
+        {
+            'victim_suffix': 'N',
+            'opponent_suffix': 'BI',
+            'path': os.path.join('adversary_masked_init', '2019-05-05T18:12:24+00:00'),
+        },
+    ]
 
 
 @visualize_score_ex.named_config
@@ -72,9 +84,10 @@ def supplementary_config():
 @visualize_score_ex.main
 def visualize_score(command, styles, palette, publication, fig_dir,
                     transfer_score_root, transfer_score_paths):
-    datasets = [util.load_datasets(os.path.join(transfer_score_root, path),
-                                   victim_suffix=k if k is not None else "")
-                for k, path in transfer_score_paths.items()]
+    datasets = [util.load_datasets(os.path.join(transfer_score_root, item['path']),
+                                   victim_suffix=item.get('victim_suffix', ''),
+                                   opponent_suffix=item.get('opponent_suffix', ''))
+                for item in transfer_score_paths]
     dataset = pd.concat(datasets).sort_index()
 
     for style in styles:

@@ -102,15 +102,23 @@ def agent_index_suffix(env_name, victim_name, opponent_name):
 
 
 def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
-    fixed = fixed.copy()
-    zoo = zoo.copy()
-    transfer = transfer.copy()
+    dfs = []
+    if fixed is not None:
+        fixed = fixed.copy()
+        fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
+        dfs.append(fixed)
 
-    fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
-    zoo = prefix_level(zoo, 'Zoo' + opponent_suffix, 2)
-    transfer = prefix_level(transfer, 'Adv', 2)
+    if zoo is not None:
+        zoo = zoo.copy()
+        zoo = prefix_level(zoo, 'Zoo', 2)
+        dfs.append(zoo)
 
-    combined = pd.concat([transfer, zoo, fixed], axis=0)
+    if transfer is not None:
+        transfer = transfer.copy()
+        transfer = prefix_level(transfer, 'Adv' + opponent_suffix, 2)
+        dfs.append(transfer)
+
+    combined = pd.concat(dfs, axis=0)
     combined = prefix_level(combined, 'Zoo' + victim_suffix, 1)
     combined = combined.sort_index(level=0, sort_remaining=False)
     combined.index = combined.index.set_names('Opponent', level=2)
@@ -121,10 +129,22 @@ def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
     return combined
 
 
-def load_datasets(timestamped_path, victim_suffix="", opponent_suffix=""):
+def load_datasets(timestamped_path, victim_suffix='', opponent_suffix=''):
     score_dir = os.path.dirname(timestamped_path)
-    fixed = load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
-    zoo = load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
+    try:
+        fixed_path = os.path.join(score_dir, 'fixed_baseline.json')
+        fixed = load_fixed_baseline(fixed_path)
+    except FileNotFoundError:
+        logger.warning(f"No fixed baseline at '{fixed_path}'")
+        fixed = None
+
+    try:
+        zoo_path = os.path.join(score_dir, 'zoo_baseline.json')
+        zoo = load_zoo_baseline(zoo_path)
+    except FileNotFoundError:
+        logger.warning(f"No fixed baseline at '{zoo_path}'")
+        zoo = None
+
     transfer = load_transfer_baseline(os.path.join(timestamped_path, 'adversary_transfer.json'))
     return combine_all(fixed, zoo, transfer,
                        victim_suffix=victim_suffix, opponent_suffix=opponent_suffix)
