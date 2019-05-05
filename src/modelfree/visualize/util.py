@@ -95,23 +95,23 @@ def prefix_level(df, prefix, level):
 def agent_index_suffix(env_name, victim_name, opponent_name):
     if not gym_compete.is_symmetric(env_name):
         if victim_name.startswith('Zoo'):
-            victim_name = f'ZooV{victim_name[-1]}'
+            victim_name = f'{victim_name[:-1]}V{victim_name[-1]}'
         if opponent_name.startswith('Zoo'):
-            opponent_name = f'ZooO{opponent_name[-1]}'
+            opponent_name = f'{opponent_name[:-1]}O{opponent_name[-1]}'
     return env_name, victim_name, opponent_name
 
 
-def combine_all(fixed, zoo, transfer):
+def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
     fixed = fixed.copy()
     zoo = zoo.copy()
     transfer = transfer.copy()
 
     fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
-    zoo = prefix_level(zoo, 'Zoo', 2)
+    zoo = prefix_level(zoo, 'Zoo' + opponent_suffix, 2)
     transfer = prefix_level(transfer, 'Adv', 2)
 
     combined = pd.concat([transfer, zoo, fixed], axis=0)
-    combined = prefix_level(combined, 'Zoo', 1)
+    combined = prefix_level(combined, 'Zoo' + victim_suffix, 1)
     combined = combined.sort_index(level=0, sort_remaining=False)
     combined.index = combined.index.set_names('Opponent', level=2)
 
@@ -121,12 +121,13 @@ def combine_all(fixed, zoo, transfer):
     return combined
 
 
-def load_datasets(transfer_path):
-    score_dir = os.path.dirname(transfer_path)
+def load_datasets(timestamped_path, victim_suffix="", opponent_suffix=""):
+    score_dir = os.path.dirname(timestamped_path)
     fixed = load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
     zoo = load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
-    transfer = load_transfer_baseline(transfer_path)
-    return combine_all(fixed, zoo, transfer)
+    transfer = load_transfer_baseline(os.path.join(timestamped_path, 'adversary_transfer.json'))
+    return combine_all(fixed, zoo, transfer,
+                       victim_suffix=victim_suffix, opponent_suffix=opponent_suffix)
 
 # Visualization
 
