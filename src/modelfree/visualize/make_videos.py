@@ -19,7 +19,7 @@ def default_config():
     adversary_path = osp.join('data', 'aws', 'score_agents', 'normal',
                               '2019-04-29T14:11:08-07:00', 'best_adversaries.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on baremetal
-    score_configs = ['zoo_baseline', 'fixed_baseline', 'adversary_transfer']
+    score_configs = ['adversary_transfer', 'zoo_baseline', 'fixed_baseline']
     multi_score = {}
     root_dir = 'data/videos'
     exp_name = 'default'

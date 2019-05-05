@@ -17,12 +17,15 @@ def make_mask_from_class(cls):
             self.agent_to_mask = agent_to_mask
             self.agents_to_hide = agents_to_hide
             self.masking_type = masking_type
-            other_qpos = super(AdversaryMaskedGymCompeteAgent, self).get_other_agent_qpos()
+
+            other_agent_qpos = super(AdversaryMaskedGymCompeteAgent, self).get_other_agent_qpos()
             self.other_agent_shapes = {}
             self.initial_values = {}
-            for other_agent_id in other_qpos:
-                self.other_agent_shapes[other_agent_id] = other_qpos[other_agent_id].shape
-                self.initial_values[other_agent_id] = other_qpos[other_agent_id]
+            for other_agent_id in other_agent_qpos:
+                self.other_agent_shapes[other_agent_id] = other_agent_qpos[other_agent_id].shape
+                self.initial_values[other_agent_id] = other_agent_qpos[other_agent_id]
+
+            self.initial_other_qpos = super(AdversaryMaskedGymCompeteAgent, self).get_other_qpos()
 
         def get_other_agent_qpos(self):
             outp = {}
@@ -38,6 +41,16 @@ def make_mask_from_class(cls):
                     else:
                         raise ValueError(f"Unsupported masking type '{self.masking_type}'")
             return outp
+
+        def get_other_qpos(self):
+            if self.masking_type == 'zeros':
+                return np.zeros_like(self.initial_other_qpos)
+            elif self.masking_type == 'debug':
+                return np.full(self.initial_other_qpos.shape, fill_value=-4.2)
+            elif self.masking_type == 'initialization':
+                return self.initial_other_qpos
+            else:
+                raise ValueError(f"Unsupported masking type '{self.masking_type}'")
 
         def __getattr__(self, item):
             return getattr(self.agent_to_mask, item)

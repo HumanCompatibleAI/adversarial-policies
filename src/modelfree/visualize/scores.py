@@ -70,7 +70,6 @@ def supplementary_config():
 @visualize_score_ex.main
 def visualize_score(command, styles, publication, fig_dir,
                     transfer_score_root, transfer_score_paths):
-    print(transfer_score_paths)
     datasets = [util.load_datasets(os.path.join(transfer_score_root, path),
                                    victim_suffix=k if k is not None else "")
                 for k, path in transfer_score_paths.items()]
