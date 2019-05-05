@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 
+CMD="python -m modelfree.multi.score with"
 OUT_DIR=data/aws/score_agents
 
 mkdir -p ${OUT_DIR}
-python -m modelfree.multi.score with zoo_baseline save_path=${OUT_DIR}/zoo_baseline.json
-python -m modelfree.multi.score with zoo_baseline mask_observations_of_victim \
-                                     save_path=${OUT_DIR}/zoo_baseline_victim_masked_init.json
-python -m modelfree.multi.score with zoo_baseline mask_observations_of_victim \
-                                     score.mask_agent_kwargs.masking_type=zero \
-                                     save_path=${OUT_DIR}/zoo_baseline_victim_masked_zero.json
-python -m modelfree.multi.score with fixed_baseline save_path=${OUT_DIR}/fixed_baseline.json
-python -m modelfree.multi.score with fixed_baseline mask_observations_of_victim \
-                                     save_path=${OUT_DIR}/fixed_baseline_victim_masked_init.json
-python -m modelfree.multi.score with fixed_baseline mask_observations_of_victim \
-                                     score.mask_agent_kwargs.masking_type=zero \
-                                     save_path=${OUT_DIR}/fixed_baseline_victim_masked_zero.json
+
+for kind in zoo fixed; do
+    ${CMD} ${kind}_baseline save_path=${OUT_DIR}/normal/${kind}_baseline.json
+    ${CMD} ${kind}_baseline mask_observations_of_victim \
+           save_path=${OUT_DIR}/victim_masked_init/${kind}_baseline.json
+    ${CMD} ${kind}_baseline mask_observations_of_victim \
+           score.mask_agent_kwargs.masking_type=zeros \
+           save_path=${OUT_DIR}/victim_masked_zero/${kind}_baseline.json
+done
