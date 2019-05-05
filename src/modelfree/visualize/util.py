@@ -202,14 +202,27 @@ def heatmap_full(single_env, cmap='Blues', cols=None):
         cols = single_env.columns
     ncols = len(cols) + 1
 
+    reserved = {  # in inches
+        'top': 0.28,  # for title
+        'bottom': 0.49,  # for x-axis
+    }
+    total_reserved = sum(reserved.values())
+
+    width, nominal_height = plt.rcParams.get('figure.figsize')
+    portion_for_heatmap = nominal_height - total_reserved
+    # We want height to vary depending on number of labels. Take figure size as specifying the
+    # height for a 'typical' figure with 6 rows.
+    height_per_row = nominal_height * portion_for_heatmap / 6
+    num_rows = len(pd.unique(single_env.index.get_level_values(0)))
+    height_for_heatmap = height_per_row * max(num_rows, 4)
+
+    height = total_reserved + height_for_heatmap
     gridspec_kw = {
-        'top': 0.8,
-        'bottom': 0.35,
+        'top': 1 - reserved['top'] / height,
+        'bottom': reserved['bottom'] / height,
         'wspace': 0.05,
         'width_ratios': [1.0] * len(cols) + [1/15],
     }
-    width, height = plt.rcParams.get('figure.figsize')
-    height = min(height, width / len(cols))
 
     # Actually plot the heatmap
     single_env *= 100 / num_episodes(single_env)  # convert to percentages

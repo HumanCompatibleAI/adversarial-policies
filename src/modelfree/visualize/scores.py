@@ -58,6 +58,17 @@ def full_masked_config():
 
 
 @visualize_score_ex.named_config
+def small_masked_config():
+    transfer_score_paths = [  # noqa: F841
+        {'victim_suffix': '', 'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')},
+        {
+            'victim_suffix': 'M',
+            'path': os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
+        },
+    ]
+
+
+@visualize_score_ex.named_config
 def use_heatmap_opponent():
     command = heatmap_opponent  # noqa: F841
 
@@ -88,7 +99,9 @@ def visualize_score(command, styles, palette, publication, fig_dir,
                                    victim_suffix=item.get('victim_suffix', ''),
                                    opponent_suffix=item.get('opponent_suffix', ''))
                 for item in transfer_score_paths]
-    dataset = pd.concat(datasets).sort_index()
+    dataset = pd.concat(datasets)
+    # Preserve order of victims, but sort environments and opponents
+    dataset = dataset.sort_index(level=[0, 2], sort_remaining=False)
 
     for style in styles:
         plt.style.use(STYLES[style])
