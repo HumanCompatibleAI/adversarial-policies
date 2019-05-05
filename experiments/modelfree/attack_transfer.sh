@@ -3,7 +3,7 @@
 function wait_proc {
     if [[ -f ~/ray_bootstrap_config.yaml ]]; then
         # Running on a Ray cluster. We want to submit all the jobs in parallel.
-        true  # no-op
+        sleep 5  # stagger jobs a bit
     else
         # Running locally. Each job will start a Ray cluster. Submit sequentially.
         wait
@@ -37,10 +37,12 @@ ${MULTI_SCORE_CMD} mask_observations_of_victim \
     save_path=${OUT_ROOT}/victim_masked_init/${TIMESTAMP}/adversary_transfer.json&
 wait_proc
 
-${MULTI_SCORE_CMD} mask_observations_of_victim score.mask_agent_kwargs.masking_type=zeros \
+${MULTI_SCORE_CMD} mask_observations_of_victim mask_observations_with_zeros \
     save_path=${OUT_ROOT}/victim_masked_zero/${TIMESTAMP}/adversary_transfer.json&
 wait_proc
 
 ${MULTI_SCORE_CMD} mask_observations_of_adversary \
     save_path=${OUT_ROOT}/adversary_masked_init/${TIMESTAMP}/adversary_transfer.json&
 wait_proc
+
+wait

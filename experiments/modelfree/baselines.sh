@@ -3,7 +3,7 @@
 function wait_proc {
     if [[ -f ~/ray_bootstrap_config.yaml ]]; then
         # Running on a Ray cluster. We want to submit all the jobs in parallel.
-        true  # no-op
+        sleep 5  # stagger jobs a bit
     else
         # Running locally. Each job will start a Ray cluster. Submit sequentially.
         wait
@@ -25,8 +25,9 @@ for kind in zoo fixed; do
     wait_proc
 
     mkdir -p ${OUT_DIR}/victim_masked_zero
-    ${CMD} ${kind}_baseline mask_observations_of_victim \
-           score.mask_agent_kwargs.masking_type=zeros \
+    ${CMD} ${kind}_baseline mask_observations_of_victim mask_observations_with_zeros \
            save_path=${OUT_DIR}/victim_masked_zero/${kind}_baseline.json&
     wait_proc
 done
+
+wait

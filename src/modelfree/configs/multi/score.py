@@ -156,6 +156,12 @@ def make_configs(multi_score_ex):
         exp_name = 'adversary_mask_' + exp_name
 
     @multi_score_ex.named_config
+    def mask_observations_with_zeros(exp_name, score):
+        score = dict(score)
+        score['mask_agent_kwargs'] = {'masking_type': 'zeros'}
+        exp_name = 'zero_' + exp_name
+
+    @multi_score_ex.named_config
     def debug_one_each_type(score):
         """One Zoo agent from each environment, plus one opponent of each type.
            Intended for debugging purposes as a quick experiment that is still diverse.."""
