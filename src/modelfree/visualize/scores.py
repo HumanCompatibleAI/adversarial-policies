@@ -14,10 +14,11 @@ logger = logging.getLogger('modelfree.visualize.scores')
 visualize_score_ex = Experiment('visualize_score')
 
 
-def heatmap_opponent(single_env):
+def heatmap_opponent(single_env, cmap):
     cbar = single_env.name == 'multicomp/YouShallNotPassHumans-v0'
     ylabel = single_env.name == 'multicomp/KickAndDefend-v0'
-    return util.heatmap_one_col(single_env, col='Opponent Win', cbar=cbar, ylabel=ylabel)
+    return util.heatmap_one_col(single_env, col='Opponent Win',
+                                cmap=cmap, cbar=cbar, ylabel=ylabel)
 
 
 @visualize_score_ex.config
@@ -28,6 +29,7 @@ def default_config():
     if not hasattr(transfer_score_paths, 'fixed'):  # work-around Sacred issue #238
         transfer_score_paths[None] = os.path.join('normal', '2019-04-29T14:11:08-07:00')
     styles = ['paper', 'a4']
+    palette = 'Blues'
     command = util.heatmap_full
     publication = False
     seed = 0  # we don't use it for anything, but stop config changing each time as we version it
@@ -68,7 +70,7 @@ def supplementary_config():
 
 
 @visualize_score_ex.main
-def visualize_score(command, styles, publication, fig_dir,
+def visualize_score(command, styles, palette, publication, fig_dir,
                     transfer_score_root, transfer_score_paths):
     datasets = [util.load_datasets(os.path.join(transfer_score_root, path),
                                    victim_suffix=k if k is not None else "")
@@ -80,7 +82,7 @@ def visualize_score(command, styles, publication, fig_dir,
 
     suptitle = not publication
     combine = not publication
-    generator = util.apply_per_env(dataset, command, suptitle=suptitle)
+    generator = util.apply_per_env(dataset, command, suptitle=suptitle, cmap=palette)
     for out_path in util.save_figs(fig_dir, generator, combine=combine):
         visualize_score_ex.add_artifact(filename=out_path)
 

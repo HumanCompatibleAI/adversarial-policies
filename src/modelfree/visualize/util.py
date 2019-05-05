@@ -176,7 +176,7 @@ def rotate_labels(ax):
         label.set_rotation(0)
 
 
-def heatmap_full(single_env, cols=None):
+def heatmap_full(single_env, cmap='Blues', cols=None):
     # Figure layout calculations
     if cols is None:
         cols = single_env.columns
@@ -200,7 +200,7 @@ def heatmap_full(single_env, cols=None):
         ax = axs[i]
         yaxis = i == 0
         cbar = i == len(cols) - 1
-        sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
+        sns.heatmap(single_env[col].unstack(), cmap=cmap, vmin=0, vmax=100,
                     annot=True, annot_kws={'fontsize': 6}, fmt='.0f',
                     ax=ax, cbar=cbar, cbar_ax=cbar_ax, yticklabels=yaxis)
         ax.get_yaxis().set_visible(yaxis)
@@ -211,7 +211,7 @@ def heatmap_full(single_env, cols=None):
     return fig
 
 
-def heatmap_one_col(single_env, col, cbar, ylabel):
+def heatmap_one_col(single_env, col, cbar, ylabel, cmap='Blues'):
     gridspec_kw = {
         'bottom': 0.4,
         'left': 0.31 if ylabel else 0.21,
@@ -231,7 +231,7 @@ def heatmap_one_col(single_env, col, cbar, ylabel):
         cbar_ax = None
 
     single_env *= 100 / num_episodes(single_env)  # convert to percentages
-    sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
+    sns.heatmap(single_env[col].unstack(), cmap=cmap, vmin=0, vmax=100,
                 annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
                 ax=ax, cbar=cbar, cbar_ax=cbar_ax)
     if not ylabel:
