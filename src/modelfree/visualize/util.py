@@ -103,20 +103,21 @@ def agent_index_suffix(env_name, victim_name, opponent_name):
 
 def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
     dfs = []
-    if fixed is not None:
-        fixed = fixed.copy()
-        fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
-        dfs.append(fixed)
+
+    if transfer is not None:
+        transfer = transfer.copy()
+        transfer = prefix_level(transfer, 'Adv' + opponent_suffix, 2)
+        dfs.append(transfer)
 
     if zoo is not None:
         zoo = zoo.copy()
         zoo = prefix_level(zoo, 'Zoo', 2)
         dfs.append(zoo)
 
-    if transfer is not None:
-        transfer = transfer.copy()
-        transfer = prefix_level(transfer, 'Adv' + opponent_suffix, 2)
-        dfs.append(transfer)
+    if fixed is not None:
+        fixed = fixed.copy()
+        fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
+        dfs.append(fixed)
 
     combined = pd.concat(dfs, axis=0)
     combined = prefix_level(combined, 'Zoo' + victim_suffix, 1)
