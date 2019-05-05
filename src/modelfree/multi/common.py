@@ -14,6 +14,7 @@ import shlex
 import socket
 import subprocess
 import urllib
+import uuid
 
 import ray
 from ray import tune
@@ -150,7 +151,7 @@ def make_sacred(ex, worker_name, worker_fn):
         trainable_fn = functools.partial(worker_fn, base_config)
         tune.register_trainable(trainable_name, trainable_fn)
 
-        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}'
+        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex()}'
         spec['run'] = trainable_name
         result = tune.run_experiments({exp_id: spec})
 
