@@ -7,19 +7,21 @@ import pkgutil
 
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_GOOD_ENVS, VICTIM_INDEX
-from modelfree.envs import gym_compete
+from modelfree.configs.multi.common import BANSAL_GOOD_ENVS
+from modelfree.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('modelfree.configs.multi.score')
 
 
-def _gen_configs(victim_fn, adversary_fn, envs=None):
+def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
     if envs is None:
         envs = BANSAL_GOOD_ENVS
 
     configs = []
     for env in envs:
         num_zoo = gym_compete.num_zoo_policies(env)
+        if max_zoo is not None:
+            num_zoo = min(num_zoo, max_zoo)
         victim_index = VICTIM_INDEX[env]
         for victim_id in range(num_zoo):
             for adversary_id in range(num_zoo):
@@ -46,8 +48,8 @@ def _zoo_identity(_env, _victim_index, our_id, _opponent_id):
     return 'zoo', str(our_id + 1)
 
 
-def _env_agents(envs=None):
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=_zoo_identity, envs=envs)
+def _env_agents(**kwargs):
+    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=_zoo_identity, **kwargs)
 
 
 def _fixed_vs_victim(fixed_type, envs=None):
@@ -71,11 +73,6 @@ def _adversary_vs_victims(adversary_type, adversary_paths, envs=None):
     return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
 
 
-def _high_accuracy(score):
-    score['episodes'] = 1000
-    score['num_env'] = 16
-
-
 def load_json(path):
     content = pkgutil.get_data('modelfree', path)
     return json.loads(content)
@@ -97,10 +94,47 @@ def _get_adversary_paths():
 
 def make_configs(multi_score_ex):
     @multi_score_ex.named_config
+    def high_accuracy(score):
+        score = dict(score)
+        score['episodes'] = 1000
+        score['num_env'] = 16
+
+    @multi_score_ex.named_config
+    def video(exp_name, score):
+        score = dict(score)
+        score['videos'] = True
+        score['num_env'] = 1
+        score['episodes'] = 20
+        score['video_params'] = {
+            'annotation_params': {
+                'resolution': (1920, 1080),
+                'font_size': 70,
+            }
+        }
+        exp_name = 'video_' + exp_name  # noqa: F401
+
+    @multi_score_ex.named_config
+    def debug(score):
+        score = dict(score)
+        score['episodes'] = 2
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(
+                    _env_agents(max_zoo=1) +
+                    _fixed_vs_victim('zero')[0:1] +
+                    _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
+                ),
+            }
+        }
+        exp_name = 'debug'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
     def zoo_baseline(score):
         """Try all pre-trained policies from Bansal et al's gym_compete zoo against each other."""
         score = dict(score)
-        _high_accuracy(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_env_agents()),
@@ -115,7 +149,6 @@ def make_configs(multi_score_ex):
     def fixed_baseline(score):
         """Try zero-agent and random-agent against pre-trained zoo policies."""
         score = dict(score)
-        _high_accuracy(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random') +
@@ -131,7 +164,6 @@ def make_configs(multi_score_ex):
     def adversary_transfer(score):
         """Do adversarial policies trained on victim X transfer to victim Y?"""
         score = dict(score)
-        _high_accuracy(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(

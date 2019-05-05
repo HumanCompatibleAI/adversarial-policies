@@ -61,6 +61,7 @@ def make_sacred(ex, worker_name, worker_fn):
         platform = None       # hosting: 'baremetal' or 'ec2'
         s3_bucket = None      # results storage on 'ec2' platform
         baremetal = {}        # config options for 'baremetal' platform
+        local_dir = None  # results storage on 'local' platform
         ray_server = None     # if None, start cluster on local machine
         upload_root = None    # root of upload_dir
         exp_name = 'default'  # experiment name
@@ -90,12 +91,14 @@ def make_sacred(ex, worker_name, worker_fn):
 
     @ex.config
     def baremetal_config(platform, baremetal, spec):
-        """When running on bare-metal hardware (i.e. not in cloud).
+        """When running in bare-metal Ray cluster (i.e. not in cloud).
 
-        The workers must have permission to rsync to local_out."""
+        Assumes we're running on the head node. Requires the worker have permission to rsync
+        to the head node. The intended config is they run with an SSH key that allows login to
+        the user from any machine in the cluster."""
         if platform is None:
-            # No platform specified; assume baremetal if no previous config autodetected.
-            platform = 'baremetal'
+            if os.path.exists('~/ray_bootstrap_config.yaml'):
+                platform = 'baremetal'
 
         if platform == 'baremetal':
             baremetal = dict(baremetal)
@@ -110,6 +113,23 @@ def make_sacred(ex, worker_name, worker_fn):
                                            baremetal['ssh_key'],
                                            baremetal['dir']])
             spec['sync_function'] = tune.function(_rsync_func)
+            ray_server = 'localhost:6379'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @ex.config
+    def local_config(platform, local_dir, spec):
+        if platform is None:
+            # No platform specified; assume local if no previous config autodetected.
+            platform = 'local'
+
+        if platform == 'local':
+            spec['sync_function'] = 'mkdir -p {remote_dir} && cp -aTv {local_dir}/ {remote_dir}'
+
+            if local_dir is None:
+                local_dir = osp.abspath(osp.join(os.getcwd(), 'data'))
+            spec['upload_dir'] = local_dir
 
     @ex.capture
     def run(base_config, ray_server, exp_name, spec):
@@ -135,6 +155,6 @@ def make_sacred(ex, worker_name, worker_fn):
         result = tune.run_experiments({exp_id: spec})
 
         ray.shutdown()  # run automatically on exit, but needed here to not break tests
-        return result
+        return result, exp_id
 
     return run

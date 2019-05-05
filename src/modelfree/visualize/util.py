@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from modelfree.configs.multi.common import VICTIM_INDEX
-from modelfree.envs import gym_compete
+from modelfree.envs import VICTIM_INDEX, gym_compete
 from modelfree.visualize.styles import STYLES
 
 logger = logging.getLogger('modelfree.visualize.util')
