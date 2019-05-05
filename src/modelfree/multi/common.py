@@ -97,17 +97,17 @@ def make_sacred(ex, worker_name, worker_fn):
         to the head node. The intended config is they run with an SSH key that allows login to
         the user from any machine in the cluster."""
         if platform is None:
-            if os.path.exists('~/ray_bootstrap_config.yaml'):
+            if osp.exists(osp.expanduser('~/ray_bootstrap_config.yaml')):
                 platform = 'baremetal'
 
         if platform == 'baremetal':
             baremetal = dict(baremetal)
             if 'ssh_key' not in baremetal:
-                baremetal['ssh_key'] = '~/.ssh/adversarial-policies'
+                baremetal['ssh_key'] = osp.expanduser('~/ray_bootstrap_key.pem')
             if 'host' not in baremetal:
                 baremetal['host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
             if 'dir' not in baremetal:
-                baremetal['dir'] = osp.abspath(osp.join(os.getcwd(), 'data'))
+                baremetal['dir'] = osp.expanduser('~/adversarial-policies/data')
 
             spec['upload_dir'] = ':'.join([baremetal['host'],
                                            baremetal['ssh_key'],
