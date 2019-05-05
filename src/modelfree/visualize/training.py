@@ -274,8 +274,8 @@ def default_config():
     command = win_rate_per_victim_env
     fig_dir = os.path.join('data', 'figs', 'training')
     plot_cfg = None
-    transfer_score_path = os.path.join('data', 'aws', 'score_agents',
-                                       '2019-04-29T14:11:08-07:00_adversary_transfer.json')
+    transfer_score_path = os.path.join('data', 'aws', 'score_agents', 'normal',
+                                       '2019-04-29T14:11:08-07:00')
     tb_dir = None
     styles = ['paper', 'a4']
     xcol = 'step'
