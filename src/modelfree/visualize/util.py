@@ -246,17 +246,17 @@ def heatmap_full(single_env, cmap='Blues', cols=None):
 
 def heatmap_one_col(single_env, col, cbar, ylabel, cmap='Blues'):
     gridspec_kw = {
-        'bottom': 0.4,
-        'left': 0.31 if ylabel else 0.21,
+        'bottom': 0.3,
+        'left': 0.3 if ylabel else 0.2,
         'right': 0.98,
         'top': 0.95,
     }
     if cbar:
         gridspec_kw.update({
-            'left': gridspec_kw['left'] + 0.05,
             'width_ratios': (1.0, 0.1),
             'wspace': 0.2,
-            'right': 0.75,
+            'left': gridspec_kw['left'] + 0.02,
+            'right': gridspec_kw['right'] - 0.1,
         })
         fig, (ax, cbar_ax) = plt.subplots(ncols=2, gridspec_kw=gridspec_kw)
     else:

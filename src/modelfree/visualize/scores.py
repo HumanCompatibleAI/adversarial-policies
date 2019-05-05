@@ -15,24 +15,38 @@ visualize_score_ex = Experiment('visualize_score')
 
 
 def heatmap_opponent(single_env, cmap):
-    cbar = single_env.name == 'multicomp/YouShallNotPassHumans-v0'
+    row_ends = ['multicomp/YouShallNotPassHumans-v0', 'multicomp/SumoAntsAutoContact-v0']
+    cbar = single_env.name in row_ends
     ylabel = single_env.name == 'multicomp/KickAndDefend-v0'
     return util.heatmap_one_col(single_env, col='Opponent Win',
                                 cmap=cmap, cbar=cbar, ylabel=ylabel)
 
 
+SMALL_TRANSFER_SCORE_PATHS = [
+    {'victim_suffix': '', 'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')},
+    {
+        'victim_suffix': 'M',
+        'path': os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
+    },
+]
+
+
 @visualize_score_ex.config
 def default_config():
-    fig_dir = os.path.join('data', 'figs', 'scores')
     transfer_score_root = os.path.join('data', 'aws', 'score_agents')
     transfer_score_paths = {}
     if not hasattr(transfer_score_paths, 'fixed'):  # work-around Sacred issue #238
         transfer_score_paths = [{'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')}]
+
+    command = util.heatmap_full
     styles = ['paper', 'a4']
     palette = 'Blues'
-    command = util.heatmap_full
     publication = False
+
+    fig_dir = os.path.join('data', 'figs', 'scores')
+
     seed = 0  # we don't use it for anything, but stop config changing each time as we version it
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -58,36 +72,33 @@ def full_masked_config():
 
 
 @visualize_score_ex.named_config
-def small_masked_config():
-    transfer_score_paths = [  # noqa: F841
-        {'victim_suffix': '', 'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')},
-        {
-            'victim_suffix': 'M',
-            'path': os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
-        },
-    ]
-
-
-@visualize_score_ex.named_config
 def use_heatmap_opponent():
     command = heatmap_opponent  # noqa: F841
 
 
 @visualize_score_ex.named_config
 def paper_config():
-    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores_single')
-    styles = ['paper', 'scores_threecol']
+    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+
+    styles = ['paper', 'scores_twocol']
     command = heatmap_opponent
     publication = True
+
+    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores_single')
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @visualize_score_ex.named_config
 def supplementary_config():
-    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores')
+    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+
     styles = ['paper', 'scores_monolithic']
     publication = True
+
+    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores')
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
