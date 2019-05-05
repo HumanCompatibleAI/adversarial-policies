@@ -105,7 +105,7 @@ def _get_adversary_paths():
 
 
 def make_configs(multi_score_ex):
-    @multi_score_ex.config
+    @multi_score_ex.named_config
     def high_accuracy(score):
         score = dict(score)
         score['episodes'] = 1000

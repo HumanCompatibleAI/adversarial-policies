@@ -4,7 +4,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 OUT_ROOT=data/aws/score_agents
 TIMESTAMP=`date --iso-8601=seconds`
 
-MULTI_SCORE_CMD="python -m modelfree.multi.score with adversary_transfer"
+MULTI_SCORE_CMD="python -m modelfree.multi.score with high_accuracy adversary_transfer"
 
 if [[ $# -eq 0 ]]; then
     echo "usage: $0 <logdir> [logdir ...]"

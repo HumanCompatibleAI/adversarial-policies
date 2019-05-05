@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CMD="python -m modelfree.multi.score with"
+CMD="python -m modelfree.multi.score with high_accuracy"
 OUT_DIR=data/aws/score_agents
 
 mkdir -p ${OUT_DIR}
