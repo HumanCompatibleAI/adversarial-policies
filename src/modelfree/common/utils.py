@@ -442,9 +442,9 @@ def add_artifacts(run, dirname, ingredient=None):
 
     :param run: (sacred.Run) object representing current experiment. Can be captured as `_run`.
     :param dirname: (str) root of directory to save.
-    :param ingredient: (sacred.Ingredient or None) optional, ingredient artifact was generated in.
-                       Will be used to tag saved files. This is ignored if ingredient is equal
-                       to the currently running experiment.
+    :param ingredient: (sacred.Ingredient or None) optional, ingredient that generated the
+                       artifacts. Will be used to tag saved files. This is ignored if ingredient
+                       is equal to the currently running experiment.
     :return None"""
     prefix = ""
     if ingredient is not None:
