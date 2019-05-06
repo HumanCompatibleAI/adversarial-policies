@@ -130,9 +130,10 @@ def default_score_config():
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
     video_dir = None                    # directory to store videos in.
-    adversary_action_noise = None       # Size of noise ball to add to adversary's actions
     # If video_dir set to None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
+
+    action_noise = dict()               # Agent-indexed dict with noise ball size to add to actions
 
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
@@ -179,8 +180,9 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agents = [load_policy(policy_type, policy_path, venv, env_name, i)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
 
-    if adversary_action_noise is not None:
-        agents[1] = NoisyAgentWrapper(agents[1], noise_annealer=lambda: adversary_action_noise)
+    for agent_id, noise_magnitude in adversary_action_noise.items():
+        agents[agent_id] = NoisyAgentWrapper(agents[agent_id],
+                                             noise_annealer=lambda: adversary_action_noise)
 
     score = get_empirical_score(_run, venv, agents, episodes, render=render)
 
