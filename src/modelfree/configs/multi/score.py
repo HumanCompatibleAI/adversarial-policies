@@ -59,17 +59,17 @@ def _fixed_vs_victim(fixed_type, envs=None):
     return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
 
 
-def _adversary_vs_victims(adversary_type, adversary_paths, envs=None, only_trained=False):
+def _adversary_vs_victims(adversary_type, adversary_paths, envs=None, no_transfer=False):
     """Generates configs for adversaries.
 
     :param adversary_type: (str) the policy type of the adversary.
     :param adversary_paths: (dict) paths to adversaries, loaded by _get_adversary_paths
     :param envs: (list<str> or None) optional list of environments to restrict to
-    :param only_trained: (bool) when True, only return the adversary trained against that victim;
+    :param no_transfer: (bool) when True, only return the adversary trained against that victim;
                                 otherwise, returns all adversaries (useful for testing transfer).
     """
     def adversary_fn(env, victim_index, our_id, opponent_id):
-        if only_trained and our_id != opponent_id:
+        if no_transfer and our_id != opponent_id:
             return None
 
         victim_index = str(victim_index)
@@ -246,7 +246,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', _get_adversary_paths(), only_trained=True)
+                    _adversary_vs_victims('ppo2', _get_adversary_paths(), no_transfer=True)
                 ),
             }
         }

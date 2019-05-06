@@ -20,8 +20,8 @@ logger = logging.getLogger('modelfree.tsne.visualize')
 
 @visualize_ex.config
 def main_config():
-    model_glob = None
-    output_root = None
+    model_glob = None                  # path name with wildcards specifying model directories
+    output_root = None                 # directory to save figures to
     subsample_rate = 0.15
     opacity = 0.75
     dot_size = 0.25

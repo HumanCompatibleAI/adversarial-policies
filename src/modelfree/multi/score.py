@@ -100,7 +100,8 @@ def run_external(named_configs, post_named_configs, config_updates, adversary_pa
        not accessible from commandline.
 
        :param named_configs: (list<str>) list of named configs, executed one by one
-       :param post_named_configs: (list<str>) list of named configs, always applied.
+       :param post_named_configs: (list<str>) list of base named configs, applied after the
+                                              current config from `named_configs`.
        :param config_updates: (dict) a dict of config options, overriding the named config.
        :param adversary_path: (str or None) path to JSON, needed by adversary_transfer config.
        :return (dict) mapping from named configs to their output directory
@@ -170,7 +171,7 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
                                                         opponent_path=opponent_path)
             dst_path = osp.join(out_dir, f'{new_name}.{suffix}')
             shutil.copy(src_path, dst_path)
-            dst_config = osp.join(out_dir, f'{new_name}.sacred')
+            dst_config = osp.join(out_dir, f'{new_name}_sacred.json')
             shutil.copy(sacred_config, dst_config)
 
 

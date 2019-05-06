@@ -205,11 +205,14 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                        pre_wrapper=pre_wrapper,
                        agent_wrappers=agent_wrappers)
         if videos:
-            if video_params['annotated'] and 'multicomp' in env_name:
-                assert num_env == 1, "pretty videos requires num_env=1"
-                env = AnnotatedGymCompete(env, env_name, agent_a_type, agent_a_path,
-                                          agent_b_type, agent_b_path,
-                                          **video_params['annotation_params'])
+            if video_params['annotated']:
+                if 'multicomp' in env_name:
+                    assert num_env == 1, "pretty videos requires num_env=1"
+                    env = AnnotatedGymCompete(env, env_name, agent_a_type, agent_a_path,
+                                              agent_b_type, agent_b_path,
+                                              **video_params['annotation_params'])
+                else:
+                    warnings.warn(f"Annotated videos not supported for environment '{env_name}'")
             env = VideoWrapper(env, video_dirs[i], video_params['single_file'])
         return env
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
