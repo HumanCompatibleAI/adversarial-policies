@@ -59,10 +59,22 @@ def _fixed_vs_victim(fixed_type, envs=None):
     return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
 
 
-def _adversary_vs_victims(adversary_type, adversary_paths, envs=None):
-    def adversary_fn(env, victim_index, our_id, _opponent_id):
+def _adversary_vs_victims(adversary_type, adversary_paths, envs=None, no_transfer=False):
+    """Generates configs for adversaries.
+
+    :param adversary_type: (str) the policy type of the adversary.
+    :param adversary_paths: (dict) paths to adversaries, loaded by _get_adversary_paths
+    :param envs: (list<str> or None) optional list of environments to restrict to
+    :param no_transfer: (bool) when True, only return the adversary trained against that victim;
+                               otherwise, returns all adversaries (useful for testing transfer).
+    """
+    def adversary_fn(env, victim_index, our_id, opponent_id):
+        if no_transfer and our_id != opponent_id:
+            return None
+
         victim_index = str(victim_index)
         our_id = str(our_id + 1)
+
         path = adversary_paths.get(env, {}).get(victim_index, {}).get(our_id)
         if path is None:
             logger.warning(f"Missing adversary path {env} {victim_index} {our_id}")
@@ -93,11 +105,27 @@ def _get_adversary_paths():
 
 
 def make_configs(multi_score_ex):
-    @multi_score_ex.named_config
+    @multi_score_ex.config
     def high_accuracy(score):
         score = dict(score)
         score['episodes'] = 1000
         score['num_env'] = 16
+
+    @multi_score_ex.named_config
+    def save_activations(exp_name, score, spec):
+        score = dict(score)
+        score['episodes'] = 20
+        score['record_traj'] = True
+        score['transparent_params'] = {'ff_policy': True, 'ff_value': True}
+        score['record_traj_params'] = {
+            'save_dir': 'data/trajectories',
+        }
+        spec['config']['record_traj_params'] = {
+            'agent_indices': tune.sample_from(
+                lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+            ),
+        }
+        exp_name = 'activations_' + exp_name
 
     @multi_score_ex.named_config
     def video(exp_name, score):
@@ -114,7 +142,9 @@ def make_configs(multi_score_ex):
         exp_name = 'video_' + exp_name  # noqa: F401
 
     @multi_score_ex.named_config
-    def debug(score):
+    def debug_one_each_type(score):
+        """One Zoo agent from each environment, plus one opponent of each type.
+           Intended for debugging purposes as a quick experiment that is still diverse.."""
         score = dict(score)
         score['episodes'] = 2
         spec = {
@@ -122,6 +152,7 @@ def make_configs(multi_score_ex):
                 PATHS_AND_TYPES: tune.grid_search(
                     _env_agents(max_zoo=1) +
                     _fixed_vs_victim('zero')[0:1] +
+                    _fixed_vs_victim('random')[0:1] +
                     _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
                 ),
             }
@@ -161,6 +192,20 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
+    def random_baseline(score):
+        """Try random-agent against pre-trained zoo policies."""
+        score = dict(score)
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random')),
+            }
+        }
+        exp_name = 'random_baseline'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
     def adversary_transfer(score):
         """Do adversarial policies trained on victim X transfer to victim Y?"""
         score = dict(score)
@@ -172,6 +217,22 @@ def make_configs(multi_score_ex):
             }
         }
         exp_name = 'adversary_transfer'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
+    def adversary_trained(score):
+        """Try adversaries against the victim they were trained against."""
+        score = dict(score)
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(
+                    _adversary_vs_victims('ppo2', _get_adversary_paths(), no_transfer=True)
+                ),
+            }
+        }
+        exp_name = 'adversary_trained'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _

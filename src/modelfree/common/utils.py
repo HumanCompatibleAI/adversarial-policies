@@ -22,6 +22,7 @@ class DummyModel(BaseRLModel):
 
     Provides stub implementations that raise NotImplementedError.
     The predict method is left as abstract and must be implemented in base class."""
+
     def __init__(self, policy, sess):
         """Constructs a DummyModel with given policy and session.
         :param policy: (BasePolicy) a loaded policy.
@@ -52,6 +53,7 @@ class DummyModel(BaseRLModel):
 
 class PolicyToModel(DummyModel):
     """Converts BasePolicy to a BaseRLModel with only predict implemented."""
+
     def __init__(self, policy):
         """Constructs a BaseRLModel using policy for predictions.
         :param policy: (BasePolicy) a loaded policy.
@@ -84,6 +86,7 @@ class PolicyToModel(DummyModel):
 
 class OpenAIToStablePolicy(BasePolicy):
     """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
+
     def __init__(self, old_policy):
         self.old = old_policy
         self.sess = old_policy.sess
@@ -102,6 +105,7 @@ class OpenAIToStablePolicy(BasePolicy):
 
 class ConstantPolicy(BasePolicy):
     """Policy that returns a constant action."""
+
     def __init__(self, env, constant):
         assert env.action_space.contains(constant)
         super().__init__(sess=None,
@@ -122,6 +126,7 @@ class ConstantPolicy(BasePolicy):
 
 class ZeroPolicy(ConstantPolicy):
     """Policy that returns a zero action."""
+
     def __init__(self, env):
         super().__init__(env, np.zeros(env.action_space.shape))
 
@@ -162,6 +167,7 @@ class VideoWrapper(Wrapper):
         self.single_video = single_video
 
         self.directory = osp.abspath(directory)
+
         # Make sure to not put multiple different runs in the same directory,
         # if the directory already exists
         error_msg = "You're trying to use the same directory twice, " \
@@ -281,8 +287,25 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.prev_obs = observations
         return observations
 
+    def record_extra_data(self, data, agent_idx):
+        """Record extra data for the specified agents. `record_timestep_data` will automatically
+           record observations, actions, rewards and info dicts. This function is an alternative
+           to placing extra information in the info dicts, which can sometimes be more convenient.
+
+           :param data: (dict) treated like an info dict in `record_timestep_data.
+           :param agent_idx: (int) index of the agent to record data for."""
+        # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
+        if agent_idx not in self.agent_indices:
+            return
+        else:
+            dict_index = self.agent_indices.index(agent_idx)
+
+        for env_idx in range(self.num_envs):
+            for key in data.keys():
+                self.traj_dicts[dict_index][env_idx][key].append(np.squeeze(data[key]))
+
     def record_timestep_data(self, prev_obs, actions, rewards, dones, infos):
-        """Record observations, actions, rewards, and (optionally) network activations
+        """Record observations, actions, rewards, and optional information from the info dicts
         of one timestep in dict for current episode. Completed episode trajectories are
         collected in a list in preparation for being saved to disk.
 
@@ -290,10 +313,10 @@ class TrajectoryRecorder(VecMultiWrapper):
         :param actions: (np.ndarray<float>) actions taken after observing prev_obs
         :param rewards: (np.ndarray<float>) rewards from actions
         :param dones: ([bool]) whether episode ended (not recorded)
-        :param infos: ([dict]) dicts with network activations if networks are transparent
+        :param infos: ([dict]) dicts with additional information, e.g. network activations
+                               for transparent networks.
         :return: None
         """
-
         env_data = {
             'observations': prev_obs,
             'actions': actions,
@@ -301,8 +324,8 @@ class TrajectoryRecorder(VecMultiWrapper):
         }
         env_data = _filter_dict(env_data, self.env_keys)
 
-        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         # iterate over both agents over all environments in VecEnv
+        iter_space = itertools.product(enumerate(self.traj_dicts), range(self.num_envs))
         for (dict_idx, agent_dicts), env_idx in iter_space:
             # in dict number dict_idx, record trajectories for agent number agent_idx
             agent_idx = self.agent_indices[dict_idx]
@@ -335,20 +358,25 @@ class TrajectoryRecorder(VecMultiWrapper):
         :return None
         """
         os.makedirs(save_dir, exist_ok=True)
+
+        save_paths = []
         for dict_idx, agent_idx in enumerate(self.agent_indices):
             agent_dicts = self.full_traj_dicts[dict_idx]
             dump_dict = {k: np.asarray(v) for k, v in agent_dicts.items()}
 
             save_path = os.path.join(save_dir, f'agent_{agent_idx}.npz')
             np.savez(save_path, **dump_dict)
+            save_paths.append(save_path)
+        return save_paths
 
 
-def simulate(venv, policies, render=False):
+def simulate(venv, policies, render=False, record=True):
     """
     Run Environment env with the policies in `policies`.
     :param venv(VecEnv): vector environment.
     :param policies(list<BaseModel>): a policy per agent.
     :param render: (bool) true if the run should be rendered to the screen
+    :param record: (bool) true if should record transparent data (if any).
     :return: streams information about the simulation
     """
     observations = venv.reset()
@@ -361,10 +389,19 @@ def simulate(venv, policies, render=False):
 
         actions = []
         new_states = []
-        for policy, obs, state in zip(policies, observations, states):
-            act, new_state = policy.predict(obs, state=state, mask=dones)
+
+        for policy_ind, (policy, obs, state) in enumerate(zip(policies, observations, states)):
+            try:
+                return_tuple = policy.predict_transparent(obs, state=state, mask=dones)
+                act, new_state, transparent_data = return_tuple
+                if record:
+                    venv.record_extra_data(transparent_data, policy_ind)
+            except AttributeError:
+                act, new_state = policy.predict(obs, state=state, mask=dones)
+
             actions.append(act)
             new_states.append(new_state)
+
         actions = tuple(actions)
         states = new_states
 
@@ -394,3 +431,27 @@ def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wr
 def make_timestamp():
     ISO_TIMESTAMP = "%Y%m%d_%H%M%S"
     return datetime.datetime.now().strftime(ISO_TIMESTAMP)
+
+
+def add_artifacts(run, dirname, ingredient=None):
+    """Convenience function for Sacred to add artifacts inside directory dirname to current run.
+
+    :param run: (sacred.Run) object representing current experiment. Can be captured as `_run`.
+    :param dirname: (str) root of directory to save.
+    :param ingredient: (sacred.Ingredient or None) optional, ingredient artifact was generated in.
+                       Will be used to tag saved files. This is ignored if ingredient is equal
+                       to the currently running experiment.
+    :return None"""
+    prefix = ""
+    if ingredient is not None:
+        exp_name = run.experiment_info['name']
+        ingredient_name = ingredient.path
+        if exp_name != ingredient_name:
+            prefix = ingredient_name + "_"
+
+    for root, dirs, files in os.walk(dirname):
+        for file in files:
+            path = os.path.join(root, file)
+            relroot = os.path.relpath(path, dirname)
+            name = prefix + relroot.replace('/', '_') + '_' + file
+            run.add_artifact(path, name=name)
