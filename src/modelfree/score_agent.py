@@ -5,7 +5,6 @@ import glob
 import logging
 import os
 import os.path as osp
-import pdb
 import re
 import tempfile
 import warnings
@@ -131,7 +130,7 @@ def default_score_config():
     render = True                       # display on screen (warning: slow)
     videos = False                      # generate videos
     video_dir = None                    # directory to store videos in.
-    adversary_action_noise = None      # Size of noise ball to add to adversary's actions
+    adversary_action_noise = None       # Size of noise ball to add to adversary's actions
     # If video_dir set to None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
