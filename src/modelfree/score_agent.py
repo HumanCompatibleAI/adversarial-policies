@@ -1,5 +1,6 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
+import collections
 import functools
 import glob
 import logging
@@ -34,14 +35,19 @@ def announce_winner(sim_stream):
 
 
 @score_ex.capture
-def get_empirical_score(venv, agents, episodes, render, record_traj, _run):
-    """Computes number of wins for each agent and ties.
+def get_empirical_score(venv, agents, episodes, timesteps, render, record_traj, _run):
+    """Computes number of wins for each agent and ties. At least one of `episodes`
+       and `timesteps` must be specified.
 
     :param venv: (VecEnv) vector environment
     :param agents: (list<BaseModel>) agents/policies to execute.
-    :param episodes: (int) number of episodes.
+    :param episodes: (int or None) maximum number of episodes.
+    :param timesteps (int or None) maximum number of timesteps.
     :param render: (bool) whether to render to screen during simulation.
     :return a dictionary mapping from 'winN' to wins for each agent N, and 'ties' for ties."""
+    if episodes is None and timesteps is None:
+        raise ValueError("At least one of 'max_episodes' and 'max_timesteps' must be non-None.")
+
     result = {f'win{i}': 0 for i in range(len(agents))}
     result['ties'] = 0
 
@@ -49,12 +55,28 @@ def get_empirical_score(venv, agents, episodes, render, record_traj, _run):
     # updates the result as the experiment is running
     _run.result = result
     sim_stream = simulate(venv, agents, render=render, record=record_traj)
-    for ep, winner in enumerate(announce_winner(sim_stream)):
-        if winner is None:
-            result['ties'] += 1
-        else:
-            result[f'win{winner}'] += 1
-        if ep + 1 >= episodes:
+
+    num_timesteps = collections.defaultdict(int)
+    completed_timesteps = 0
+    completed_episodes = 0
+    for _, _, dones, infos in sim_stream:
+        for i, (done, info) in enumerate(zip(dones, infos)):
+            num_timesteps[i] += 1
+
+            if done:
+                completed_timesteps += num_timesteps[i]
+                num_timesteps[i] = 0
+                completed_episodes += 1
+
+                winner = game_outcome(info)
+                if winner is None:
+                    result['ties'] += 1
+                else:
+                    result[f'win{winner}'] += 1
+
+        if episodes is not None and completed_episodes >= episodes:
+            break
+        if timesteps is not None and completed_timesteps >= timesteps:
             break
 
     return result
@@ -130,7 +152,8 @@ def default_score_config():
 
     transparent_params = None             # whether to make the agents transparent
     num_env = 1                           # number of environments to run in parallel
-    episodes = 20                         # number of episodes to evaluate
+    episodes = 20                         # maximum number of episodes to evaluate
+    timesteps = None                      # maximum number of timesteps to evaluate
     render = True                         # display on screen (warning: slow)
     videos = False                        # generate videos
     video_params = {
@@ -158,7 +181,7 @@ def default_score_config():
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, transparent_params, num_env, episodes,
+                record_traj, record_traj_params, transparent_params, num_env,
                 videos, video_params, mask_agent_index, mask_agent_kwargs):
     if videos:
         if video_params['save_dir'] is None:

@@ -48,6 +48,8 @@ def pipeline(_run, output_root, exp_name):
     figure_dst_dir = osp.join(out_dir, 'figures')
     visualize(model_glob=osp.join(model_dir, '*'), output_root=figure_dst_dir)
 
+    return out_dir
+
 
 def main():
     observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne'))

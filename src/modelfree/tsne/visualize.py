@@ -139,12 +139,16 @@ def _visualize_helper(model_dir, output_dir, subsample_rate, save_type,
     def save_path(prefix):
         return osp.join(output_dir, f'{prefix}.{save_type}')
 
+    counts = pd.value_counts(metadata_df['opponent_id'])
+    min_counts = counts.min()
+    opponent_groups = metadata_df.groupby('opponent_id')
+    opponent_dfs = {name: group.sample(n=min_counts) for name, group in opponent_groups}
+    opponent_dfs = [opponent_dfs[label] for label in ordering]
+    metadata_df = pd.concat(opponent_dfs)
+    print('before', counts, 'after', pd.value_counts(metadata_df['opponent_id']))
+
     _plot_and_save_chart(save_path('combined'), [metadata_df])
     _plot_and_save_chart(save_path('subsampled'), [metadata_df.sample(frac=subsample_rate)])
-
-    opponent_groups = metadata_df.groupby('opponent_id')
-    opponent_dfs = {name: group for name, group in opponent_groups}
-    opponent_dfs = [opponent_dfs[label] for label in ordering]
     _plot_and_save_chart(save_path('sidebyside'), opponent_dfs)
 
     if external_legend_params is not None:

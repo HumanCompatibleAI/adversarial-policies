@@ -114,7 +114,10 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def save_activations(exp_name, score, spec):
         score = dict(score)
-        score['episodes'] = 20
+        score['episodes'] = None
+        # Trajectory length varies a lot between environments and opponents; make sure we have
+        # a consistent number of data points.
+        score['timesteps'] = 5000
         score['record_traj'] = True
         score['transparent_params'] = {'ff_policy': True, 'ff_value': True}
         score['record_traj_params'] = {
