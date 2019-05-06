@@ -32,9 +32,7 @@ SMALL_TRANSFER_SCORE_PATHS = [
 @visualize_score_ex.config
 def default_config():
     transfer_score_root = os.path.join('data', 'aws', 'score_agents')
-    transfer_score_paths = {}
-    if not hasattr(transfer_score_paths, 'fixed'):  # work-around Sacred issue #238
-        transfer_score_paths = [{'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')}]
+    transfer_score_paths = [{'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')}]
 
     command = util.heatmap_full
     styles = ['paper', 'a4']
