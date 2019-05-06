@@ -4,11 +4,12 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 from aprl.common.mujoco import OldMujocoResettableWrapper
-from aprl.envs.multi_agent import (EmbedVictimWrapper, FlattenSingletonVecEnv,
-                                   make_dummy_vec_multi_env, make_subproc_vec_multi_env)
+from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_env,
+                                   make_subproc_vec_multi_env)
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import DebugVenv, make_env
 from modelfree.envs.gym_compete import GymCompeteToOurs
+from modelfree.training.victim_envs import EmbedVictimWrapper
 
 LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
 
@@ -51,7 +52,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         """
         def env_fn(i):
             return make_env(env_name, 0, i, out_dir='data/lookbacks/',
-                            pre_wrapper=[GymCompeteToOurs, OldMujocoResettableWrapper])
+                            pre_wrappers=[GymCompeteToOurs, OldMujocoResettableWrapper])
         lb_tuples = []
         for _ in range(self.lb_num):
             make_vec_env = make_dummy_vec_multi_env if use_debug else make_subproc_vec_multi_env
@@ -134,7 +135,6 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 # reward our agent for producing differences between our venv and lookbacks
                 for key in self.transparent_params:
                     diff_ff = victim_info[key] - lb_victim_info[key]  # typically ff_policy
-                    print(np.linalg.norm(diff_ff), i, self.ep_lens[env_idx])
                     env_diff_reward += np.linalg.norm(diff_ff)
 
             # reward shaping

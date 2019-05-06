@@ -160,10 +160,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         else:
             tmp_dir = None
         video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
-    pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
+    pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else None
 
     def env_fn(i):
-        env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
+        env = make_env(env_name, _seed, i, None, pre_wrappers=pre_wrappers)
         if videos:
             if video_params['annotated'] and 'multicomp' in env_name:
                 assert num_env == 1, "pretty videos requires num_env=1"

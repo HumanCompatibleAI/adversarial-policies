@@ -17,7 +17,7 @@ from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.common.mujoco import OldMujocoResettableWrapper
-from aprl.envs.multi_agent import (EmbedVictimWrapper, FlattenSingletonVecEnv, MergeAgentVecEnv,
+from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
@@ -27,6 +27,7 @@ from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import DebugVenv, LookbackRewardVecWrapper
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
+from modelfree.training.victim_envs import EmbedVictimWrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
@@ -284,9 +285,11 @@ def wrappers_config(env_name):
 @train_ex.capture
 def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
               debug, lookback_params):
-    pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
+    pre_wrappers = []
+    if env_name.startswith('multicomp/'):
+        pre_wrappers.append(GymCompeteToOurs)
     if lookback_params['lb_num'] > 0:
-        pre_wrapper = list(filter(lambda x: x, [pre_wrapper, OldMujocoResettableWrapper]))
+        pre_wrappers.append(OldMujocoResettableWrapper)
 
     if victim_type == 'none':
         our_idx = 0
@@ -294,7 +297,7 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
         our_idx = 1 - victim_index
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrappers=pre_wrappers)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
