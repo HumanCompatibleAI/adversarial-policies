@@ -1,5 +1,6 @@
 """Load two agents for a given environment and perform rollouts, reporting the win-tie-loss."""
 
+import collections
 import functools
 import glob
 import logging
@@ -16,6 +17,7 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_mul
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
+from modelfree.envs.observation_masking import make_mask_for_env
 from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 score_ex = Experiment('score')
@@ -33,14 +35,19 @@ def announce_winner(sim_stream):
 
 
 @score_ex.capture
-def get_empirical_score(venv, agents, episodes, render, record_traj, _run):
-    """Computes number of wins for each agent and ties.
+def get_empirical_score(venv, agents, episodes, timesteps, render, record_traj, _run):
+    """Computes number of wins for each agent and ties. At least one of `episodes`
+       and `timesteps` must be specified.
 
     :param venv: (VecEnv) vector environment
     :param agents: (list<BaseModel>) agents/policies to execute.
-    :param episodes: (int) number of episodes.
+    :param episodes: (int or None) maximum number of episodes.
+    :param timesteps (int or None) maximum number of timesteps.
     :param render: (bool) whether to render to screen during simulation.
     :return a dictionary mapping from 'winN' to wins for each agent N, and 'ties' for ties."""
+    if episodes is None and timesteps is None:
+        raise ValueError("At least one of 'max_episodes' and 'max_timesteps' must be non-None.")
+
     result = {f'win{i}': 0 for i in range(len(agents))}
     result['ties'] = 0
 
@@ -48,12 +55,28 @@ def get_empirical_score(venv, agents, episodes, render, record_traj, _run):
     # updates the result as the experiment is running
     _run.result = result
     sim_stream = simulate(venv, agents, render=render, record=record_traj)
-    for ep, winner in enumerate(announce_winner(sim_stream)):
-        if winner is None:
-            result['ties'] += 1
-        else:
-            result[f'win{winner}'] += 1
-        if ep + 1 >= episodes:
+
+    num_timesteps = collections.defaultdict(int)
+    completed_timesteps = 0
+    completed_episodes = 0
+    for _, _, dones, infos in sim_stream:
+        for i, (done, info) in enumerate(zip(dones, infos)):
+            num_timesteps[i] += 1
+
+            if done:
+                completed_timesteps += num_timesteps[i]
+                num_timesteps[i] = 0
+                completed_episodes += 1
+
+                winner = game_outcome(info)
+                if winner is None:
+                    result['ties'] += 1
+                else:
+                    result[f'win{winner}'] += 1
+
+        if episodes is not None and completed_episodes >= episodes:
+            break
+        if timesteps is not None and completed_timesteps >= timesteps:
             break
 
     return result
@@ -129,7 +152,8 @@ def default_score_config():
 
     transparent_params = None             # whether to make the agents transparent
     num_env = 1                           # number of environments to run in parallel
-    episodes = 20                         # number of episodes to evaluate
+    episodes = 20                         # maximum number of episodes to evaluate
+    timesteps = None                      # maximum number of timesteps to evaluate
     render = True                         # display on screen (warning: slow)
     videos = False                        # generate videos
     video_params = {
@@ -145,6 +169,11 @@ def default_score_config():
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
+    mask_agent_index = None               # index of agent whose observations should be limited
+    mask_agent_kwargs = {                 # control how agent observations are limited
+        'masking_type': 'initialization',
+    }
+
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -152,8 +181,8 @@ def default_score_config():
 
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, transparent_params, num_env, episodes,
-                videos, video_params):
+                record_traj, record_traj_params, transparent_params, num_env,
+                videos, video_params, mask_agent_index, mask_agent_kwargs):
     if videos:
         if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
@@ -165,8 +194,16 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
     pre_wrapper = GymCompeteToOurs if 'multicomp' in env_name else None
 
+    agent_wrappers = {}
+    if mask_agent_index is not None:
+        masker = make_mask_for_env(env_name, mask_agent_index)
+        masker = functools.partial(masker, **mask_agent_kwargs)
+        agent_wrappers = {mask_agent_index: masker}
+
     def env_fn(i):
-        env = make_env(env_name, _seed, i, None, pre_wrapper=pre_wrapper)
+        env = make_env(env_name, _seed, i, None,
+                       pre_wrapper=pre_wrapper,
+                       agent_wrappers=agent_wrappers)
         if videos:
             if video_params['annotated']:
                 if 'multicomp' in env_name:

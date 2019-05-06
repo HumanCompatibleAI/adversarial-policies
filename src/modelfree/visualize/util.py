@@ -95,23 +95,32 @@ def prefix_level(df, prefix, level):
 def agent_index_suffix(env_name, victim_name, opponent_name):
     if not gym_compete.is_symmetric(env_name):
         if victim_name.startswith('Zoo'):
-            victim_name = f'ZooV{victim_name[-1]}'
+            victim_name = f'{victim_name[:-1]}V{victim_name[-1]}'
         if opponent_name.startswith('Zoo'):
-            opponent_name = f'ZooO{opponent_name[-1]}'
+            opponent_name = f'{opponent_name[:-1]}O{opponent_name[-1]}'
     return env_name, victim_name, opponent_name
 
 
-def combine_all(fixed, zoo, transfer):
-    fixed = fixed.copy()
-    zoo = zoo.copy()
-    transfer = transfer.copy()
+def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
+    dfs = []
 
-    fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
-    zoo = prefix_level(zoo, 'Zoo', 2)
-    transfer = prefix_level(transfer, 'Adv', 2)
+    if transfer is not None:
+        transfer = transfer.copy()
+        transfer = prefix_level(transfer, 'Adv' + opponent_suffix, 2)
+        dfs.append(transfer)
 
-    combined = pd.concat([transfer, zoo, fixed], axis=0)
-    combined = prefix_level(combined, 'Zoo', 1)
+    if zoo is not None:
+        zoo = zoo.copy()
+        zoo = prefix_level(zoo, 'Zoo', 2)
+        dfs.append(zoo)
+
+    if fixed is not None:
+        fixed = fixed.copy()
+        fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
+        dfs.append(fixed)
+
+    combined = pd.concat(dfs, axis=0)
+    combined = prefix_level(combined, 'Zoo' + victim_suffix, 1)
     combined = combined.sort_index(level=0, sort_remaining=False)
     combined.index = combined.index.set_names('Opponent', level=2)
 
@@ -121,12 +130,25 @@ def combine_all(fixed, zoo, transfer):
     return combined
 
 
-def load_datasets(transfer_path):
-    score_dir = os.path.dirname(transfer_path)
-    fixed = load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
-    zoo = load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
-    transfer = load_transfer_baseline(transfer_path)
-    return combine_all(fixed, zoo, transfer)
+def load_datasets(timestamped_path, victim_suffix='', opponent_suffix=''):
+    score_dir = os.path.dirname(timestamped_path)
+    try:
+        fixed_path = os.path.join(score_dir, 'fixed_baseline.json')
+        fixed = load_fixed_baseline(fixed_path)
+    except FileNotFoundError:
+        logger.warning(f"No fixed baseline at '{fixed_path}'")
+        fixed = None
+
+    try:
+        zoo_path = os.path.join(score_dir, 'zoo_baseline.json')
+        zoo = load_zoo_baseline(zoo_path)
+    except FileNotFoundError:
+        logger.warning(f"No fixed baseline at '{zoo_path}'")
+        zoo = None
+
+    transfer = load_transfer_baseline(os.path.join(timestamped_path, 'adversary_transfer.json'))
+    return combine_all(fixed, zoo, transfer,
+                       victim_suffix=victim_suffix, opponent_suffix=opponent_suffix)
 
 # Visualization
 
@@ -175,20 +197,33 @@ def rotate_labels(ax):
         label.set_rotation(0)
 
 
-def heatmap_full(single_env, cols=None):
+def heatmap_full(single_env, cmap='Blues', cols=None):
     # Figure layout calculations
     if cols is None:
         cols = single_env.columns
     ncols = len(cols) + 1
 
+    reserved = {  # in inches
+        'top': 0.28,  # for title
+        'bottom': 0.49,  # for x-axis
+    }
+    total_reserved = sum(reserved.values())
+
+    width, nominal_height = plt.rcParams.get('figure.figsize')
+    portion_for_heatmap = nominal_height - total_reserved
+    # We want height to vary depending on number of labels. Take figure size as specifying the
+    # height for a 'typical' figure with 6 rows.
+    height_per_row = nominal_height * portion_for_heatmap / 6
+    num_rows = len(pd.unique(single_env.index.get_level_values(0)))
+    height_for_heatmap = height_per_row * max(num_rows, 4)
+
+    height = total_reserved + height_for_heatmap
     gridspec_kw = {
-        'top': 0.8,
-        'bottom': 0.35,
+        'top': 1 - reserved['top'] / height,
+        'bottom': reserved['bottom'] / height,
         'wspace': 0.05,
         'width_ratios': [1.0] * len(cols) + [1/15],
     }
-    width, height = plt.rcParams.get('figure.figsize')
-    height = min(height, width / len(cols))
 
     # Actually plot the heatmap
     single_env *= 100 / num_episodes(single_env)  # convert to percentages
@@ -199,7 +234,7 @@ def heatmap_full(single_env, cols=None):
         ax = axs[i]
         yaxis = i == 0
         cbar = i == len(cols) - 1
-        sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
+        sns.heatmap(single_env[col].unstack(), cmap=cmap, vmin=0, vmax=100,
                     annot=True, annot_kws={'fontsize': 6}, fmt='.0f',
                     ax=ax, cbar=cbar, cbar_ax=cbar_ax, yticklabels=yaxis)
         ax.get_yaxis().set_visible(yaxis)
@@ -210,19 +245,19 @@ def heatmap_full(single_env, cols=None):
     return fig
 
 
-def heatmap_one_col(single_env, col, cbar, ylabel):
+def heatmap_one_col(single_env, col, cbar, cmap='Blues'):
     gridspec_kw = {
-        'bottom': 0.4,
-        'left': 0.31 if ylabel else 0.21,
+        'bottom': 0.3,
+        'left': 0.22,
         'right': 0.98,
         'top': 0.95,
     }
     if cbar:
         gridspec_kw.update({
-            'left': gridspec_kw['left'] + 0.05,
             'width_ratios': (1.0, 0.1),
             'wspace': 0.2,
-            'right': 0.75,
+            'left': gridspec_kw['left'] + 0.02,
+            'right': gridspec_kw['right'] - 0.1,
         })
         fig, (ax, cbar_ax) = plt.subplots(ncols=2, gridspec_kw=gridspec_kw)
     else:
@@ -230,11 +265,9 @@ def heatmap_one_col(single_env, col, cbar, ylabel):
         cbar_ax = None
 
     single_env *= 100 / num_episodes(single_env)  # convert to percentages
-    sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
+    sns.heatmap(single_env[col].unstack(), cmap=cmap, vmin=0, vmax=100,
                 annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
                 ax=ax, cbar=cbar, cbar_ax=cbar_ax)
-    if not ylabel:
-        ax.set_ylabel('')
 
     rotate_labels(ax)
 

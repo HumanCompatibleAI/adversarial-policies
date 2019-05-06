@@ -66,7 +66,7 @@ def _adversary_vs_victims(adversary_type, adversary_paths, envs=None, no_transfe
     :param adversary_paths: (dict) paths to adversaries, loaded by _get_adversary_paths
     :param envs: (list<str> or None) optional list of environments to restrict to
     :param no_transfer: (bool) when True, only return the adversary trained against that victim;
-                               otherwise, returns all adversaries (useful for testing transfer).
+                                otherwise, returns all adversaries (useful for testing transfer).
     """
     def adversary_fn(env, victim_index, our_id, opponent_id):
         if no_transfer and our_id != opponent_id:
@@ -105,7 +105,7 @@ def _get_adversary_paths():
 
 
 def make_configs(multi_score_ex):
-    @multi_score_ex.config
+    @multi_score_ex.named_config
     def high_accuracy(score):
         score = dict(score)
         score['episodes'] = 1000
@@ -114,7 +114,10 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def save_activations(exp_name, score, spec):
         score = dict(score)
-        score['episodes'] = 20
+        score['episodes'] = None
+        # Trajectory length varies a lot between environments and opponents; make sure we have
+        # a consistent number of data points.
+        score['timesteps'] = 5000
         score['record_traj'] = True
         score['transparent_params'] = {'ff_policy': True, 'ff_value': True}
         score['record_traj_params'] = {
@@ -142,6 +145,26 @@ def make_configs(multi_score_ex):
         exp_name = 'video_' + exp_name  # noqa: F401
 
     @multi_score_ex.named_config
+    def mask_observations_of_victim(exp_name, spec):
+        spec['config']['mask_agent_index'] = tune.sample_from(
+            lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+        )
+        exp_name = 'victim_mask_' + exp_name
+
+    @multi_score_ex.named_config
+    def mask_observations_of_adversary(exp_name, spec):
+        spec['config']['mask_agent_index'] = tune.sample_from(
+            lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+        )
+        exp_name = 'adversary_mask_' + exp_name
+
+    @multi_score_ex.named_config
+    def mask_observations_with_zeros(exp_name, score):
+        score = dict(score)
+        score['mask_agent_kwargs'] = {'masking_type': 'zeros'}
+        exp_name = 'zero_' + exp_name
+
+    @multi_score_ex.named_config
     def debug_one_each_type(score):
         """One Zoo agent from each environment, plus one opponent of each type.
            Intended for debugging purposes as a quick experiment that is still diverse.."""
@@ -157,15 +180,14 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_name = 'debug'
+        exp_name = 'debug_one_each_type'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_score_ex.named_config
-    def zoo_baseline(score):
+    def zoo_baseline():
         """Try all pre-trained policies from Bansal et al's gym_compete zoo against each other."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_env_agents()),
@@ -177,9 +199,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def fixed_baseline(score):
+    def fixed_baseline():
         """Try zero-agent and random-agent against pre-trained zoo policies."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random') +
@@ -192,9 +213,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def random_baseline(score):
+    def random_baseline():
         """Try random-agent against pre-trained zoo policies."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random')),
@@ -206,9 +226,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def adversary_transfer(score):
+    def adversary_transfer():
         """Do adversarial policies trained on victim X transfer to victim Y?"""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
@@ -222,9 +241,8 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
-    def adversary_trained(score):
+    def adversary_trained():
         """Try adversaries against the victim they were trained against."""
-        score = dict(score)
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(

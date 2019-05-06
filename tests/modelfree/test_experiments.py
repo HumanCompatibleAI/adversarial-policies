@@ -33,7 +33,8 @@ SCORE_AGENT_CONFIGS = [
     {
         'record_traj': True,
         'record_traj_params': {'save_dir': 'test_dir'},
-    }
+    },
+    {'mask_agent_index': 0},
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -144,8 +145,7 @@ TRAIN_CONFIGS = [
         # test TransparentMLPPolicyValue
         'env_name': 'multicomp/YouShallNotPassHumans-v0',
         'transparent_params': ['ff_policy'],
-    }
-
+    },
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']
