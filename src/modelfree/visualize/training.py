@@ -208,6 +208,13 @@ def win_rate(tb_dir, lineplot_fn, out_split_keys, in_split_keys, data_fns, plot_
     return tb.tb_apply(configs, events, split_keys=out_split_keys, fn=make_fig_wrapped)
 
 
+LINESTYLES = {
+    'Zoo': '-.',
+    'Rand': '--',
+    'Zero': ':',
+}
+
+
 def plot_baselines(env_name, victim_path, ycol, ax, baseline):
     victim_name = f'Zoo{victim_path}' if is_symmetric(env_name) else f'ZooV{victim_path}'
     scores = baseline.loc[(env_name, victim_name), :]
@@ -221,7 +228,7 @@ def plot_baselines(env_name, victim_path, ycol, ax, baseline):
     num_lines = len(ax.get_legend_handles_labels()[0])
     for i, (opponent, score) in enumerate(scores.items()):
         ax.axhline(y=score, label=opponent, color=f'C{num_lines + i}',
-                   linewidth=1, linestyle='--')
+                   linewidth=1, linestyle=LINESTYLES[opponent])
 
 
 def plot_baselines_multi_fig(vars, ax, baseline):
