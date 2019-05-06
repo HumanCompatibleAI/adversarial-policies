@@ -299,7 +299,7 @@ def paper_config():
                 },
                 {
                     'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
-                    'title': 'Sumo',
+                    'title': 'Sumo Humans',
                 },
                 {
                     'filter': {'env_name': 'multicomp/YouShallNotPassHumans-v0', 'victim_path': 1},

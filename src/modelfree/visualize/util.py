@@ -245,10 +245,10 @@ def heatmap_full(single_env, cmap='Blues', cols=None):
     return fig
 
 
-def heatmap_one_col(single_env, col, cbar, ylabel, cmap='Blues'):
+def heatmap_one_col(single_env, col, cbar, cmap='Blues'):
     gridspec_kw = {
         'bottom': 0.3,
-        'left': 0.3 if ylabel else 0.2,
+        'left': 0.22,
         'right': 0.98,
         'top': 0.95,
     }
@@ -268,8 +268,6 @@ def heatmap_one_col(single_env, col, cbar, ylabel, cmap='Blues'):
     sns.heatmap(single_env[col].unstack(), cmap=cmap, vmin=0, vmax=100,
                 annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
                 ax=ax, cbar=cbar, cbar_ax=cbar_ax)
-    if not ylabel:
-        ax.set_ylabel('')
 
     rotate_labels(ax)
 
