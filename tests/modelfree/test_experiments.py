@@ -33,7 +33,8 @@ SCORE_AGENT_CONFIGS = [
     {
         'record_traj': True,
         'record_traj_params': {'save_dir': 'test_dir'},
-    }
+    },
+    {'mask_agent_index': 0},
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -74,8 +75,9 @@ def test_score_agent(config):
 
 
 SCORE_AGENT_VIDEO_CONFIGS = {
-    'none_dir': {'videos': True, 'video_dir': None, 'episodes': 1, 'render': False},
-    'specified_dir': {'videos': True, 'video_dir': 'specific_video_dir',
+    'none_dir': {'videos': True, 'video_params': {'save_dir': None},
+                 'episodes': 1, 'render': False},
+    'specified_dir': {'videos': True, 'video_params': {'save_dir': 'specific_video_dir'},
                       'episodes': 1, 'render': False}
 }
 
@@ -94,7 +96,7 @@ def test_score_agent_video():
         with pytest.raises(AssertionError):
             _ = score_ex.run(config_updates=SCORE_AGENT_VIDEO_CONFIGS['specified_dir'])
     finally:
-        shutil.rmtree(SCORE_AGENT_VIDEO_CONFIGS['specified_dir']['video_dir'])
+        shutil.rmtree(SCORE_AGENT_VIDEO_CONFIGS['specified_dir']['video_params']['save_dir'])
 
 
 TRAIN_CONFIGS = [
@@ -143,8 +145,7 @@ TRAIN_CONFIGS = [
         # test TransparentMLPPolicyValue
         'env_name': 'multicomp/YouShallNotPassHumans-v0',
         'transparent_params': ['ff_policy'],
-    }
-
+    },
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']
@@ -185,12 +186,15 @@ def _test_multi(ex):
 
 def test_multi_score():
     run = _test_multi(multi_score_ex)
-    assert isinstance(run.result, dict)
+    assert 'scores' in run.result
+    assert 'exp_id' in run.result
+    assert isinstance(run.result['scores'], dict)
 
 
 def test_multi_train():
     run = _test_multi(multi_train_ex)
 
-    trials = run.result
+    trials, exp_id = run.result
+    assert isinstance(exp_id, str)
     for trial in trials:
         assert isinstance(trial, Trial)

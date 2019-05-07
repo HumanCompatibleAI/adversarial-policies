@@ -29,12 +29,6 @@ def exp_root_from_event(event_path):
     return os.path.sep.join(event_path.split(os.path.sep)[:-6])
 
 
-def read_sacred_config(exp_root):
-    sacred_config_path = os.path.join(exp_root, 'data', 'sacred', 'train', '1', 'config.json')
-    with open(sacred_config_path, 'r') as f:
-        return json.load(f)
-
-
 def read_events_file(events_filename, keys=None):
     events = []
     try:
@@ -50,6 +44,12 @@ def read_events_file(events_filename, keys=None):
     return events
 
 
+def read_sacred_config(exp_root, kind):
+    sacred_config_path = os.path.join(exp_root, 'data', 'sacred', kind, '1', 'config.json')
+    with open(sacred_config_path, 'r') as f:
+        return json.load(f)
+
+
 def load_tb_data(log_dir, keys=None):
     event_paths = find_tfevents(log_dir)
 
@@ -63,7 +63,8 @@ def load_tb_data(log_dir, keys=None):
             events_by_dir[exp_root] = []
         events_by_dir[exp_root] += events
 
-    config_by_dir = {dirname: read_sacred_config(dirname) for dirname in events_by_dir.keys()}
+    config_by_dir = {dirname: read_sacred_config(dirname, 'train')
+                     for dirname in events_by_dir.keys()}
 
     return config_by_dir, events_by_dir
 

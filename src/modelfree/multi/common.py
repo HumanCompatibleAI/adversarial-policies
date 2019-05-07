@@ -14,6 +14,7 @@ import shlex
 import socket
 import subprocess
 import urllib
+import uuid
 
 import ray
 from ray import tune
@@ -61,6 +62,7 @@ def make_sacred(ex, worker_name, worker_fn):
         platform = None       # hosting: 'baremetal' or 'ec2'
         s3_bucket = None      # results storage on 'ec2' platform
         baremetal = {}        # config options for 'baremetal' platform
+        local_dir = None  # results storage on 'local' platform
         ray_server = None     # if None, start cluster on local machine
         upload_root = None    # root of upload_dir
         exp_name = 'default'  # experiment name
@@ -90,26 +92,45 @@ def make_sacred(ex, worker_name, worker_fn):
 
     @ex.config
     def baremetal_config(platform, baremetal, spec):
-        """When running on bare-metal hardware (i.e. not in cloud).
+        """When running in bare-metal Ray cluster (i.e. not in cloud).
 
-        The workers must have permission to rsync to local_out."""
+        Assumes we're running on the head node. Requires the worker have permission to rsync
+        to the head node. The intended config is they run with an SSH key that allows login to
+        the user from any machine in the cluster."""
         if platform is None:
-            # No platform specified; assume baremetal if no previous config autodetected.
-            platform = 'baremetal'
+            if osp.exists(osp.expanduser('~/ray_bootstrap_config.yaml')):
+                platform = 'baremetal'
 
         if platform == 'baremetal':
             baremetal = dict(baremetal)
             if 'ssh_key' not in baremetal:
-                baremetal['ssh_key'] = '~/.ssh/adversarial-policies'
+                baremetal['ssh_key'] = osp.expanduser('~/ray_bootstrap_key.pem')
             if 'host' not in baremetal:
                 baremetal['host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
             if 'dir' not in baremetal:
-                baremetal['dir'] = osp.abspath(osp.join(os.getcwd(), 'data'))
+                baremetal['dir'] = osp.expanduser('~/adversarial-policies/data')
 
             spec['upload_dir'] = ':'.join([baremetal['host'],
                                            baremetal['ssh_key'],
                                            baremetal['dir']])
             spec['sync_function'] = tune.function(_rsync_func)
+            ray_server = 'localhost:6379'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @ex.config
+    def local_config(platform, local_dir, spec):
+        if platform is None:
+            # No platform specified; assume local if no previous config autodetected.
+            platform = 'local'
+
+        if platform == 'local':
+            spec['sync_function'] = 'mkdir -p {remote_dir} && cp -aTv {local_dir}/ {remote_dir}'
+
+            if local_dir is None:
+                local_dir = osp.abspath(osp.join(os.getcwd(), 'data'))
+            spec['upload_dir'] = local_dir
 
     @ex.capture
     def run(base_config, ray_server, exp_name, spec):
@@ -130,11 +151,11 @@ def make_sacred(ex, worker_name, worker_fn):
         trainable_fn = functools.partial(worker_fn, base_config)
         tune.register_trainable(trainable_name, trainable_fn)
 
-        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}'
+        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}'
         spec['run'] = trainable_name
         result = tune.run_experiments({exp_id: spec})
 
         ray.shutdown()  # run automatically on exit, but needed here to not break tests
-        return result
+        return result, exp_id
 
     return run
