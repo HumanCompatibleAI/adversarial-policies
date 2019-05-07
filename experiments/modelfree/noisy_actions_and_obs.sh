@@ -28,8 +28,7 @@ for dir in noisy_adversary_actions noisy_victim_actions noisy_victim_obs; do
 done
 # Rerun highest_win_rate and store the results in ADVERSARY_PATHS, which we
 # export as an environment variable which multi score will use
-ADVERSARY_PATHS=${OUT_ROOT}/normal/${TIMESTAMP}/best_adversaries.json
-python ${DIR}/highest_win_rate.py ${ADVERSARY_PATHS} --logdir $*
+ADVERSARY_PATHS=${OUT_ROOT}/run_may_5/best_adversaries.json
 
 export ADVERSARY_PATHS=${ADVERSARY_PATHS}
 
@@ -38,7 +37,7 @@ ${MULTI_SCORE_CMD} zoo_baseline noise_adversary_actions \
     save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_zoo_opponent.json&
 wait_proc
 
-${MULTI_SCORE_CMD} noise_adversary_actions \
+${MULTI_SCORE_CMD} noisecp _adversary_actions \
     save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_adversary.json&
 wait_proc
 
