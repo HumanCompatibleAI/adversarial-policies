@@ -25,7 +25,7 @@ def main_config():
     subsample_rate = 0.15
     opacity = 0.75
     dot_size = 0.25
-    palette_name = 'cube_bright'
+    palette_name = 'paper'
     save_type = 'pdf'
     styles = ['paper', 'threecol']
     ordering = ['Adv', 'Zoo', 'Rand']
@@ -46,6 +46,11 @@ ABBREVIATIONS = {
 
 
 PALETTES = {
+    'paper': {
+        'Adv': '#1f77b4',
+        'Zoo': '#ff7f0e',
+        'Rand': '#2ca02c',
+    },
     'bright': {
         'Adv': '#e7298a',
         'Zoo': '#66c2a5',
@@ -145,7 +150,6 @@ def _visualize_helper(model_dir, output_dir, subsample_rate, save_type,
     opponent_dfs = {name: group.sample(n=min_counts) for name, group in opponent_groups}
     opponent_dfs = [opponent_dfs[label] for label in ordering]
     metadata_df = pd.concat(opponent_dfs)
-    print('before', counts, 'after', pd.value_counts(metadata_df['opponent_id']))
 
     _plot_and_save_chart(save_path('combined'), [metadata_df])
     _plot_and_save_chart(save_path('subsampled'), [metadata_df.sample(frac=subsample_rate)])
