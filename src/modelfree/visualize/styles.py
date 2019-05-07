@@ -1,3 +1,10 @@
+PRETTY_LABELS = {
+    'Adv': 'Adversary (Adv)',
+    'Zoo': 'Normal (Zoo)',
+    'Rand': 'Random (Rand)',
+    'Zero': 'Zero',
+}
+
 STYLES = {
     'paper': {
         'figure.figsize': (5.5, 7.5),

@@ -12,7 +12,7 @@ import sacred
 from sacred.observers import FileStorageObserver
 
 from modelfree.common import utils
-from modelfree.visualize.styles import STYLES
+from modelfree.visualize.styles import PRETTY_LABELS, STYLES
 
 visualize_ex = sacred.Experiment('tsne_visualize')
 logger = logging.getLogger('modelfree.tsne.visualize')
@@ -68,12 +68,12 @@ PALETTES = {
 def _make_handles(palette_name, ordering):
     palette = PALETTES[palette_name]
     handles, labels = [], []
-    for label in ordering:
-        color = palette[label]
+    for key in ordering:
+        color = palette[key]
         handle = matplotlib.lines.Line2D(range(1), range(1), color=color,
                                          marker='o', markerfacecolor=color, linewidth=0)
         handles.append(handle)
-        labels.append(label)
+        labels.append(PRETTY_LABELS[key])
     return handles, labels
 
 

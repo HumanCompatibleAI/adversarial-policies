@@ -12,7 +12,7 @@ import seaborn as sns
 from modelfree.envs import VICTIM_INDEX
 from modelfree.envs.gym_compete import is_symmetric
 from modelfree.visualize import tb, util
-from modelfree.visualize.styles import STYLES
+from modelfree.visualize.styles import PRETTY_LABELS, STYLES
 
 logger = logging.getLogger('modelfree.visualize.training')
 visualize_training_ex = Experiment('visualize_training')
@@ -135,7 +135,7 @@ def lineplot_monolithic(outer_key, data, xcol, ycols, ci, in_split_keys,
                 group = subset.groupby(subset[xcol])[ycol]
                 min, median, max = group.min(), group.median(), group.max()
                 ax.fill_between(x=median.index, y1=min, y2=max, alpha=0.4)
-                median.plot(label="Adv", ax=ax)
+                median.plot(label=PRETTY_LABELS['Adv'], ax=ax)
             else:
                 sns.lineplot(x=xcol, y=ycol, data=subset, ci=ci, linewidth=1,
                              ax=ax, legend="full", hue="seed", **kwargs)
@@ -227,7 +227,8 @@ def plot_baselines(env_name, victim_path, ycol, ax, baseline):
 
     num_lines = len(ax.get_legend_handles_labels()[0])
     for i, (opponent, score) in enumerate(scores.items()):
-        ax.axhline(y=score, label=opponent, color=f'C{num_lines + i}',
+        label = PRETTY_LABELS[opponent]
+        ax.axhline(y=score, label=label, color=f'C{num_lines + i}',
                    linewidth=1, linestyle=LINESTYLES[opponent])
 
 
