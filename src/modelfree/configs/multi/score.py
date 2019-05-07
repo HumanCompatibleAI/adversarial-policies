@@ -185,9 +185,6 @@ def make_configs(multi_score_ex):
         }
         exp_name = 'additive_noise_' + exp_name
 
-    ##TODO fix sampling for noise and merge these two configs
-
-
     @multi_score_ex.named_config
     def noise_adversary_actions(exp_name, spec):
 
