@@ -17,8 +17,8 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_mul
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
-from modelfree.training.shaping_wrappers import NoisyAgentWrapper
 from modelfree.envs.observation_masking import make_mask_for_env
+from modelfree.training.shaping_wrappers import NoisyAgentWrapper
 from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 score_ex = Experiment('score')
