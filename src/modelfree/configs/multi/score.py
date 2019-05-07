@@ -165,6 +165,43 @@ def make_configs(multi_score_ex):
         exp_name = 'zero_' + exp_name
 
     @multi_score_ex.named_config
+    def mask_observations_with_additive_noise(exp_name, spec):
+        noise_magnitude = tune.sample_from(
+            lambda spec: spec.config['noise_magnitude']
+        )
+        spec['config']['mask_agent_kwargs'] = {
+            'masking_type': 'additive_noise',
+            'noise_magnitude': noise_magnitude
+        }
+        exp_name = 'additive_noise_{}_'.format(noise_magnitude * 100) + exp_name
+
+    @multi_score_ex.named_config
+    def noise_adversary_actions(exp_name, score, spec):
+        score = score.copy()
+        adversary_idx = tune.sample_from(
+            lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+        )
+        noise_magnitude = tune.sample_from(
+            lambda spec: spec.config['noise_magnitude']
+        )
+        spec['config']['noisy_agent_magnitude'] = noise_magnitude
+        score['noisy_agent_index'] = adversary_idx
+        exp_name = 'adversary_noise_{}_'.format(noise_magnitude * 100) + exp_name
+
+    @multi_score_ex.named_config
+    def noise_victim_actions(exp_name, score, spec):
+        score = score.copy()
+        victim_idx = tune.sample_from(
+            lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+        )
+        noise_magnitude = tune.sample_from(
+            lambda spec: spec.config['noise_magnitude']
+        )
+        spec['config']['noisy_agent_magnitude'] = noise_magnitude
+        score['noisy_agent_index'] = victim_idx
+        exp_name = 'adversary_noise_{}_'.format(noise_magnitude * 100) + exp_name
+
+    @multi_score_ex.named_config
     def debug_one_each_type(score):
         """One Zoo agent from each environment, plus one opponent of each type.
            Intended for debugging purposes as a quick experiment that is still diverse.."""

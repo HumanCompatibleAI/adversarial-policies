@@ -171,7 +171,8 @@ def default_score_config():
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
-    action_noise = dict()               # Agent-indexed dict with noise ball size to add to actions
+    noisy_agent_index = None              # Agent to add add action noise to
+    noisy_agent_magnitude = 1.0           # Magnitude of action noise for agent being noised
     mask_agent_index = None               # index of agent whose observations should be limited
     mask_agent_kwargs = {                 # control how agent observations are limited
         'masking_type': 'initialization',
@@ -184,7 +185,8 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params, num_env,
-                videos, video_params, mask_agent_index, mask_agent_kwargs, action_noise):
+                videos, video_params, mask_agent_index, mask_agent_kwargs, noisy_agent_index,
+                noisy_agent_magnitude):
     if videos:
         if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
@@ -236,9 +238,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
 
-    for agent_id, noise_magnitude in action_noise.items():
-        agents[agent_id] = NoisyAgentWrapper(agents[agent_id],
-                                             noise_annealer=lambda: noise_magnitude)
+    agents[noisy_agent_index] = NoisyAgentWrapper(agents[noisy_agent_index],
+                                                  noise_annealer=lambda: noisy_agent_magnitude)
 
     score = get_empirical_score(venv, agents)
 
