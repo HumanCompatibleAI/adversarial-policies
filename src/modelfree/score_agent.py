@@ -240,7 +240,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     if noisy_agent_index is not None:
         agents[noisy_agent_index] = NoisyAgentWrapper(agents[noisy_agent_index],
-                                                  noise_annealer=lambda: noisy_agent_magnitude)
+                                                      noise_annealer=lambda: noisy_agent_magnitude)
 
     score = get_empirical_score(venv, agents)
 
