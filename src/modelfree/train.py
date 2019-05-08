@@ -16,7 +16,6 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
-from aprl.common.mujoco import OldMujocoResettableWrapper
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
@@ -24,7 +23,8 @@ from modelfree.common.policy_loader import load_backward_compatible_model, load_
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.training.logger import setup_logger
-from modelfree.training.lookback import DebugVenv, LookbackRewardVecWrapper
+from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
+                                         OldMujocoResettableWrapper)
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
 from modelfree.training.victim_envs import EmbedVictimWrapper
