@@ -79,6 +79,11 @@ class DensityRewardVecWrapper(VecEnvWrapper):
         self.density_models = self._load_density_models(density_params)
 
     def _load_density_models(self, density_params):
+        """load KDE model and possibly PCA for each key in density params
+
+        :param density_params (dict<str, str>) dict of density_key, path to KDE model
+        :return: (dict<str, dict<str, sklearn model>>) models
+        """
         models = {}
         for density_key, path in density_params.items():
             if density_key == 'mul':
