@@ -23,4 +23,5 @@ These are also run as a continuous integration check.
 I like to use Git commit hooks to prevent bad commits from happening in the first place:
 ```bash
 ln -s ../../ci/code_checks.sh .git/hooks/pre-commit
+
 ```
