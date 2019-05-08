@@ -115,8 +115,8 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def medium_accuracy(score):
         score = dict(score)
-        score['episodes'] = 1
-        score['num_env'] = 1
+        score['episodes'] = 50
+        score['num_env'] = 16
         exp_name = 'medium_accuracy_'
         _ = locals()
         del _
@@ -180,6 +180,7 @@ def make_configs(multi_score_ex):
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
         }
+        spec['num_samples'] = 25
         spec['config']['mask_agent_kwargs'] = {
             'noise_magnitude': tune.sample_from(
                     lambda spec: np.random.lognormal(mean=2, sigma=2.5)
@@ -189,7 +190,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def noise_adversary_actions(exp_name, spec):
-
+        spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
                     lambda spec: np.random.lognormal(mean=2, sigma=2.5)
                 )
@@ -200,6 +201,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def noise_victim_actions(exp_name, spec):
+        spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
             lambda spec: np.random.lognormal(mean=2, sigma=2.5)
         )
