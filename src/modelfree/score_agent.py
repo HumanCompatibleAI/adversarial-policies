@@ -192,7 +192,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         else:
             tmp_dir = None
         video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
-    pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else None
+    pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else []
 
     agent_wrappers = {}
     if mask_agent_index is not None:

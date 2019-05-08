@@ -395,13 +395,14 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
         single_venv = lookback_venv
 
     if normalize:
-        if load_policy['type'] == 'zoo':
-            raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
-                             "implicitly. Please set normalize=False to disable VecNormalize.")
-
         normalized_venv = VecNormalize(single_venv)
+
         if load_policy['path'] is not None:
-            normalized_venv.load_running_average(load_policy['path'].split('/')[0])
+            if load_policy['type'] == 'zoo':
+                raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
+                                 "implicitly. Please set normalize=False to disable VecNormalize.")
+
+                normalized_venv.load_running_average(load_policy['path'])
 
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv

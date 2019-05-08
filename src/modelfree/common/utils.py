@@ -3,7 +3,6 @@ import datetime
 import itertools
 import os
 from os import path as osp
-import pickle
 import warnings
 
 import gym
@@ -12,7 +11,6 @@ from gym.monitoring import VideoRecorder
 import numpy as np
 from stable_baselines.common import BaseRLModel
 from stable_baselines.common.policies import BasePolicy
-from stable_baselines.common.vec_env import VecEnvWrapper
 import tensorflow as tf
 
 from aprl.common.multi_monitor import MultiMonitor
@@ -472,52 +470,3 @@ def add_artifacts(run, dirname, ingredient=None):
             relroot = os.path.relpath(path, dirname)
             name = prefix + relroot.replace('/', '_') + '_' + file
             run.add_artifact(path, name=name)
-
-
-class DebugVenv(VecEnvWrapper):
-    """VecEnvWrapper whose purpose is to record trajectory information for debugging purposes
-
-    :param venv (VecEnv) the environment to wrap
-    :param dump_mujoco_state (bool) whether to dump all MjData information (memory intensive)
-    """
-    def __init__(self, venv, dump_mujoco_state=False):
-        super().__init__(venv)
-        self.num_agents = self.venv.num_agents
-        self.dump_mujoco_state = dump_mujoco_state
-        self.debug_file = None
-        self.debug_dict = {}
-
-    def step_async(self, actions):
-        self.debug_dict['actions'] = actions
-        if self.dump_mujoco_state:
-            state_data = self.unwrapped.envs[0].env.sim.data
-            fields = type(state_data._wrapped.contents).__dict__['_fields_']
-            keys = [t[0] for t in fields if t[0] != 'contact']
-            for k in keys:
-                val = getattr(state_data, k)
-                if isinstance(val, np.ndarray) and val.size > 0:
-                    self.debug_dict[k] = val
-
-        self.venv.step_async(actions)
-
-    def step_wait(self):
-        obs, rew, dones, infos = self.venv.step_wait()
-        if self.debug_file is not None:
-            self.debug_dict.update({'next_obs': obs, 'rewards': rew})
-            pickle.dump(self.debug_dict, self.debug_file)
-        self.debug_dict = {}
-        return obs, rew, dones, infos
-
-    def reset(self):
-        observations = self.venv.reset()
-        if self.debug_file is not None:
-            self.debug_dict['prev_obs'] = observations
-        return observations
-
-    def set_debug_file(self, f):
-        """Setter for self.debug_file."""
-        self.debug_file = f
-
-    def get_debug_venv(self):
-        """Helper method to locate self in a stack of nested VecEnvWrappers"""
-        return self

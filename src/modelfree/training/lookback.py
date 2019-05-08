@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+import pickle
 
 import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
@@ -7,7 +8,7 @@ from aprl.common.mujoco import OldMujocoResettableWrapper
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from modelfree.common.policy_loader import load_policy
-from modelfree.common.utils import DebugVenv, make_env
+from modelfree.common.utils import make_env
 from modelfree.envs.gym_compete import GymCompeteToOurs
 from modelfree.training.victim_envs import EmbedVictimWrapper
 
@@ -242,3 +243,52 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
         mj_states, sim_data, radii = all_data
         return mj_states, sim_data, radii
+
+
+class DebugVenv(VecEnvWrapper):
+    """VecEnvWrapper whose purpose is to record trajectory information for debugging purposes
+
+    :param venv (VecEnv) the environment to wrap
+    :param dump_mujoco_state (bool) whether to dump all MjData information (memory intensive)
+    """
+    def __init__(self, venv, dump_mujoco_state=False):
+        super().__init__(venv)
+        self.num_agents = self.venv.num_agents
+        self.dump_mujoco_state = dump_mujoco_state
+        self.debug_file = None
+        self.debug_dict = {}
+
+    def step_async(self, actions):
+        self.debug_dict['actions'] = actions
+        if self.dump_mujoco_state:
+            state_data = self.unwrapped.envs[0].env.sim.data
+            fields = type(state_data._wrapped.contents).__dict__['_fields_']
+            keys = [t[0] for t in fields if t[0] != 'contact']
+            for k in keys:
+                val = getattr(state_data, k)
+                if isinstance(val, np.ndarray) and val.size > 0:
+                    self.debug_dict[k] = val
+
+        self.venv.step_async(actions)
+
+    def step_wait(self):
+        obs, rew, dones, infos = self.venv.step_wait()
+        if self.debug_file is not None:
+            self.debug_dict.update({'next_obs': obs, 'rewards': rew})
+            pickle.dump(self.debug_dict, self.debug_file)
+        self.debug_dict = {}
+        return obs, rew, dones, infos
+
+    def reset(self):
+        observations = self.venv.reset()
+        if self.debug_file is not None:
+            self.debug_dict['prev_obs'] = observations
+        return observations
+
+    def set_debug_file(self, f):
+        """Setter for self.debug_file."""
+        self.debug_file = f
+
+    def get_debug_venv(self):
+        """Helper method to locate self in a stack of nested VecEnvWrappers"""
+        return self
