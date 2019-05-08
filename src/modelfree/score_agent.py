@@ -238,7 +238,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
 
-    agents[noisy_agent_index] = NoisyAgentWrapper(agents[noisy_agent_index],
+    if noisy_agent_index is not None:
+        agents[noisy_agent_index] = NoisyAgentWrapper(agents[noisy_agent_index],
                                                   noise_annealer=lambda: noisy_agent_magnitude)
 
     score = get_empirical_score(venv, agents)

@@ -24,11 +24,9 @@ def make_mask_from_class(cls):
                                  "of desired Gaussian noise")
 
             other_agent_qpos = super(AdversaryMaskedGymCompeteAgent, self).get_other_agent_qpos()
-            self.other_agent_shapes = {}
             self.initial_values = {}
             for other_agent_id in other_agent_qpos:
                 self.initial_values[other_agent_id] = other_agent_qpos[other_agent_id]
-
             self.initial_other_qpos = super(AdversaryMaskedGymCompeteAgent, self).get_other_qpos()
 
         def _get_masking_given_initial(self, initial_position_value, true_current_position):
@@ -47,11 +45,11 @@ def make_mask_from_class(cls):
 
         def get_other_agent_qpos(self):
             outp = {}
-            for other_agent in self.other_agent_shapes:
-                if self.agents_to_hide is None or other_agent in self.agents_to_hide:
-                    true_current_pos = self.agent_to_mask.get_other_agent_qpos()
-                    outp[other_agent] = self._get_masking_given_initial(
-                        initial_position_value=self.initial_values[other_agent],
+            for other_agent_id in self.initial_values:
+                if self.agents_to_hide is None or other_agent_id in self.agents_to_hide:
+                    true_current_pos = self.agent_to_mask.get_other_agent_qpos()[other_agent_id]
+                    outp[other_agent_id] = self._get_masking_given_initial(
+                        initial_position_value=self.initial_values[other_agent_id],
                         true_current_position=true_current_pos)
             return outp
 
