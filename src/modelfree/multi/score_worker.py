@@ -29,6 +29,9 @@ def score_worker(base_config, tune_config, reporter):
     observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
     score_ex.observers.append(observer)
     run = score_ex.run(config_updates=config)
+    index_keys = config.get("index_keys", [])
 
-    idx = {k: v for k, v in config.items() if k.startswith('agent') or k == 'env_name'}
+    idx = {k: v for k, v in config.items()
+           if k.startswith('agent') or k == 'env_name' or k in index_keys}
+
     reporter(done=True, score=run.result, idx=idx)

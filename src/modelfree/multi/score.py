@@ -79,10 +79,12 @@ def multi_score(score, save_path):
             f = open(save_path, 'w')  # open it now so we fail fast if file is unwriteable
 
         trials, exp_id = run(base_config=score)
+        additional_index_keys = score.get('index_keys', [])
         results = {}
         for trial in trials:
             idx = trial.last_result['idx']
             cols = ['env_name', 'agent_a_type', 'agent_a_path', 'agent_b_type', 'agent_b_path']
+            cols += additional_index_keys
             key = tuple(idx[col] for col in cols)
             results[key] = trial.last_result['score']
 

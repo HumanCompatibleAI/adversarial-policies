@@ -168,6 +168,7 @@ def default_score_config():
             'font_size': 24,
         },
     }
+    index_keys = []
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
