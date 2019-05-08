@@ -3,13 +3,17 @@
 import json
 import logging
 import math
+import os
 import os.path as osp
+import shutil
 
 from ray import tune
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from modelfree.configs.multi.score import make_configs
+from modelfree.envs import VICTIM_INDEX
+from modelfree.envs.gym_compete import env_name_to_canonical
 from modelfree.multi import common
 from modelfree.multi.score_worker import score_worker
 from modelfree.score_agent import score_ex
@@ -89,6 +93,86 @@ def multi_score(score, save_path):
             f.close()
 
     return {'scores': results, 'exp_id': exp_id}
+
+
+def run_external(named_configs, post_named_configs, config_updates, adversary_path=None):
+    """Run multiple multi_score experiments. Intended for use by external scripts,
+       not accessible from commandline.
+
+       :param named_configs: (list<str>) list of named configs, executed one by one
+       :param post_named_configs: (list<str>) list of base named configs, applied after the
+                                              current config from `named_configs`.
+       :param config_updates: (dict) a dict of config options, overriding the named config.
+       :param adversary_path: (str or None) path to JSON, needed by adversary_transfer config.
+       :return (dict) mapping from named configs to their output directory
+    """
+    # Sad workaround for Sacred config limitation,
+    # see modelfree.configs.multi.score:_get_adversary_paths
+    os.environ['ADVERSARY_PATHS'] = adversary_path
+
+    output_dir = {}
+    for config in named_configs:
+        run = multi_score_ex.run(named_configs=[config] + post_named_configs,
+                                 config_updates=config_updates)
+        assert run.status == 'COMPLETED'
+        exp_id = run.result['exp_id']
+        output_dir[config] = exp_id
+
+    return output_dir
+
+
+def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
+    """Helper method to extract data from multiple_score experiments."""
+    for experiment, experiment_dir in experiment_dirs.items():
+        experiment_root = osp.join(ray_upload_dir, experiment_dir)
+        # video_root contains one directory for each score_agent trial.
+        # These directories have names of form score-<hash>_<id_num>_<k=v>...
+        for trial_name in os.listdir(experiment_root):
+            # Each trial contains the Sacred output from score_agent.
+            # Note Ray Tune is running with a fresh working directory per trial, so Sacred
+            # output will always be at score/1.
+            trial_root = osp.join(experiment_root, trial_name)
+
+            sacred_config = osp.join(trial_root, 'data', 'sacred', 'score', '1', 'config.json')
+            with open(sacred_config, 'r') as f:
+                cfg = json.load(f)
+
+            def agent_key(agent):
+                return cfg[agent + '_type'], cfg[agent + '_path']
+
+            env_name = cfg['env_name']
+            victim_index = VICTIM_INDEX[env_name]
+            if victim_index == 0:
+                victim_type, victim_path = agent_key('agent_a')
+                opponent_type, opponent_path = agent_key('agent_b')
+            else:
+                victim_type, victim_path = agent_key('agent_b')
+                opponent_type, opponent_path = agent_key('agent_a')
+
+            if 'multicomp' in cfg['env_name']:
+                env_name = env_name_to_canonical(env_name)
+            env_name = env_name.replace('/', '-')  # sanitize
+
+            if opponent_path.startswith('/'):  # is path name
+                opponent_root = osp.sep.join(opponent_path.split(osp.sep)[:-3])
+                opponent_sacred = osp.join(opponent_root, 'sacred', 'train', '1', 'config.json')
+
+                with open(opponent_sacred, 'r') as f:
+                    opponent_cfg = json.load(f)
+
+                opponent_path = opponent_cfg['victim_path']
+
+            src_path, new_name, suffix = path_generator(trial_root=trial_root,
+                                                        env_name=env_name,
+                                                        victim_index=victim_index,
+                                                        victim_type=victim_type,
+                                                        victim_path=victim_path,
+                                                        opponent_type=opponent_type,
+                                                        opponent_path=opponent_path)
+            dst_path = osp.join(out_dir, f'{new_name}.{suffix}')
+            shutil.copy(src_path, dst_path)
+            dst_config = osp.join(out_dir, f'{new_name}_sacred.json')
+            shutil.copy(sacred_config, dst_config)
 
 
 def main():

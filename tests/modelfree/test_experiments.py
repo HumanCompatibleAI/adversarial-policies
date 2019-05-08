@@ -33,7 +33,8 @@ SCORE_AGENT_CONFIGS = [
     {
         'record_traj': True,
         'record_traj_params': {'save_dir': 'test_dir'},
-    }
+    },
+    {'mask_agent_index': 0},
 ]
 SCORE_AGENT_CONFIGS += [
     {
@@ -150,9 +151,7 @@ TRAIN_CONFIGS = [
         'lookback_params': {'lb_num': 2, 'lb_path': 1, 'lb_type': 'zoo'},
         'adv_noise_params': {'noise_val': 0.1},
         'transparent_params': ['ff_policy'],
-    }
-
-
+    },
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']

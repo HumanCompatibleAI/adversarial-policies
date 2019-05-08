@@ -12,7 +12,7 @@ import seaborn as sns
 from modelfree.envs import VICTIM_INDEX
 from modelfree.envs.gym_compete import is_symmetric
 from modelfree.visualize import tb, util
-from modelfree.visualize.styles import STYLES
+from modelfree.visualize.styles import PRETTY_LABELS, STYLES
 
 logger = logging.getLogger('modelfree.visualize.training')
 visualize_training_ex = Experiment('visualize_training')
@@ -135,7 +135,7 @@ def lineplot_monolithic(outer_key, data, xcol, ycols, ci, in_split_keys,
                 group = subset.groupby(subset[xcol])[ycol]
                 min, median, max = group.min(), group.median(), group.max()
                 ax.fill_between(x=median.index, y1=min, y2=max, alpha=0.4)
-                median.plot(label="Adv", ax=ax)
+                median.plot(label=PRETTY_LABELS['Adv'], ax=ax)
             else:
                 sns.lineplot(x=xcol, y=ycol, data=subset, ci=ci, linewidth=1,
                              ax=ax, legend="full", hue="seed", **kwargs)
@@ -208,6 +208,13 @@ def win_rate(tb_dir, lineplot_fn, out_split_keys, in_split_keys, data_fns, plot_
     return tb.tb_apply(configs, events, split_keys=out_split_keys, fn=make_fig_wrapped)
 
 
+LINESTYLES = {
+    'Zoo': '-.',
+    'Rand': '--',
+    'Zero': ':',
+}
+
+
 def plot_baselines(env_name, victim_path, ycol, ax, baseline):
     victim_name = f'Zoo{victim_path}' if is_symmetric(env_name) else f'ZooV{victim_path}'
     scores = baseline.loc[(env_name, victim_name), :]
@@ -220,8 +227,9 @@ def plot_baselines(env_name, victim_path, ycol, ax, baseline):
 
     num_lines = len(ax.get_legend_handles_labels()[0])
     for i, (opponent, score) in enumerate(scores.items()):
-        ax.axhline(y=score, label=opponent, color=f'C{num_lines + i}',
-                   linewidth=1, linestyle='--')
+        label = PRETTY_LABELS[opponent]
+        ax.axhline(y=score, label=label, color=f'C{num_lines + i}',
+                   linewidth=1, linestyle=LINESTYLES[opponent])
 
 
 def plot_baselines_multi_fig(vars, ax, baseline):
@@ -274,8 +282,8 @@ def default_config():
     command = win_rate_per_victim_env
     fig_dir = os.path.join('data', 'figs', 'training')
     plot_cfg = None
-    transfer_score_path = os.path.join('data', 'score_agents',
-                                       '2019-04-29T14:11:08-07:00_adversary_transfer.json')
+    transfer_score_path = os.path.join('data', 'aws', 'score_agents', 'normal',
+                                       '2019-05-05T18:12:24+00:00')
     tb_dir = None
     styles = ['paper', 'a4']
     xcol = 'step'
@@ -298,12 +306,12 @@ def paper_config():
                     'title': 'Kick and Defend',
                 },
                 {
-                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
-                    'title': 'Sumo',
-                },
-                {
                     'filter': {'env_name': 'multicomp/YouShallNotPassHumans-v0', 'victim_path': 1},
                     'title': 'You Shall Not Pass',
+                },
+                {
+                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
+                    'title': 'Sumo Humans',
                 },
             ],
         ]

@@ -14,6 +14,7 @@ import shlex
 import socket
 import subprocess
 import urllib
+import uuid
 
 import ray
 from ray import tune
@@ -97,17 +98,17 @@ def make_sacred(ex, worker_name, worker_fn):
         to the head node. The intended config is they run with an SSH key that allows login to
         the user from any machine in the cluster."""
         if platform is None:
-            if os.path.exists('~/ray_bootstrap_config.yaml'):
+            if osp.exists(osp.expanduser('~/ray_bootstrap_config.yaml')):
                 platform = 'baremetal'
 
         if platform == 'baremetal':
             baremetal = dict(baremetal)
             if 'ssh_key' not in baremetal:
-                baremetal['ssh_key'] = '~/.ssh/adversarial-policies'
+                baremetal['ssh_key'] = osp.expanduser('~/ray_bootstrap_key.pem')
             if 'host' not in baremetal:
                 baremetal['host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
             if 'dir' not in baremetal:
-                baremetal['dir'] = osp.abspath(osp.join(os.getcwd(), 'data'))
+                baremetal['dir'] = osp.expanduser('~/adversarial-policies/data')
 
             spec['upload_dir'] = ':'.join([baremetal['host'],
                                            baremetal['ssh_key'],
@@ -150,7 +151,7 @@ def make_sacred(ex, worker_name, worker_fn):
         trainable_fn = functools.partial(worker_fn, base_config)
         tune.register_trainable(trainable_name, trainable_fn)
 
-        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}'
+        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}'
         spec['run'] = trainable_name
         result = tune.run_experiments({exp_id: spec})
 

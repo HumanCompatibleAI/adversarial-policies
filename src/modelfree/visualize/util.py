@@ -8,7 +8,6 @@ import pandas as pd
 import seaborn as sns
 
 from modelfree.envs import VICTIM_INDEX, gym_compete
-from modelfree.visualize.styles import STYLES
 
 logger = logging.getLogger('modelfree.visualize.util')
 
@@ -96,23 +95,32 @@ def prefix_level(df, prefix, level):
 def agent_index_suffix(env_name, victim_name, opponent_name):
     if not gym_compete.is_symmetric(env_name):
         if victim_name.startswith('Zoo'):
-            victim_name = f'ZooV{victim_name[-1]}'
+            victim_name = f'{victim_name[:-1]}V{victim_name[-1]}'
         if opponent_name.startswith('Zoo'):
-            opponent_name = f'ZooO{opponent_name[-1]}'
+            opponent_name = f'{opponent_name[:-1]}O{opponent_name[-1]}'
     return env_name, victim_name, opponent_name
 
 
-def combine_all(fixed, zoo, transfer):
-    fixed = fixed.copy()
-    zoo = zoo.copy()
-    transfer = transfer.copy()
+def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
+    dfs = []
 
-    fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
-    zoo = prefix_level(zoo, 'Zoo', 2)
-    transfer = prefix_level(transfer, 'Adv', 2)
+    if transfer is not None:
+        transfer = transfer.copy()
+        transfer = prefix_level(transfer, 'Adv' + opponent_suffix, 2)
+        dfs.append(transfer)
 
-    combined = pd.concat([transfer, zoo, fixed], axis=0)
-    combined = prefix_level(combined, 'Zoo', 1)
+    if zoo is not None:
+        zoo = zoo.copy()
+        zoo = prefix_level(zoo, 'Zoo', 2)
+        dfs.append(zoo)
+
+    if fixed is not None:
+        fixed = fixed.copy()
+        fixed.index = fixed.index.set_levels(['Rand', 'Zero'], level=2)
+        dfs.append(fixed)
+
+    combined = pd.concat(dfs, axis=0)
+    combined = prefix_level(combined, 'Zoo' + victim_suffix, 1)
     combined = combined.sort_index(level=0, sort_remaining=False)
     combined.index = combined.index.set_names('Opponent', level=2)
 
@@ -122,12 +130,25 @@ def combine_all(fixed, zoo, transfer):
     return combined
 
 
-def load_datasets(transfer_path):
-    score_dir = os.path.dirname(transfer_path)
-    fixed = load_fixed_baseline(os.path.join(score_dir, 'fixed_baseline.json'))
-    zoo = load_zoo_baseline(os.path.join(score_dir, 'zoo_baseline.json'))
-    transfer = load_transfer_baseline(transfer_path)
-    return combine_all(fixed, zoo, transfer)
+def load_datasets(timestamped_path, victim_suffix='', opponent_suffix=''):
+    score_dir = os.path.dirname(timestamped_path)
+    try:
+        fixed_path = os.path.join(score_dir, 'fixed_baseline.json')
+        fixed = load_fixed_baseline(fixed_path)
+    except FileNotFoundError:
+        logger.warning(f"No fixed baseline at '{fixed_path}'")
+        fixed = None
+
+    try:
+        zoo_path = os.path.join(score_dir, 'zoo_baseline.json')
+        zoo = load_zoo_baseline(zoo_path)
+    except FileNotFoundError:
+        logger.warning(f"No fixed baseline at '{zoo_path}'")
+        zoo = None
+
+    transfer = load_transfer_baseline(os.path.join(timestamped_path, 'adversary_transfer.json'))
+    return combine_all(fixed, zoo, transfer,
+                       victim_suffix=victim_suffix, opponent_suffix=opponent_suffix)
 
 # Visualization
 
@@ -176,83 +197,151 @@ def rotate_labels(ax):
         label.set_rotation(0)
 
 
-def heatmap_full(single_env, cols=None):
+GROUPS = {
+    'rows': [r'ZooV?[0-9]', r'ZooMV?[0-9]'],
+    'cols': [r'^Adv[0-9]', r'^ZooO?[0-9]', r'Zero|Rand']
+}
+
+
+def _split_groups(df):
+    group_members = {}
+    num_matches = {}
+    index = df.index.remove_unused_levels()
+    for kind, groups in GROUPS.items():
+        level = 1 if kind == 'cols' else 0
+        level_values = index.levels[level]
+        masks = [level_values.str.contains(pattern) for pattern in groups]
+        group_members[kind] = [level_values[mask] for mask in masks]
+        num_matches[kind] = [mask.sum() for mask in masks]
+    return group_members, num_matches
+
+
+class DogmaticNormalize(matplotlib.colors.Normalize):
+    """Workaround heatmap resetting vmin and vmax internally."""
+    def __init__(self, vmin, vmax):
+        self._real_vmin = vmin
+        self._real_vmax = vmax
+        super(DogmaticNormalize, self).__init__(vmin, vmax, clip=True)
+
+    def __call__(self, *args, **kwargs):
+        self.vmin = self._real_vmin
+        self.vmax = self._real_vmax
+        return super(DogmaticNormalize, self).__call__(*args, **kwargs)
+
+
+def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yaxis=True):
+    group_members, num_matches = _split_groups(single_env)
+    single_kind = single_env[col].unstack()
+
+    gridspec_kw = dict(gridspec_kw)
+    gridspec_kw.update({
+        'width_ratios': num_matches['cols'],
+        'height_ratios': num_matches['rows'],
+    })
+    nrows = len(num_matches['rows'])
+    ncols = len(num_matches['cols'])
+    axs = fig.subplots(nrows=nrows, ncols=ncols, gridspec_kw=gridspec_kw)
+
+    cbar = cbar_width > 0
+    cbar_ax = None
+    if cbar > 0:
+        gs = matplotlib.gridspec.GridSpec(1, 1)
+        cbar_ax = fig.add_subplot(gs[0, 0])
+        margin_width = cbar_width * 1 / 9
+        bar_width = cbar_width * 3 / 9
+        gs.update(bottom=gridspec_kw['bottom'], top=gridspec_kw['top'],
+                  left=gridspec_kw['right'] + margin_width,
+                  right=gridspec_kw['right'] + margin_width + bar_width)
+
+    norm = DogmaticNormalize(vmin=-10, vmax=100)
+    for i, (row_axs, row_members) in enumerate(zip(axs, group_members['rows'])):
+        first_col = True
+        for ax, col_members in zip(row_axs, group_members['cols']):
+            subset = single_kind.loc[row_members, col_members]
+
+            sns.heatmap(subset, cmap=cmap, norm=norm,
+                        vmin=0, vmax=100, annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
+                        ax=ax, cbar=cbar, cbar_ax=cbar_ax)
+            ax.get_yaxis().set_visible(yaxis and first_col)
+            ax.get_xaxis().set_visible(i == nrows - 1)
+
+            rotate_labels(ax)
+            first_col = False
+            cbar = False
+
+    return axs
+
+
+def heatmap_one_col(single_env, col, cbar, cmap='Blues'):
+    fig = plt.figure()
+    cbar_width = 0.15 if cbar else 0.0
+    gridspec_kw = {
+        'left': 0.22,
+        'right': 0.98 - cbar_width,
+        'bottom': 0.3,
+        'top': 0.95,
+        'wspace': 0.05,
+        'hspace': 0.05,
+    }
+    single_env *= 100 / num_episodes(single_env)  # convert to percentages
+    _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=cbar_width)
+    return fig
+
+
+def heatmap_full(single_env, cmap='Blues', cols=None):
     # Figure layout calculations
     if cols is None:
         cols = single_env.columns
-    ncols = len(cols) + 1
 
-    gridspec_kw = {
-        'top': 0.8,
-        'bottom': 0.35,
-        'wspace': 0.05,
-        'width_ratios': [1.0] * len(cols) + [1/15],
+    cbar_width_in = 0.41
+    reserved = {  # in inches
+        'left': 0.605,  # for y-axis
+        'top': 0.28,  # for title
+        'bottom': 0.49,  # for x-axis
+        'right': cbar_width_in + 0.02,  # for color bar plus margin
     }
-    width, height = plt.rcParams.get('figure.figsize')
-    height = min(height, width / len(cols))
+
+    reserved_height = reserved['top'] + reserved['bottom']
+    width, nominal_height = plt.rcParams.get('figure.figsize')
+    portion_for_heatmap = nominal_height - reserved_height
+    # We want height to vary depending on number of labels. Take figure size as specifying the
+    # height for a 'typical' figure with 6 rows.
+    height_per_row = nominal_height * portion_for_heatmap / 6
+    num_rows = len(pd.unique(single_env.index.get_level_values(0)))
+    height_for_heatmap = height_per_row * max(num_rows, 4)
+
+    height = reserved_height + height_for_heatmap
+    gridspec_kw = {
+        'top': 1 - reserved['top'] / height,
+        'bottom': reserved['bottom'] / height,
+        'wspace': 0.05,
+        'hspace': 0.05,
+    }
 
     # Actually plot the heatmap
+    subplot_wspace = 0.05 / width
+    left = reserved['left'] / width
+    max_right = 1 - reserved['right'] / width
+    per_plot_width = (max_right - left) / len(cols)
+
     single_env *= 100 / num_episodes(single_env)  # convert to percentages
-    fig, axs = plt.subplots(ncols=ncols, gridspec_kw=gridspec_kw, figsize=(width, height))
-    cbar_ax = axs[-1]
-    plt.yticks(rotation=0)
+    fig = plt.figure(figsize=(width, height))
     for i, col in enumerate(cols):
-        ax = axs[i]
-        yaxis = i == 0
+        right = left + per_plot_width - subplot_wspace
+        gridspec_kw.update({'left': left, 'right': right})
+
         cbar = i == len(cols) - 1
-        sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
-                    annot=True, annot_kws={'fontsize': 6}, fmt='.0f',
-                    ax=ax, cbar=cbar, cbar_ax=cbar_ax, yticklabels=yaxis)
-        ax.get_yaxis().set_visible(yaxis)
+        subplot_cbar_width = cbar_width_in / width if cbar else 0.0
+
+        _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
+                        cbar_width=subplot_cbar_width, yaxis=i == 0)
+
         if len(cols) > 1:
-            ax.set_title(col)
-        rotate_labels(ax)
+            mid_x = (left + right - subplot_cbar_width) / 2
+            mid_y = (1 + gridspec_kw['top']) / 2
+            plt.figtext(mid_x, mid_y, col, va="center", ha="center",
+                        size=plt.rcParams.get('axes.titlesize'))
+
+        left += per_plot_width
 
     return fig
-
-
-def heatmap_one_col(single_env, col, cbar, ylabel):
-    gridspec_kw = {
-        'bottom': 0.4,
-        'left': 0.31 if ylabel else 0.21,
-        'right': 0.98,
-        'top': 0.95,
-    }
-    if cbar:
-        gridspec_kw.update({
-            'left': gridspec_kw['left'] + 0.05,
-            'width_ratios': (1.0, 0.1),
-            'wspace': 0.2,
-            'right': 0.75,
-        })
-        fig, (ax, cbar_ax) = plt.subplots(ncols=2, gridspec_kw=gridspec_kw)
-    else:
-        fig, ax = plt.subplots(1, gridspec_kw=gridspec_kw)
-        cbar_ax = None
-
-    single_env *= 100 / num_episodes(single_env)  # convert to percentages
-    sns.heatmap(single_env[col].unstack(), vmin=0, vmax=100,
-                annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
-                ax=ax, cbar=cbar, cbar_ax=cbar_ax)
-    if not ylabel:
-        ax.set_ylabel('')
-
-    rotate_labels(ax)
-
-    return fig
-
-
-# Argument parsing
-
-def directory(path):
-    if not os.path.exists(path):
-        raise ValueError(f"Path '{path}' does not exist")
-    if not os.path.isdir(path):
-        raise ValueError(f"Path '{path}' is not a directory")
-    return path
-
-
-def style(key):
-    if key not in STYLES:
-        raise ValueError(f"Unrecognized style '{key}'")
-    return key
