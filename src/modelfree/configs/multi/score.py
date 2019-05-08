@@ -115,8 +115,8 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def medium_accuracy(score):
         score = dict(score)
-        score['episodes'] = 5
-        score['num_env'] = 1
+        score['episodes'] = 50
+        score['num_env'] = 16
         exp_name = 'medium_accuracy_'
         _ = locals()
         del _
@@ -181,10 +181,10 @@ def make_configs(multi_score_ex):
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
         }
-        spec['num_samples'] = 3
+        spec['num_samples'] = 25
         spec['config']['mask_agent_kwargs'] = {
             'noise_magnitude': tune.sample_from(
-                    lambda spec: np.random.lognormal(mean=1.5, sigma=1.5)
+                    lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
                 )
         }
         exp_name = 'additive_noise_' + exp_name
@@ -193,9 +193,9 @@ def make_configs(multi_score_ex):
     def noise_adversary_actions(exp_name, score, spec):
         score = score.copy()
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
-        spec['num_samples'] = 3
+        spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
-                    lambda spec: np.random.lognormal(mean=1.5, sigma=1.5)
+                    lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
                 )
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
@@ -207,9 +207,9 @@ def make_configs(multi_score_ex):
     def noise_victim_actions(exp_name, score, spec):
         score = score.copy()
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
-        spec['num_samples'] = 3
+        spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
-            lambda spec: np.random.lognormal(mean=1.5, sigma=1.5)
+            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
         )
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
