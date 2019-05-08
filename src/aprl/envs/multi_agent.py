@@ -383,9 +383,6 @@ class MergeAgentVecEnv(VecMultiWrapper):
         new_obs = np.concatenate([self._obs, self._action], axis=1)
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
 
-    def get_merge_venv(self):
-        return self
-
 
 class FlattenSingletonVecEnv(VecEnvWrapper):
     """Adapts a single-agent VecMultiEnv into a standard Baselines VecEnv.
