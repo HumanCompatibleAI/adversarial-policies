@@ -178,6 +178,7 @@ def default_score_config():
     mask_agent_kwargs = {                 # control how agent observations are limited
         'masking_type': 'initialization',
     }
+    hashable_mask_agent_kwargs = '_'.join([k + '_' + v for k, v in mask_agent_kwargs.items()])
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _

@@ -177,7 +177,7 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def mask_observations_with_additive_noise(exp_name, score, spec):
         score = score.copy()
-        score['index_keys'] = ['mask_agent_kwargs']
+        score['index_keys'] = ['hashable_mask_agent_kwargs']
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
         }
