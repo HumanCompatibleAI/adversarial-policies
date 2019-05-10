@@ -93,6 +93,10 @@ def pretty_policy_type(env_name, is_victim, policy_type, policy_path):
 
 
 class AnnotatedGymCompete(gym.Wrapper):
+    metadata = {
+        'video.frames_per_second': 60,  # MuJoCo env default FPS is 67, round down to be standard
+    }
+
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
                  resolution, font, font_size, ypos=0.0, spacing=0.05, num_frames=120):
         super(AnnotatedGymCompete, self).__init__(env)
@@ -122,6 +126,7 @@ class AnnotatedGymCompete(gym.Wrapper):
         self.num_frames = num_frames
 
         env_scene = self.env.unwrapped.env_scene
+
         # Start the viewer ourself to control dimensions.
         # env_scene only sets this if None so will not be overwritten.
         width, height = resolution
