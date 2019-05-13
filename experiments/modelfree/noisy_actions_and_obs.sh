@@ -57,9 +57,9 @@ wait_proc
 
 echo "Additive noise masking zoo baseline complete"
 
-#${MULTI_SCORE_CMD} adversary_trained mask_observations_of_victim mask_observations_with_additive_noise \
-#    save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_adversary_observations.json&
-#wait_proc
-#
-#wait
-#echo "Additive noise masking complete"
+${MULTI_SCORE_CMD} adversary_trained mask_observations_of_victim mask_observations_with_additive_noise \
+    save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_adversary_observations.json&
+wait_proc
+
+wait
+echo "Additive noise masking complete"
