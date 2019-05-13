@@ -182,7 +182,7 @@ def make_configs(multi_score_ex):
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
         }
-        spec['num_samples'] = 50
+        spec['num_samples'] = 25
         spec['config']['mask_agent_noise'] = tune.sample_from(
                     lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
                 )
