@@ -67,7 +67,8 @@ head_start_ray_commands:
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    pip install . &&
+    python3 setup.py sdist bdist_wheel &&
+    pip install dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
@@ -83,7 +84,8 @@ worker_start_ray_commands:
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    pip install . &&
+    python3 setup.py sdist bdist_wheel &&
+    pip install dist/aprl-*.whl &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&

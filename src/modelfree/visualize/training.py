@@ -146,6 +146,9 @@ def lineplot_monolithic(outer_key, data, xcol, ycols, ci, in_split_keys,
             if 'title' in cfg:
                 ax.set_title(cfg['title'])
 
+    for unused_j in range(j + 1, ncols):
+        axs[i][unused_j].remove()
+
     legend_entries = ax.get_legend_handles_labels()
     legend_ncol = len(legend_entries[0])
     ax_left = axs[0][0].get_position()
@@ -306,12 +309,12 @@ def paper_config():
                     'title': 'Kick and Defend',
                 },
                 {
-                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
-                    'title': 'Sumo Humans',
-                },
-                {
                     'filter': {'env_name': 'multicomp/YouShallNotPassHumans-v0', 'victim_path': 1},
                     'title': 'You Shall Not Pass',
+                },
+                {
+                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
+                    'title': 'Sumo Humans',
                 },
             ],
         ]
