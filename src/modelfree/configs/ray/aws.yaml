@@ -26,12 +26,12 @@ provider:
 # How Ray will authenticate with newly launched nodes.
 auth:
   ssh_user: ubuntu
-  ssh_private_key: ~/.ssh/adversarial-policies
+  ssh_private_key: ~/.ssh/id_rsa
 
 head_node:
   InstanceType: c5.2xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
-  KeyName: Adversarial Policies
+  KeyName: Cody-Adversarial-Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
@@ -41,7 +41,7 @@ head_node:
 worker_nodes:
   InstanceType: c5.18xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
-  KeyName: Adversarial Policies
+  KeyName: Cody-Adversarial-Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:

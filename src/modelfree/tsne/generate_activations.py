@@ -19,6 +19,7 @@ def activation_storing_config():
     ray_upload_dir = 'data'     # where Ray will upload multi.score outputs. 'data' works on local
     out_dir = None
 
+    # Configs for the multi-score experiments
     score_configs = ['zoo_baseline', 'random_baseline', 'adversary_trained']
     score_update = {}
 
