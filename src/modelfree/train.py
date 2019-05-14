@@ -23,7 +23,7 @@ from modelfree.common import utils
 from modelfree.common.policy_loader import (load_backward_compatible_model,
                                             load_normalization_statistics, load_policy)
 from modelfree.common.transparent import TransparentCurryVecEnv
-from modelfree.density import DensityRewardVecWrapper
+from modelfree.common.density import DensityRewardVecWrapper
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.training.logger import setup_logger
