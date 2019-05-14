@@ -6,7 +6,7 @@ target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:latest
+  image: humancompatibleai/adversarial_policies:noisy-adversary
   container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
@@ -15,6 +15,7 @@ docker:
     - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
+    - "-v /home/ubuntu/data:/home/ubuntu/data"
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
 
@@ -26,12 +27,12 @@ provider:
 # How Ray will authenticate with newly launched nodes.
 auth:
   ssh_user: ubuntu
-  ssh_private_key: ~/.ssh/adversarial-policies
+  ssh_private_key: ~/.ssh/adv_pol.pem
 
 head_node:
   InstanceType: c5.2xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
-  KeyName: Adversarial Policies
+  KeyName: Cody-Adversarial-Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
@@ -41,7 +42,7 @@ head_node:
 worker_nodes:
   InstanceType: c5.18xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
-  KeyName: Adversarial Policies
+  KeyName: Cody-Adversarial-Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
@@ -65,6 +66,8 @@ head_start_ray_commands:
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git fetch &&
+    git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
     python3 setup.py sdist bdist_wheel &&
@@ -82,6 +85,8 @@ worker_start_ray_commands:
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git fetch &&
+    git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
     python3 setup.py sdist bdist_wheel &&
