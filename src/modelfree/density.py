@@ -27,13 +27,13 @@ class ActivationDensityModeler(object):
         return {k: np.concatenate(traj_data[k].tolist()) for k in self.data_keys}
 
     def get_density_model(self, data_key, pca_dim=None):
+        """Create KDE and potentially PCA for data_key in self.data"""
         data = self.data[data_key]
         if pca_dim is not None:
             pca = PCA(n_components=pca_dim)
             data = pca.fit_transform(data)
             self.pcas[data_key] = pca
         self.models[data_key].fit(data)
-        return self.models[data_key].get_params()
 
     def score_samples(self, data_key, samples):
         """Get the log-likelihood of each sample in samples
@@ -63,6 +63,7 @@ class ActivationDensityModeler(object):
         return self.data[data_key]
 
     def save_model(self, data_key, path_str):
+        """Save KDE and potentially PCA models in pickle format."""
         with open(path_str, 'wb') as f:
             pickle.dump(self.models[data_key], f)
         if self.pcas[data_key] is not None:
@@ -71,6 +72,12 @@ class ActivationDensityModeler(object):
 
 
 class DensityRewardVecWrapper(VecEnvWrapper):
+    """Wrapper class which shapes reward based off activation density estimates
+
+    :param density_params (dict):
+               'mul': multiplier for density (float)
+               transparency_key: path_to_density_model
+    """
     def __init__(self, venv, agent_idx, density_params):
         super().__init__(venv)
         self.agent_idx = agent_idx
@@ -117,6 +124,7 @@ class DensityRewardVecWrapper(VecEnvWrapper):
 
 
 def get_base_config(episodes, env_name):
+    """Common parameters for score_ex experiments"""
     base_config = dict(transparent_params=['ff_policy', 'ff_value'],
                        record_traj_params={'agent_indices': 0},
                        env_name=env_name, num_env=8, record_traj=True,
@@ -125,6 +133,10 @@ def get_base_config(episodes, env_name):
 
 
 def kick_and_defend_ex(pca_dim, episodes, skip_scoring):
+    """Get overall log-likelihood values for samples of activations for both,
+    ff_policy and ff_value across ppo2, rand, zoo for KickAndDefend. Save models
+    for ff_policy so they can be used in DensityRewardVecWrapper.
+    """
     base_config = get_base_config(episodes, env_name='multicomp/KickAndDefend-v0')
     dir_names = ('kad-adv', 'kad-rand', 'kad-zoo')
     paths = ('kad1', None, '1')
@@ -162,6 +174,7 @@ def kick_and_defend_ex(pca_dim, episodes, skip_scoring):
 
 
 def sumo_humans_ex(pca_dim, episodes, skip_scoring):
+    """Get models for sumo human activations so they can be used by DensityRewardVecWrapper"""
     if not skip_scoring:
         base_config = get_base_config(episodes, env_name='multicomp/SumoHumansAutoContact-v0')
         config_copy = base_config.copy()
@@ -181,10 +194,13 @@ def sumo_humans_ex(pca_dim, episodes, skip_scoring):
 
 
 if __name__ == "__main__":
+    # run either kick_and_defend_ex or sumo_humans_ex
     parser = argparse.ArgumentParser()
+    parser.add_argument('--env', type=str, help="one from ['kad', 'sumo']")
     parser.add_argument('--pca-dim', type=int, default=None)
     parser.add_argument('--episodes', type=int, default=200)
     parser.add_argument('--skip-scoring', action='store_true')
     args = parser.parse_args()
-    sumo_humans_ex(args.pca_dim, args.episodes, args.skip_scoring)
+    func_dict = {'kad': kick_and_defend_ex, 'sumo': sumo_humans_ex}
+    func_dict[args.env](args.pca_dim, args.episodes, args.skip_scoring)
 
