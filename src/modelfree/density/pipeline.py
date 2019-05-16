@@ -53,6 +53,8 @@ def all_experiments(tsne_activations):
     tsne_activations = dict(tsne_activations)
     tsne_activations['score_configs'] = ['debug_one_each_type']
     exp_name = 'full'
+    _ = locals()
+    del _
 
 # QUESTIONS, I HAVE THEM
 # Can you specify named configs for an experiment?
