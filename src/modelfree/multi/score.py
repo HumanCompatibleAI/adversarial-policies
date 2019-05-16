@@ -129,7 +129,7 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
         # These directories have names of form score-<hash>_<id_num>_<k=v>...
         for trial_name in os.listdir(experiment_root):
             # Each trial contains the Sacred output from score_agent.
-            # Note Ray Tune is running with a fresh working directory per trial, so Sacred
+            # Note Ray Tune is running (Iwith a fresh working directory per trial, so Sacred
             # output will always be at score/1.
             trial_root = osp.join(experiment_root, trial_name)
 

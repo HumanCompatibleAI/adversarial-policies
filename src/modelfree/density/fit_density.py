@@ -10,18 +10,12 @@ import pandas as pd
 import ray
 import sacred
 from sacred.observers import FileStorageObserver
-from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KernelDensity
 
 from modelfree.common import utils
 
 fit_model_ex = sacred.Experiment('fit_density_model')
 logger = logging.getLogger('modelfree.density.fit_density')
-
-ALLOWED_MODEL_LOOKUP = {
-    'KDE': KernelDensity,
-    'GMM': GaussianMixture
-}
 
 
 @fit_model_ex.config
@@ -32,8 +26,7 @@ def base_config():
     data_type = 'ff_policy'
     num_observations = None
     seed = 0
-    perplexity = 250
-    model_type = None
+    model_class = KernelDensity
     model_kwargs = dict()
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -42,7 +35,7 @@ def base_config():
 @fit_model_ex.named_config
 def debug_config():
     num_observations = 1000
-    model_type = 'KDE'
+    model_class = KernelDensity
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -72,11 +65,8 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
 
 @ray.remote
 def density_fitter(activation_paths, output_dir,
-                   model_type, model_kwargs,
+                   model_class, model_kwargs,
                    num_observations, data_type):
-
-    if model_type not in ALLOWED_MODEL_LOOKUP:
-        raise ValueError(f"Selected model type {model_type} not supported")
 
     logger.info(f"Starting T-SNE fitting, saving to {output_dir}")
 
@@ -97,16 +87,20 @@ def density_fitter(activation_paths, output_dir,
     sub_data = merged_file_data[0:num_observations].reshape(num_observations, 128)
 
     # Save metadata
+
+    # TODO CHANGE THIS TO DO FITTING/SAMPLING ON DIFFERENT SAMPLES
+
+    # TODO looks like metadata fles are not putting in opponent id properly
+
     metadata_path = os.path.join(output_dir, 'metadata.csv')
     merged_metadata[0:num_observations].to_csv(metadata_path)
 
-    model_class = ALLOWED_MODEL_LOOKUP[model_type]
     model_obj = model_class(**model_kwargs)
     model_obj.fit(sub_data)
     log_probas = model_obj.score_samples(sub_data)
 
     # Save weights
-    weights_path = os.path.join(output_dir, f'fitted_{model_type}_model.pkl')
+    weights_path = os.path.join(output_dir, f'fitted_{model_class.__name__}_model.pkl')
     with open(weights_path, "wb") as fp:
         pickle.dump(model_obj, fp)
 
@@ -115,12 +109,13 @@ def density_fitter(activation_paths, output_dir,
     np.save(cluster_ids_path, log_probas)
 
     logger.info(
-        f"Completed fitting of {model_type} model with args {model_kwargs}, saved to {output_dir}")
+        f"Completed fitting of {model_class.__name__} model with args {model_kwargs}, "
+        f"saved to {output_dir}")
 
 
 @fit_model_ex.main
 def fit_model(_run, ray_server, activation_dir, output_root, num_observations, data_type,
-              model_type, model_kwargs):
+              model_class, model_kwargs):
     ray.init(redis_address=ray_server)
 
     # Find activation paths for each environment & victim-path tuple
@@ -153,7 +148,7 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
     for stem, paths in activation_paths.items():
         output_dir = osp.join(output_root, stem)
         os.makedirs(output_dir)
-        future = density_fitter.remote(paths, output_dir, model_type, model_kwargs,
+        future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
                                        num_observations, data_type)
         results.append(future)
 

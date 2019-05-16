@@ -4,6 +4,9 @@ import os.path as osp
 
 import sacred
 from sacred.observers import FileStorageObserver
+from sklearn.decomposition import PCA
+from sklearn.mixture import GaussianMixture
+from sklearn.neighbors import KernelDensity
 
 from modelfree.common import utils
 from modelfree.density.fit_density import fit_model, fit_model_ex
@@ -13,33 +16,88 @@ density_ex = sacred.Experiment('density', ingredients=[generate_activations_ex, 
 logger = logging.getLogger('modelfree.density.pipeline')
 
 
+class PCAPreDensity(object):
+    def __init__(self, density_class, pca_components, **kwargs):
+        super(PCAPreDensity, self).__init__()
+        self.density_class = density_class
+        self.num_components = pca_components
+        self.kwargs = kwargs
+        self.density_obj = self.density_class(**self.kwargs)
+        self.pca_obj = PCA(n_components=self.num_components)
+
+    def fit(self, X):
+        reduced_representation = self.pca_obj.fit_transform(X)
+        self.density_obj.fit(reduced_representation)
+
+    def score_samples(self, X):
+        reduced_test_representation = self.pca_obj.transform(X)
+        return self.density_obj.score_samples(reduced_test_representation)
+
 # Questions: How do you set named_configs for ingredients?
 
+
 @density_ex.config
-def activation_storing_config():
+def main_config(tsne_activations):
     output_root = 'data/density'   # where to produce output
     exp_name = 'default'        # experiment name
+    tsne_activations['adversary_path'] = os.path.join('data', 'aws', 'score_agents',
+                                                      '2019-05-05T18:12:24+00:00',
+                                                      'best_adversaries.json')
 
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
 
 @density_ex.named_config
+def all_experiments(tsne_activations):
+    tsne_activations = dict(tsne_activations)
+    tsne_activations['score_configs'] = ['debug_one_each_type']
+    exp_name = 'full'
+
+# QUESTIONS, I HAVE THEM
+# Can you specify named configs for an experiment?
+# Can you specify values within a dict within an ingredient dict
+@density_ex.named_config
 def debug_config(tsne_activations, fit_density_model):
     # Is this the name of an ingredient? Is it being auto-added to config somehow?
     tsne_activations = dict(tsne_activations)
     fit_density_model = fit_density_model.copy()
-    tsne_activations['adversary_path'] = os.path.join('data', 'aws', 'score_agents',
-                                                      '2019-05-05T18:12:24+00:00',
-                                                      'best_adversaries.json')
 
     tsne_activations['score_configs'] = ['debug_one_each_type']
-
     exp_name = 'debug'
     fit_density_model['num_observations'] = 1000
-    fit_density_model['model_type'] = 'KDE'
     _ = locals()    # quieten flake8 unused variable warning
     del _
+
+
+@density_ex.named_config
+def kde(fit_density_model):
+    fit_density_model = dict(fit_density_model)
+    fit_density_model['model_class'] = KernelDensity
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@density_ex.named_config
+def gmm(fit_density_model):
+    fit_density_model = dict(fit_density_model)
+    fit_density_model['model_class'] = GaussianMixture
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@density_ex.named_config
+def pca_kde(fit_density_model):
+    fit_density_model = dict(fit_density_model)
+    fit_density_model['model_class'] = PCAPreDensity
+    fit_density_model['model_kwargs'] = {'density_class': KernelDensity}
+
+
+@density_ex.named_config
+def pca_gmm(fit_density_model):
+    fit_density_model = dict(fit_density_model)
+    fit_density_model['model_class'] = PCAPreDensity
+    fit_density_model['model_kwargs'] = {'density_class': GaussianMixture}
 
 
 @density_ex.main
