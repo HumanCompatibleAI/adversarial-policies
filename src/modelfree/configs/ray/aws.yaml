@@ -70,6 +70,8 @@ head_start_ray_commands:
     git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/best_adversaries.json /home/ubuntu/data/best_adversaries.json
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/20190429_011349/
     python3 setup.py sdist bdist_wheel &&
     pip install dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
@@ -89,6 +91,8 @@ worker_start_ray_commands:
     git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/best_adversaries.json /home/ubuntu/data/best_adversaries.json
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/20190429_011349/
     python3 setup.py sdist bdist_wheel &&
     pip install dist/aprl-*.whl &&
     ray stop &&
