@@ -1,7 +1,6 @@
 import logging
 import os
 import os.path as osp
-import pdb
 import pickle
 import re
 import tempfile
@@ -11,6 +10,7 @@ import pandas as pd
 import ray
 import sacred
 from sacred.observers import FileStorageObserver
+from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KernelDensity
 
 from modelfree.common import utils
@@ -27,8 +27,8 @@ def base_config():
     data_type = 'ff_policy'
     num_observations = None
     seed = 0
-    model_class = KernelDensity
-    model_kwargs = dict()
+    model_class = GaussianMixture
+    model_kwargs = {'n_components': 10}
     train_opponent = 'zoo_1'
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -65,7 +65,7 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
     return concatenated_data, metadata_df
 
 
-# @ray.remote
+@ray.remote
 def density_fitter(activation_paths, output_dir,
                    model_class, model_kwargs,
                    num_observations, data_type, train_opponent):
@@ -99,7 +99,7 @@ def density_fitter(activation_paths, output_dir,
     test_meta = sub_meta[test_mask]
     train_data = sub_data[train_mask]
     test_data = sub_data[test_mask]
-    pdb.set_trace()
+
     model_obj = model_class(**model_kwargs)
     model_obj.fit(train_data)
     train_probas = model_obj.score_samples(train_data)
@@ -159,6 +159,9 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
         os.makedirs(output_dir)
         future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
                                        num_observations, data_type, train_opponent)
+        # future = density_fitter(paths, output_dir, model_class, model_kwargs,
+        #                                num_observations, data_type, train_opponent)
+
         results.append(future)
 
     ray.get(results)  # block until all jobs have finished
