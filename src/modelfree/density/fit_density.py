@@ -28,6 +28,7 @@ def base_config():
     seed = 0
     model_class = KernelDensity
     model_kwargs = dict()
+    train_opponent = 'zoo_1'
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -66,7 +67,7 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
 @ray.remote
 def density_fitter(activation_paths, output_dir,
                    model_class, model_kwargs,
-                   num_observations, data_type):
+                   num_observations, data_type, train_opponent):
 
     logger.info(f"Starting T-SNE fitting, saving to {output_dir}")
 
@@ -85,19 +86,28 @@ def density_fitter(activation_paths, output_dir,
     if num_observations is None:
         num_observations = len(merged_metadata)
     sub_data = merged_file_data[0:num_observations].reshape(num_observations, 128)
-
+    sub_meta = merged_metadata[0:num_observations]
     # Save metadata
 
-    # TODO CHANGE THIS TO DO FITTING/SAMPLING ON DIFFERENT SAMPLES
+    train_meta_path = os.path.join(output_dir, 'train_metadata.csv')
+    test_meta_path = os.path.join(output_dir, 'test_metadata.csv')
 
-    # TODO looks like metadata fles are not putting in opponent id properly
-
-    metadata_path = os.path.join(output_dir, 'metadata.csv')
-    merged_metadata[0:num_observations].to_csv(metadata_path)
+    train_mask = sub_meta['opponent_id'] == train_opponent
+    test_mask = sub_meta['opponent_id'] != train_opponent
+    train_meta = sub_meta[train_mask]
+    test_meta = sub_meta[test_mask]
+    train_data = sub_data[train_mask]
+    test_data = sub_data[test_mask]
 
     model_obj = model_class(**model_kwargs)
-    model_obj.fit(sub_data)
-    log_probas = model_obj.score_samples(sub_data)
+    model_obj.fit(train_data)
+    train_probas = model_obj.score_samples(train_data)
+    test_probas = model_obj.score_samples(test_data)
+    train_meta['log_proba'] = train_probas
+    test_meta['log_proba'] = test_probas
+
+    train_meta.to_csv(train_meta_path, index=False)
+    test_meta.to_csv(test_meta_path, index=False)
 
     # Save weights
     weights_path = os.path.join(output_dir, f'fitted_{model_class.__name__}_model.pkl')
@@ -105,8 +115,6 @@ def density_fitter(activation_paths, output_dir,
         pickle.dump(model_obj, fp)
 
     # Save cluster IDs
-    cluster_ids_path = os.path.join(output_dir, 'log_probas.npy')
-    np.save(cluster_ids_path, log_probas)
 
     logger.info(
         f"Completed fitting of {model_class.__name__} model with args {model_kwargs}, "
@@ -115,12 +123,12 @@ def density_fitter(activation_paths, output_dir,
 
 @fit_model_ex.main
 def fit_model(_run, ray_server, activation_dir, output_root, num_observations, data_type,
-              model_class, model_kwargs):
+              model_class, model_kwargs, train_opponent):
     ray.init(redis_address=ray_server)
 
     # Find activation paths for each environment & victim-path tuple
     stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
-    opponent_pattern = re.compile(r'.*_opponent_([^\s]+)_[^\s]+\.npz')
+    opponent_pattern = re.compile(r'.*_opponent_([^\s]+_\d)+\.npz')
     activation_paths = {}
 
     #
@@ -149,7 +157,7 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
         output_dir = osp.join(output_root, stem)
         os.makedirs(output_dir)
         future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
-                                       num_observations, data_type)
+                                       num_observations, data_type, train_opponent)
         results.append(future)
 
     ray.get(results)  # block until all jobs have finished
