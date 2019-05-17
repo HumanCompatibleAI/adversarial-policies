@@ -1,6 +1,7 @@
 import logging
 import os
 import os.path as osp
+import pdb
 import pickle
 import re
 import tempfile
@@ -64,7 +65,7 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
     return concatenated_data, metadata_df
 
 
-@ray.remote
+# @ray.remote
 def density_fitter(activation_paths, output_dir,
                    model_class, model_kwargs,
                    num_observations, data_type, train_opponent):
@@ -98,7 +99,7 @@ def density_fitter(activation_paths, output_dir,
     test_meta = sub_meta[test_mask]
     train_data = sub_data[train_mask]
     test_data = sub_data[test_mask]
-
+    pdb.set_trace()
     model_obj = model_class(**model_kwargs)
     model_obj.fit(train_data)
     train_probas = model_obj.score_samples(train_data)
@@ -128,7 +129,7 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
 
     # Find activation paths for each environment & victim-path tuple
     stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
-    opponent_pattern = re.compile(r'.*_opponent_([^\s]+_\d)+\.npz')
+    opponent_pattern = re.compile(r'.*_opponent_([^\s]+)+\.npz')
     activation_paths = {}
 
     #
