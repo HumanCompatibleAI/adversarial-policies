@@ -178,7 +178,7 @@ def default_score_config():
     mask_agent_kwargs = {                 # control how agent observations are limited
         'masking_type': 'initialization',
     }
-    mask_agent_noise = 0
+    mask_agent_noise = None
     hashable_mask_agent_kwargs = '_'.join([k + '_' + v for k, v in mask_agent_kwargs.items()])
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
@@ -189,7 +189,7 @@ def default_score_config():
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params, num_env,
                 videos, video_params, mask_agent_index, mask_agent_kwargs, noisy_agent_index,
-                noisy_agent_magnitude):
+                noisy_agent_magnitude, mask_agent_noise):
     if videos:
         if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
@@ -204,6 +204,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     agent_wrappers = {}
     if mask_agent_index is not None:
         masker = make_mask_for_env(env_name, mask_agent_index)
+        if mask_agent_noise is not None:
+            mask_agent_kwargs['noise_magnitude'] = mask_agent_noise
         masker = functools.partial(masker, **mask_agent_kwargs)
         agent_wrappers = {mask_agent_index: masker}
 
