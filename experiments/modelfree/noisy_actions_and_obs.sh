@@ -11,7 +11,7 @@ function wait_proc {
 }
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-OUT_ROOT=data/aws/score_agents
+OUT_ROOT=/home/ubuntu/data
 TIMESTAMP=`date --iso-8601=seconds`
 
 MULTI_SCORE_CMD="python -m modelfree.multi.score with medium_accuracy "
@@ -28,7 +28,7 @@ for dir in noisy_adversary_actions noisy_victim_actions noisy_victim_obs; do
 done
 # Rerun highest_win_rate and store the results in ADVERSARY_PATHS, which we
 # export as an environment variable which multi score will use
-ADVERSARY_PATHS=${OUT_ROOT}/2019-05-05T18:12:24+00:00/best_adversaries.json
+ADVERSARY_PATHS=${OUT_ROOT}/best_adversaries.json
 
 export ADVERSARY_PATHS=${ADVERSARY_PATHS}
 
