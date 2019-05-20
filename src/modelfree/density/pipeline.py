@@ -51,13 +51,6 @@ def main_config(tsne_activations, fit_density_model):
 
 
 @density_ex.named_config
-def high_accuracy(tsne_activations):
-    tsne_activations = dict(tsne_activations)
-    tsne_activations['score_update']['episodes'] = 80
-    tsne_activations['score_update']['timesteps'] = 20000
-
-
-@density_ex.named_config
 def debug_config(tsne_activations, fit_density_model):
     # Is this the name of an ingredient? Is it being auto-added to config somehow?
     tsne_activations = dict(tsne_activations)

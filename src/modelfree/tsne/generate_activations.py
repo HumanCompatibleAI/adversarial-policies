@@ -22,7 +22,6 @@ def activation_storing_config():
     # Configs for the multi-score experiments
     score_configs = ['zoo_baseline', 'random_baseline', 'adversary_trained']
     score_update = {}
-
     _ = locals()    # quieten flake8 unused variable warning
     del _
 

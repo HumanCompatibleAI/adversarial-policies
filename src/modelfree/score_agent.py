@@ -152,7 +152,7 @@ def default_score_config():
 
     transparent_params = None             # whether to make the agents transparent
     num_env = 1                           # number of environments to run in parallel
-    episodes = 20                         # maximum number of episodes to evaluate
+    episodes = 80                         # maximum number of episodes to evaluate
     timesteps = None                      # maximum number of timesteps to evaluate
     render = True                         # display on screen (warning: slow)
     videos = False                        # generate videos

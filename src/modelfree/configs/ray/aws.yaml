@@ -69,7 +69,7 @@ head_start_ray_commands:
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
     git fetch &&
-    git checkout noisy_adversary_actions &&
+    git checkout density_pipeline &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
     aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/aws_best_adversaries.json /home/ubuntu/data/best_adversaries.json &&
@@ -90,7 +90,7 @@ worker_start_ray_commands:
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
     git fetch &&
-    git checkout noisy_adversary_actions &&
+    git checkout density_pipeline &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
     aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/aws_best_adversaries.json /home/ubuntu/data/best_adversaries.json &&
