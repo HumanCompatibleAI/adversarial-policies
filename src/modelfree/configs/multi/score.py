@@ -115,8 +115,8 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def medium_accuracy(score):
         score = dict(score)
-        score['episodes'] = 100
-        score['num_env'] = 8
+        score['episodes'] = 50
+        score['num_env'] = 16
         exp_name = 'medium_accuracy_'
         _ = locals()
         del _
