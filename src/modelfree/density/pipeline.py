@@ -37,28 +37,26 @@ class PCAPreDensity(object):
 
 
 @density_ex.config
-def main_config(tsne_activations):
+def main_config(tsne_activations, fit_density_model):
+    tsne_activations = dict(tsne_activations)
+    fit_density_model = dict(fit_density_model)
     output_root = 'data/density'   # where to produce output
     exp_name = 'default'        # experiment name
     tsne_activations['adversary_path'] = os.path.join('data', 'aws', 'score_agents',
                                                       '2019-05-05T18:12:24+00:00',
                                                       'best_adversaries.json')
-
+    fit_density_model['train_opponent'] = 'zoo_1'
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
 
 @density_ex.named_config
-def all_experiments(tsne_activations):
+def high_accuracy(tsne_activations):
     tsne_activations = dict(tsne_activations)
-    tsne_activations['score_configs'] = ['debug_one_each_type']
-    exp_name = 'full'
-    _ = locals()
-    del _
+    tsne_activations['score_update']['episodes'] = 80
+    tsne_activations['score_update']['timesteps'] = 20000
 
-# QUESTIONS, I HAVE THEM
-# Can you specify named configs for an experiment?
-# Can you specify values within a dict within an ingredient dict
+
 @density_ex.named_config
 def debug_config(tsne_activations, fit_density_model):
     # Is this the name of an ingredient? Is it being auto-added to config somehow?
@@ -76,6 +74,7 @@ def debug_config(tsne_activations, fit_density_model):
 def kde(fit_density_model):
     fit_density_model = dict(fit_density_model)
     fit_density_model['model_class'] = KernelDensity
+    exp_name = "kdd"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -84,6 +83,9 @@ def kde(fit_density_model):
 def gmm(fit_density_model):
     fit_density_model = dict(fit_density_model)
     fit_density_model['model_class'] = GaussianMixture
+    # n_components = fit_density_model['model_kwargs'].get('n_components', 1)
+    # covariance_type = fit_density_model['model_kwargs'].get('covariance_type', 'full')
+    # exp_name = f"_gmm_{n_components}_components_{covariance_type}"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

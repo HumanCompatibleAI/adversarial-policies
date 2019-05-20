@@ -1,13 +1,13 @@
-cluster_name: adversarial-policies-aws
+cluster_name: adversarial-policies-aws-cody
 min_workers: 0
 max_workers: 10
-initial_workers: 0
+initial_workers: 1
 target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:latest
-  container_name: ray
+  image: humancompatibleai/adversarial_policies:density
+  container_name: ray-cody
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
     - "--env MUJOCO_KEY=${MUJOCO_KEY}"
@@ -15,6 +15,7 @@ docker:
     - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
+    - "-v /home/ubuntu/data:/home/ubuntu/data"
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
 
@@ -26,12 +27,12 @@ provider:
 # How Ray will authenticate with newly launched nodes.
 auth:
   ssh_user: ubuntu
-  ssh_private_key: ~/.ssh/id_rsa
+  ssh_private_key: ~/.ssh/adversarial-policies
 
 head_node:
   InstanceType: c5.2xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
-  KeyName: Cody-Adversarial-Policies
+  KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
@@ -41,7 +42,7 @@ head_node:
 worker_nodes:
   InstanceType: c5.18xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
-  KeyName: Cody-Adversarial-Policies
+  KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
       Ebs:
@@ -49,6 +50,8 @@ worker_nodes:
         VolumeType: gp2
   InstanceMarketOptions:
     MarketType: spot
+  IamInstanceProfile:
+    Name: EC2AccessS3
 
 # List of shell commands to run to set up nodes.
 initialization_commands: []  # before entering Docker
@@ -65,9 +68,14 @@ head_start_ray_commands:
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git fetch &&
+    git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    pip install . &&
+    aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/aws_best_adversaries.json /home/ubuntu/data/best_adversaries.json &&
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/20190429_011349/ &&
+    python3 setup.py sdist bdist_wheel &&
+    pip install dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
@@ -81,9 +89,14 @@ worker_start_ray_commands:
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git fetch &&
+    git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    pip install . &&
+    aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/aws_best_adversaries.json /home/ubuntu/data/best_adversaries.json &&
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/20190429_011349/ &&
+    python3 setup.py sdist bdist_wheel &&
+    pip install dist/aprl-*.whl &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&

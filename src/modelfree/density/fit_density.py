@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import os.path as osp
@@ -30,6 +31,7 @@ def base_config():
     model_class = GaussianMixture
     model_kwargs = {'n_components': 10}
     train_opponent = 'zoo_1'
+    train_percentage = 0.7
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -68,9 +70,9 @@ def _load_and_reshape_single_file(np_path, opponent_type, data_type):
 @ray.remote
 def density_fitter(activation_paths, output_dir,
                    model_class, model_kwargs,
-                   num_observations, data_type, train_opponent):
+                   num_observations, data_type, train_opponent, train_percentage):
 
-    logger.info(f"Starting T-SNE fitting, saving to {output_dir}")
+    logger.info(f"Starting density fitting, saving to {output_dir}")
 
     all_file_data = []
     all_metadata = []
@@ -93,22 +95,55 @@ def density_fitter(activation_paths, output_dir,
     train_meta_path = os.path.join(output_dir, 'train_metadata.csv')
     test_meta_path = os.path.join(output_dir, 'test_metadata.csv')
 
-    train_mask = sub_meta['opponent_id'] == train_opponent
-    test_mask = sub_meta['opponent_id'] != train_opponent
+    train_data_path = os.path.join(output_dir, 'train_data.npz')
+    test_data_path = os.path.join(output_dir, 'test_data.npz')
+
+    opponent_mask = sub_meta['opponent_id'] == train_opponent
+    percentage_mask = np.random.choice([True, False], size=len(sub_meta),
+                                       p=[train_percentage, 1 - train_percentage])
+
+    train_mask = opponent_mask & percentage_mask
+    train_opponent_validation_mask = opponent_mask & ~percentage_mask
+    test_mask = ~train_mask
+
     train_meta = sub_meta[train_mask]
     test_meta = sub_meta[test_mask]
+
     train_data = sub_data[train_mask]
     test_data = sub_data[test_mask]
+    same_opponent_test = sub_data[train_opponent_validation_mask]
 
     model_obj = model_class(**model_kwargs)
     model_obj.fit(train_data)
+
     train_probas = model_obj.score_samples(train_data)
     test_probas = model_obj.score_samples(test_data)
     train_meta['log_proba'] = train_probas
     test_meta['log_proba'] = test_probas
 
+    if model_class.__name__ == 'GaussianMixture':
+        train_bic = model_obj.bic(train_data)
+        validation_bic = model_obj.bic(same_opponent_test)
+        train_log_likelihood = model_obj.score(train_data)
+        validation_log_likelihood = model_obj.score(same_opponent_test)
+        metrics = {
+            'n_components': model_kwargs.get('n_components', 1),
+            'covariance_type': model_kwargs.get('covariance_type', 'full'),
+            'train_bic': train_bic,
+            'validation_bic': validation_bic,
+            'train_log_likelihood': train_log_likelihood,
+            'validation_log_likelihood': validation_log_likelihood
+        }
+        with open(os.path.join(output_dir, "metrics.json"), 'w') as fp:
+            json.dump(metrics, fp)
+
+    # Save results out
+
     train_meta.to_csv(train_meta_path, index=False)
     test_meta.to_csv(test_meta_path, index=False)
+
+    np.save(train_data_path, train_data)
+    np.save(test_data_path, test_data)
 
     # Save weights
     weights_path = os.path.join(output_dir, f'fitted_{model_class.__name__}_model.pkl')
@@ -121,10 +156,12 @@ def density_fitter(activation_paths, output_dir,
         f"Completed fitting of {model_class.__name__} model with args {model_kwargs}, "
         f"saved to {output_dir}")
 
+    return metrics
+
 
 @fit_model_ex.main
 def fit_model(_run, ray_server, activation_dir, output_root, num_observations, data_type,
-              model_class, model_kwargs, train_opponent):
+              model_class, model_kwargs, train_opponent, train_percentage):
     ray.init(redis_address=ray_server)
 
     # Find activation paths for each environment & victim-path tuple
@@ -158,9 +195,11 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
         output_dir = osp.join(output_root, stem)
         os.makedirs(output_dir)
         future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
-                                       num_observations, data_type, train_opponent)
+                                       num_observations, data_type, train_opponent,
+                                       train_percentage)
         # future = density_fitter(paths, output_dir, model_class, model_kwargs,
-        #                                num_observations, data_type, train_opponent)
+        #                                num_observations, data_type, train_opponent,
+        #                                train_percentage)
 
         results.append(future)
 
