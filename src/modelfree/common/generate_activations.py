@@ -8,8 +8,8 @@ from sacred.observers import FileStorageObserver
 from modelfree.common import utils
 from modelfree.multi.score import extract_data, run_external
 
-generate_activations_ex = sacred.Experiment('tsne_activations')
-logger = logging.getLogger('modelfree.tsne.generate_activations')
+generate_activations_ex = sacred.Experiment('generate_activations')
+logger = logging.getLogger('modelfree.common.generate_activations')
 
 
 @generate_activations_ex.config
@@ -51,7 +51,7 @@ def generate_activations(_run, out_dir, score_configs, score_update,
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne_activations'))
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'generate_activations'))
     generate_activations_ex.observers.append(observer)
     generate_activations_ex.run_commandline()
 

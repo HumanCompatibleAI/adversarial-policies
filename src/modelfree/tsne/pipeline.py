@@ -6,8 +6,8 @@ import sacred
 from sacred.observers import FileStorageObserver
 
 from modelfree.common import utils
+from modelfree.common.generate_activations import generate_activations, generate_activations_ex
 from modelfree.tsne.fit_model import fit_model, fit_model_ex
-from modelfree.tsne.generate_activations import generate_activations, generate_activations_ex
 from modelfree.tsne.visualize import visualize, visualize_ex
 
 tsne_ex = sacred.Experiment('tsne',
@@ -25,9 +25,9 @@ def activation_storing_config():
 
 
 @tsne_ex.named_config
-def debug_config(tsne_activations):
-    tsne_activations = dict(tsne_activations)
-    tsne_activations['score_configs'] = ['debug_one_each_type']
+def debug_config(generate_activations):
+    generate_activations = dict(generate_activations)
+    generate_activations['score_configs'] = ['debug_one_each_type']
     exp_name = 'debug'
 
     _ = locals()    # quieten flake8 unused variable warning
