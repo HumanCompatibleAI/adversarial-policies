@@ -45,9 +45,9 @@ def _exp_name(fit_density_model):
 
 
 @density_ex.config
-def main_config(fit_density_model):
-    output_root = 'data/density'                   # where to produce output
-    exp_name = _exp_name(fit_density_model)        # experiment name
+def main_config(generate_activations, fit_density_model):
+    output_root = osp.join('data', 'density')                  # where to produce output
+    exp_name = _exp_name(fit_density_model)                    # experiment name
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
@@ -75,9 +75,11 @@ def kde(fit_density_model):
 
 
 @density_ex.named_config
-def gmm(fit_density_model):
+def gmm(fit_density_model, generate_activations):
     fit_density_model = dict(fit_density_model)
     fit_density_model['model_class'] = GaussianMixture
+    generate_activations = dict(generate_activations)
+    generate_activations['score_update'] = {'timesteps': 20000}  # number of timesteps to save activations for
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
