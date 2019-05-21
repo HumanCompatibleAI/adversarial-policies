@@ -14,3 +14,5 @@ for components in 1 2 3 5 10; do
         wait_proc
     done
 done
+
+wait
