@@ -1,4 +1,4 @@
-cluster_name: adversarial-policies-aws-cody
+cluster_name: aprl-cody
 min_workers: 0
 max_workers: 10
 initial_workers: 1
