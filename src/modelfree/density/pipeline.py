@@ -9,8 +9,8 @@ from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KernelDensity
 
 from modelfree.common import utils
+from modelfree.common.generate_activations import generate_activations, generate_activations_ex
 from modelfree.density.fit_density import fit_model, fit_model_ex
-from modelfree.tsne.generate_activations import generate_activations, generate_activations_ex
 
 density_ex = sacred.Experiment('density', ingredients=[generate_activations_ex, fit_model_ex])
 logger = logging.getLogger('modelfree.density.pipeline')
@@ -33,30 +33,31 @@ class PCAPreDensity(object):
         reduced_test_representation = self.pca_obj.transform(X)
         return self.density_obj.score_samples(reduced_test_representation)
 
-# Questions: How do you set named_configs for ingredients?
+
+def _exp_name(fit_density_model):
+    if fit_density_model['model_class'] == GaussianMixture:
+        n_components = fit_density_model['model_kwargs'].get('n_components', 1)
+        covariance_type = fit_density_model['model_kwargs'].get('covariance_type', 'full')
+        return f'gmm_{n_components}_components_{covariance_type}'
+    else:
+        return 'default'
 
 
 @density_ex.config
-def main_config(tsne_activations, fit_density_model):
-    tsne_activations = dict(tsne_activations)
-    fit_density_model = dict(fit_density_model)
-    output_root = 'data/density'   # where to produce output
-    exp_name = 'default'        # experiment name
-    tsne_activations['adversary_path'] = os.path.join('data', 'aws', 'score_agents',
-                                                      '2019-05-05T18:12:24+00:00',
-                                                      'best_adversaries.json')
-    fit_density_model['train_opponent'] = 'zoo_1'
+def main_config(generate_activations, fit_density_model):
+    output_root = osp.join('data', 'density')                  # where to produce output
+    exp_name = _exp_name(fit_density_model)                    # experiment name
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
 
 @density_ex.named_config
-def debug_config(tsne_activations, fit_density_model):
+def debug_config(generate_activations, fit_density_model):
     # Is this the name of an ingredient? Is it being auto-added to config somehow?
-    tsne_activations = dict(tsne_activations)
+    generate_activations = dict(generate_activations)
     fit_density_model = fit_density_model.copy()
 
-    tsne_activations['score_configs'] = ['debug_one_each_type']
+    generate_activations['score_configs'] = ['debug_one_each_type']
     exp_name = 'debug'
     fit_density_model['num_observations'] = 1000
     _ = locals()    # quieten flake8 unused variable warning
@@ -73,12 +74,11 @@ def kde(fit_density_model):
 
 
 @density_ex.named_config
-def gmm(fit_density_model):
+def gmm(fit_density_model, generate_activations):
     fit_density_model = dict(fit_density_model)
     fit_density_model['model_class'] = GaussianMixture
-    # n_components = fit_density_model['model_kwargs'].get('n_components', 1)
-    # covariance_type = fit_density_model['model_kwargs'].get('covariance_type', 'full')
-    # exp_name = f"_gmm_{n_components}_components_{covariance_type}"
+    generate_activations = dict(generate_activations)
+    generate_activations['score_update'] = {'score': {'timesteps': 40000}}
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

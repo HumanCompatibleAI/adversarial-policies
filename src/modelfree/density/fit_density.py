@@ -31,7 +31,7 @@ def base_config():
     model_class = GaussianMixture
     model_kwargs = {'n_components': 10}
     train_opponent = 'zoo_1'
-    train_percentage = 0.7
+    train_percentage = 0.5
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
