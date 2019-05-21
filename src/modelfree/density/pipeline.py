@@ -79,7 +79,7 @@ def gmm(fit_density_model, generate_activations):
     fit_density_model = dict(fit_density_model)
     fit_density_model['model_class'] = GaussianMixture
     generate_activations = dict(generate_activations)
-    generate_activations['score_update'] = {'timesteps': 40000}  # number of timesteps to save activations for
+    generate_activations['score_update'] = {'score': {'timesteps': 40000}}
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
