@@ -117,7 +117,7 @@ def make_configs(multi_score_ex):
         score['episodes'] = None
         # Trajectory length varies a lot between environments and opponents; make sure we have
         # a consistent number of data points.
-        score['timesteps'] = 5000
+        score['timesteps'] = 20000
         score['record_traj'] = True
         score['transparent_params'] = {'ff_policy': True, 'ff_value': True}
         score['record_traj_params'] = {
