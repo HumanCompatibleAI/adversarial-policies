@@ -75,7 +75,7 @@ head_start_ray_commands:
     aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
     aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
-    pip install dist/aprl-*.whl &&
+    pip install --force dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
@@ -96,7 +96,7 @@ worker_start_ray_commands:
     aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
     aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
-    pip install dist/aprl-*.whl &&
+    pip install --force dist/aprl-*.whl &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&

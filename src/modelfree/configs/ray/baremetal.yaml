@@ -38,7 +38,7 @@ head_start_ray_commands:
       git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
       git pull &&
       env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-      pip install . &&
+      pip install --force . &&
       ray stop &&
       ulimit -n 65536 &&
       ray start --head --redis-port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml
@@ -47,7 +47,7 @@ worker_start_ray_commands:
       git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
       git pull &&
       env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-      pip install . &&
+      pip install --force . &&
       ray stop &&
       ulimit -n 65536 &&
       ray start --redis-address=$RAY_HEAD_IP:6379 --object-manager-port=8076
