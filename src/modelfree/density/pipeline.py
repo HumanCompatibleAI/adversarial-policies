@@ -35,11 +35,19 @@ class PCAPreDensity(object):
 
 # Questions: How do you set named_configs for ingredients?
 
+def _exp_name(fit_density_model):
+    if fit_density_model['model_class'] == GaussianMixture:
+        n_components = fit_density_model['model_kwargs'].get('n_components', 1)
+        covariance_type = fit_density_model['model_kwargs'].get('covariance_type', 'full')
+        return f'gmm_{n_components}_components_{covariance_type}'
+    else:
+        return 'default'
+
 
 @density_ex.config
 def main_config(fit_density_model):
-    output_root = 'data/density'   # where to produce output
-    exp_name = 'default'        # experiment name
+    output_root = 'data/density'                   # where to produce output
+    exp_name = _exp_name(fit_density_model)        # experiment name
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
@@ -70,9 +78,6 @@ def kde(fit_density_model):
 def gmm(fit_density_model):
     fit_density_model = dict(fit_density_model)
     fit_density_model['model_class'] = GaussianMixture
-    # n_components = fit_density_model['model_kwargs'].get('n_components', 1)
-    # covariance_type = fit_density_model['model_kwargs'].get('covariance_type', 'full')
-    # exp_name = f"_gmm_{n_components}_components_{covariance_type}"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
