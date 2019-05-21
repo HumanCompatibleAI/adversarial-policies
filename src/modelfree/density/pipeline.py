@@ -37,15 +37,9 @@ class PCAPreDensity(object):
 
 
 @density_ex.config
-def main_config(generate_activations, fit_density_model):
-    generate_activations = dict(generate_activations)
-    fit_density_model = dict(fit_density_model)
+def main_config(fit_density_model):
     output_root = 'data/density'   # where to produce output
     exp_name = 'default'        # experiment name
-    generate_activations['adversary_path'] = os.path.join('data', 'aws', 'score_agents',
-                                                          '2019-05-05T18:12:24+00:00',
-                                                          'best_adversaries.json')
-    fit_density_model['train_opponent'] = 'zoo_1'
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
