@@ -14,7 +14,9 @@ logger = logging.getLogger('modelfree.visualize.util')
 PRETTY_ENV = {
     'multicomp/KickAndDefend-v0': 'Kick and Defend',
     'multicomp/SumoAntsAutoContact-v0': 'Sumo Ants',
+    'multicomp/SumoAnts-v0': 'Sumo Ants',
     'multicomp/SumoHumansAutoContact-v0': 'Sumo Humans',
+    'multicomp/SumoHumans-v0': 'Sumo Humans',
     'multicomp/YouShallNotPassHumans-v0': 'You Shall Not Pass',
 }
 
@@ -190,11 +192,28 @@ def num_episodes(single_env):
     return num_episodes[0]
 
 
-def rotate_labels(ax):
+def rotate_labels(ax, xrot=90, yrot=0):
     for label in ax.get_xticklabels():
-        label.set_rotation(90)
+        label.set_rotation(xrot)
     for label in ax.get_yticklabels():
-        label.set_rotation(0)
+        label.set_rotation(yrot)
+
+
+def outside_legend(legend_entries, legend_ncol, fig, ax_left, ax_right,
+                   legend_padding=0.25, legend_height=0.3, **kwargs):
+    width, height = fig.get_size_inches()
+
+    pos_left = ax_left.get_position(original=True)
+    pos_right = ax_right.get_position(original=True)
+    legend_left = pos_left.x0
+    legend_right = pos_right.x0 + pos_right.width
+    legend_width = legend_right - legend_left
+    legend_bottom = pos_left.y0 + pos_left.height + legend_padding / height
+    legend_height = legend_height / height
+    bbox = (legend_left, legend_bottom, legend_width, legend_height)
+    fig.legend(*legend_entries, loc='lower center', ncol=legend_ncol,
+               bbox_to_anchor=bbox, mode="expand",
+               borderaxespad=0, frameon=True, **kwargs)
 
 
 GROUPS = {

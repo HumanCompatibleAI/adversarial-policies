@@ -35,6 +35,10 @@ STYLES = {
     'scores_threecol': {
         'figure.figsize': (1.76, 1.6),
     },
+    'density_twocol': {
+        'figure.figsize': (2.7, 2.0625),
+        'legend.fontsize': 8,
+    },
     'a4': {
         'figure.figsize': (8.27, 11.69),
     },

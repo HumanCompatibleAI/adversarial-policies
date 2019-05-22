@@ -151,17 +151,7 @@ def lineplot_monolithic(outer_key, data, xcol, ycols, ci, in_split_keys,
 
     legend_entries = ax.get_legend_handles_labels()
     legend_ncol = len(legend_entries[0])
-    ax_left = axs[0][0].get_position()
-    ax_right = axs[0][-1].get_position()
-    legend_left = ax_left.x0
-    legend_right = ax_right.x0 + ax_right.width
-    legend_width = legend_right - legend_left
-    legend_bottom = ax_left.y0 + ax_left.height + 0.25 / height
-    legend_height = 0.3 / height
-    bbox = (legend_left, legend_bottom, legend_width, legend_height)
-    fig.legend(*legend_entries, loc='lower center', ncol=legend_ncol,
-               bbox_to_anchor=bbox, mode="expand",
-               borderaxespad=0, frameon=True)
+    util.outside_legend(legend_entries, legend_ncol, fig, axs[0][0], axs[0][-1])
 
     yield ('monolithic', ), fig
 
