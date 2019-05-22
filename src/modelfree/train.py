@@ -24,6 +24,7 @@ from modelfree.common.policy_loader import load_backward_compatible_model, load_
 from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
+from modelfree.envs.observation_masking import make_mask_agent_wrappers
 from modelfree.training.logger import setup_logger
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
@@ -242,6 +243,11 @@ def train_config():
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
 
+    mask_victim = False             # should victim obsevations be limited
+    mask_victim_kwargs = {          # control how victim observations are limited
+        'masking_type': 'initialization',
+    }
+
     # RL Algorithm Hyperparameters
     rl_algo = "ppo2"                # RL algorithm to use
     policy = "MlpPolicy"            # policy network type
@@ -292,8 +298,13 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug):
+def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
+              mask_victim, mask_victim_kwargs, debug):
     pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
+
+    agent_wrappers = {}
+    if mask_victim:
+        agent_wrappers = make_mask_agent_wrappers(env_name, victim_index, **mask_victim_kwargs)
 
     if victim_type == 'none':
         our_idx = 0
@@ -301,7 +312,8 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debu
         our_idx = 1 - victim_index
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx,
+                              pre_wrapper=pre_wrapper, agent_wrappers=agent_wrappers)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
