@@ -13,8 +13,11 @@ from modelfree.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('modelfree.configs.multi.score')
 
+QUICK_ENVS = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0',
+              'multicomp/YouShallNotPassHumans-v0']
 
-def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
+
+def _gen_configs(victim_fn, adversary_fn, max_zoo=1, envs=None):
     if envs is None:
         envs = BANSAL_GOOD_ENVS
 
@@ -115,8 +118,8 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def medium_accuracy(score):
         score = dict(score)
-        score['episodes'] = 100
-        score['num_env'] = 60
+        score['episodes'] = 500
+        score['num_env'] = 4
         exp_name = 'medium_accuracy_'
         _ = locals()
         del _
@@ -195,7 +198,7 @@ def make_configs(multi_score_ex):
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
         }
-        spec['num_samples'] = 50
+        spec['num_samples'] = 25
         spec['config']['mask_agent_noise'] = tune.sample_from(
             lambda spec: np.random.exponential(scale=1.0)
         )

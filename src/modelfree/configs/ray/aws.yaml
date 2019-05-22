@@ -40,7 +40,7 @@ head_node:
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: c5.18xlarge
+  InstanceType: c5.9xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
