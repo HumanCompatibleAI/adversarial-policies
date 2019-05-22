@@ -1,4 +1,4 @@
-cluster_name: adversarial-policies-aws
+cluster_name: adversarial-policies-aws-cody
 min_workers: 0
 max_workers: 10
 initial_workers: 1
@@ -72,16 +72,15 @@ head_start_ray_commands:
     git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/aws_best_adversaries.json /home/ubuntu/data/best_adversaries.json &&
-    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/20190429_011349/ &&
+    aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
-    pip install dist/aprl-*.whl &&
+    pip install --force dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
     ray start --head --redis-port=6379 --object-manager-port=8076 \
               --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=4
-
 # Command to start ray on worker nodes. You don't need to change this.
 worker_start_ray_commands:
   # (Re)start spot termination monitor.
@@ -93,10 +92,10 @@ worker_start_ray_commands:
     git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    aws s3 cp s3://adversarial-policies/score_agents/normal/2019-05-05T18:12:24+00:00/aws_best_adversaries.json /home/ubuntu/data/best_adversaries.json &&
-    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/20190429_011349/ &&
+    aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
-    pip install dist/aprl-*.whl &&
+    pip install --force dist/aprl-*.whl &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&
