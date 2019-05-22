@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-DENSITY_DIR = "density"
+DENSITY_DIR = "data/density"
 
 
 def opponent_convert(x):
@@ -44,32 +44,37 @@ def get_metrics_dict(env, victim_id, n_components, covariance):
     return metric_dict
 
 
-def comparative_densities(group_var, env_name, victim, shade=False, cutoff_point=None):
-    df = get_train_test_merged_df(env_name, victim)
+def comparative_densities(env_name, victim, n_components, covariance,
+                          savefile=None, shade=False, cutoff_point=None):
+    df = get_train_test_merged_df(env_name, victim, n_components, covariance)
     plt.figure(figsize=(10, 7))
-    if cutoff_point is not None:
-        subset = df[df['log_proba'] > cutoff_point]
-    else:
-        subset = df.copy()
-    grped = subset.groupby(group_var)
+
+    trained_on = df['opponent_id'] == 'zoo_1'
+    df.loc[trained_on & df['is_train'], 'opponent_id'] = 'zoo_1_train'
+    df.loc[trained_on & ~df['is_train'], 'opponent_id'] = 'zoo_1_test'
+
+    grped = df.groupby('opponent_id')
     for name, grp in grped:
         # clean up random_none to just random
         name = name.replace('_none', '')
         avg_log_proba = round(np.mean(grp['log_proba']), 2)
         sns.kdeplot(grp['log_proba'], label=f"{name}: {avg_log_proba}", shade=shade)
+
+    xmin, xmax = plt.xlim()
+    xmin = max(xmin, cutoff_point)
+    plt.xlim((xmin, xmax))
+
     plt.suptitle(f"{env_name} Densities, Victim Zoo {victim}: Trained on Zoo 1", y=0.95)
     plt.title("Avg Log Proba* in Legend")
 
-    # Note that this was for running in a notebook with matplotlib inline; probably would want
-    # to dynamically construct filename and do savefig, but I'll leave it this way for
-    # efficiency's sake
-    plt.show()
+    if savefile is not None:
+        plt.savefig(savefile)
 
 
 def heatmap_plot(env_name, metric, victim=1, savefile=None, error_val=-1):
-    n_component_grid = [1, 2, 3, 5, 10]
-    covariance_grid = ['diag', 'spherical', 'full']
-    metric_grid = np.zeros(shape=(5, 3))
+    n_component_grid = [5, 10, 20, 40, 80]
+    covariance_grid = ['diag', 'full']
+    metric_grid = np.zeros(shape=(len(n_component_grid), len(covariance_grid)))
     if isinstance(metric, str):
         metric_name = metric
     else:
@@ -99,16 +104,17 @@ def heatmap_plot(env_name, metric, victim=1, savefile=None, error_val=-1):
 
 if __name__ == "__main__":
     # Example Density plot
-    comparative_densities(group_var='opponent_id', env_name='KickAndDefend', victim='1',
-                          cutoff_point=-1000)
 
     # Make heatmaps
     def train_bic_in_millions(x):
         return x['train_bic'] / 1000000
     output_dir = "density_plots"
 
-    for env in ['KickAndDefend', 'SumoAnts', 'SumoHumans', 'YouShallNotPass']:
+    for env in ['KickAndDefend', 'SumoAnts', 'SumoHumans', 'YouShallNotPassHumans']:
         heatmap_plot(env_name=env, metric=train_bic_in_millions,
                      savefile=f"{output_dir}/{env}_train_bic.png")
         heatmap_plot(env_name=env, metric='validation_log_likelihood',
                      savefile=f"{output_dir}/{env}_validation_log_likelihood.png")
+
+        comparative_densities(env_name=env, victim='1', n_components=20, covariance='full',
+                              savefile=f"{output_dir}/{env}_20_full_comparative_density.png", cutoff_point=-1000)
