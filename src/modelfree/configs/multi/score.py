@@ -24,7 +24,7 @@ QUICK_ENVS = [
 # XXX: revert these to defaults (see master)
 
 
-def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
+def _gen_configs(victim_fn, adversary_fn, max_zoo=1, envs=None):
     if envs is None:
         envs = QUICK_ENVS
 
