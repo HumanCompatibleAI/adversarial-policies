@@ -11,6 +11,7 @@ import pandas as pd
 import ray
 import sacred
 from sacred.observers import FileStorageObserver
+from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KernelDensity
 
@@ -18,6 +19,42 @@ from modelfree.common import utils
 
 fit_model_ex = sacred.Experiment('fit_density_model')
 logger = logging.getLogger('modelfree.density.fit_density')
+
+
+def gen_exp_name(model_class, model_kwargs):
+    if model_class == GaussianMixture:
+        n_components = model_kwargs.get('n_components', 1)
+        covariance_type = model_kwargs.get('covariance_type', 'full')
+        return f'gmm_{n_components}_components_{covariance_type}'
+    elif model_class == PCAPreDensity:
+        if model_kwargs['density_class'] == KernelDensity:
+            return 'pca_kde'
+        elif model_kwargs['density_class'] == 'pca_gmm':
+            return 'pca_gmm'
+        else:
+            return 'pca_unknown'
+    elif model_class == KernelDensity:
+        return 'kde'
+    else:
+        return 'default'
+
+
+class PCAPreDensity(object):
+    def __init__(self, density_class, pca_components, **kwargs):
+        super(PCAPreDensity, self).__init__()
+        self.density_class = density_class
+        self.num_components = pca_components
+        self.kwargs = kwargs
+        self.density_obj = self.density_class(**self.kwargs)
+        self.pca_obj = PCA(n_components=self.num_components)
+
+    def fit(self, X):
+        reduced_representation = self.pca_obj.fit_transform(X)
+        self.density_obj.fit(reduced_representation)
+
+    def score_samples(self, X):
+        reduced_test_representation = self.pca_obj.transform(X)
+        return self.density_obj.score_samples(reduced_test_representation)
 
 
 @fit_model_ex.config
@@ -39,6 +76,36 @@ def base_config():
 @fit_model_ex.named_config
 def debug_config():
     num_observations = 1000
+    model_class = KernelDensity
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@fit_model_ex.named_config
+def gmm():
+    model_class = GaussianMixture
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@fit_model_ex.named_config
+def pca_kde():
+    model_class = PCAPreDensity
+    model_kwargs = {'density_class': KernelDensity}
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@fit_model_ex.named_config
+def pca_gmm():
+    model_class = PCAPreDensity
+    model_kwargs = {'density_class': GaussianMixture}
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@fit_model_ex.named_config
+def kde():
     model_class = KernelDensity
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -189,7 +256,7 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
         tmp_dir = tempfile.TemporaryDirectory()
         output_root = tmp_dir.name
 
-    # Fit t-SNE and save model weights
+    # Fit density model and save weights
     results = []
     for stem, paths in activation_paths.items():
         output_dir = osp.join(output_root, stem)
@@ -197,10 +264,6 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
         future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
                                        num_observations, data_type, train_opponent,
                                        train_percentage)
-        # future = density_fitter(paths, output_dir, model_class, model_kwargs,
-        #                                num_observations, data_type, train_opponent,
-        #                                train_percentage)
-
         results.append(future)
 
     ray.get(results)  # block until all jobs have finished
@@ -214,7 +277,7 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne_fit'))
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'density_fit'))
     fit_model_ex.observers.append(observer)
     fit_model_ex.run_commandline()
 
