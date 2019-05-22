@@ -1,8 +1,8 @@
-cluster_name: adversarial-policies-aws-cody
+cluster_name: aprl-cody
 min_workers: 0
 max_workers: 10
-initial_workers: 1
-target_utilization_fraction: 0.8
+initial_workers: 0
+target_utilization_fraction: 0.4
 idle_timeout_minutes: 5
 
 docker:
@@ -59,6 +59,7 @@ setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco
   - ln -sf /home/ubuntu/ray_bootstrap_key.pem /root/ray_bootstrap_key.pem
+  - ln -sf /home/ubuntu/data /adversarial-policies/data
 head_setup_commands: []
 worker_setup_commands: []
 
