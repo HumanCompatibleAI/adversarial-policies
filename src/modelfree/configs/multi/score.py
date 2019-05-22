@@ -14,9 +14,17 @@ from modelfree.envs import VICTIM_INDEX, gym_compete
 logger = logging.getLogger('modelfree.configs.multi.score')
 
 
-def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
+# XXX: delete
+QUICK_ENVS = [
+    'multicomp/KickAndDefend-v0',
+    'multicomp/SumoHumansAutoContact-v0',
+    'multicomp/YouShallNotPassHumans-v0',
+]
+
+# XXX: revert these to defaults (see master)
+def _gen_configs(victim_fn, adversary_fn, max_zoo=1, envs=None):
     if envs is None:
-        envs = BANSAL_GOOD_ENVS
+        envs = QUICK_ENVS
 
     configs = []
     for env in envs:
