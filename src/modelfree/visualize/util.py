@@ -3,7 +3,7 @@ import logging
 import os.path
 
 import matplotlib.backends.backend_pdf
-from matplotlib.colors import ListedColormap
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -270,17 +270,19 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yax
             subset = single_kind.loc[row_members, col_members]
 
             # Plot heat map
-            kwargs = dict(norm=norm, vmin=0, vmax=100,
-                          annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
-                          ax=ax)
-            sns.heatmap(subset, cmap=cmap, cbar=cbar, cbar_ax=cbar_ax, **kwargs)
+            sns.heatmap(subset, cbar=cbar, cbar_ax=cbar_ax, norm=norm, cmap=cmap,
+                        vmin=0, vmax=100, annot=True, annot_kws={'fontsize': 8}, fmt='.0f', ax=ax)
 
-            # Bold maximum entries
+            # Red border around maximal entries
             if direction != 0:
-                not_best = (direction * subset.T < best_vals).T
-                kwargs['annot_kws']['weight'] = 'bold'
-                all_black = ListedColormap([(0, 0, 0, 1)])
-                sns.heatmap(subset, mask=not_best, cbar=False, cmap=all_black, **kwargs)
+                best = (direction * subset.T >= best_vals).T
+
+                nrows, ncols = best.shape
+                for i in range(nrows):
+                    for j in range(ncols):
+                        if best.iloc[i, j]:
+                            rectangle = Rectangle((j, i), 1, 1, fill=False, edgecolor='red', lw=1)
+                            ax.add_patch(rectangle)
 
             ax.get_yaxis().set_visible(yaxis and first_col)
             ax.get_xaxis().set_visible(i == nrows - 1)
