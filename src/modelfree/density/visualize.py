@@ -100,7 +100,7 @@ def bar_chart(log_probs, savefile=None):
     log_probs.index.name = 'Environment'
     log_probs.columns.name = 'Opponent'
     longform = log_probs.stack().reset_index()
-    longform = longform.rename(columns={0: 'Mean Log Probability'})
+    longform = longform.rename(columns={0: 'Mean Log Likelihood'})
 
     width, height = plt.rcParams.get('figure.figsize')
     legend_height = 0.4
@@ -120,7 +120,7 @@ def bar_chart(log_probs, savefile=None):
                for label in PRETTY_COLS.values()}
 
     # Actually plot
-    sns.barplot(x='Environment', y='Mean Log Probability',
+    sns.barplot(x='Environment', y='Mean Log Likelihood',
                 hue='Opponent', data=longform, palette=palette)
     plt.locator_params(axis='y', nbins=4)
     util.rotate_labels(ax, xrot=0)
