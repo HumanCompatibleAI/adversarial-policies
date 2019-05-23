@@ -12,6 +12,7 @@ STYLES = {
         'font.family': 'serif',
         'font.size': 9,
         'legend.fontsize': 9,
+        'axes.unicode_minus': False,  # workaround bug with Unicode minus signs not appearing
         'axes.titlesize': 9,
         'axes.labelsize': 9,
         'xtick.labelsize': 9,

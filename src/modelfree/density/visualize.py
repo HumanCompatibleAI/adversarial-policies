@@ -1,6 +1,7 @@
 import collections
 from glob import glob
 import json
+import logging
 import os
 
 import matplotlib.pyplot as plt
@@ -10,6 +11,8 @@ import seaborn as sns
 
 from modelfree.visualize import util
 from modelfree.visualize.styles import STYLES
+
+logger = logging.getLogger('modelfree.density.visualize')
 
 DENSITY_DIR = "data/density"
 
@@ -41,6 +44,7 @@ def get_full_directory(env, victim_id, n_components, covariance):
 
 def get_train_test_merged_df(env, victim_id, n_components, covariance):
     full_env_dir = get_full_directory(env, victim_id, n_components, covariance)
+    logger.info(f'Loading from {full_env_dir}')
 
     train_df = pd.read_csv(os.path.join(full_env_dir, "train_metadata.csv"))
     train_df = train_df.loc[train_df['opponent_id'] == 'zoo_1', :]
@@ -118,6 +122,7 @@ def bar_chart(log_probs, savefile=None):
     # Actually plot
     sns.barplot(x='Environment', y='Mean Log Probability',
                 hue='Opponent', data=longform, palette=palette)
+    plt.locator_params(axis='y', nbins=4)
     util.rotate_labels(ax, xrot=0)
 
     # Plot our own legend
@@ -165,6 +170,8 @@ def heatmap_plot(env_name, metric, victim=1, savefile=None, error_val=-1):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+
     output_dir = "data/density/visualize"
     os.makedirs(output_dir, exist_ok=True)
 
