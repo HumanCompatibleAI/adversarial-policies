@@ -15,9 +15,14 @@ visualize_score_ex = Experiment('visualize_score')
 
 
 def heatmap_opponent(single_env, cmap):
+    row_starts = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0']
     row_ends = ['multicomp/YouShallNotPassHumans-v0', 'multicomp/SumoAntsAutoContact-v0']
+    col_ends = ['multicomp/SumoHumansAutoContact-v0', 'multicomp/SumoAntsAutoContact-v0']
+    xlabel = single_env.name in col_ends
+    ylabel = single_env.name in row_starts
     cbar = single_env.name in row_ends
-    return util.heatmap_one_col(single_env, col='Opponent Win', cmap=cmap, cbar=cbar)
+    return util.heatmap_one_col(single_env, col='Opponent Win', cmap=cmap,
+                                xlabel=xlabel, ylabel=ylabel, cbar=cbar)
 
 
 SMALL_TRANSFER_SCORE_PATHS = [
