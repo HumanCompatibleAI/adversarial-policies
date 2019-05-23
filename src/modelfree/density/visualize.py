@@ -16,14 +16,7 @@ logger = logging.getLogger('modelfree.density.visualize')
 
 DENSITY_DIR = "data/density"
 
-PRETTY_COLS = collections.OrderedDict([
-    ('zoo_1_train', 'Zoo*1T'),
-    ('zoo_1_test', 'Zoo*1V'),
-    ('zoo_2', 'Zoo*2'),
-    ('zoo_3', 'Zoo*3'),
-    ('random', 'Rand'),
-    ('ppo2_1', 'Adv'),
-])
+ENV_NAMES = ['KickAndDefend', 'SumoHumans', 'YouShallNotPassHumans']
 
 PRETTY_ENVS = collections.OrderedDict([
     ('KickAndDefend', 'Kick and\nDefend'),
@@ -31,7 +24,17 @@ PRETTY_ENVS = collections.OrderedDict([
     ('SumoHumans', 'Sumo\nHumans'),
 ])
 
-HUE_ORDER = ['Adv', 'Zoo*1T', 'Rand', 'Zoo*1V', 'Zoo*2', 'Zoo*3']
+PRETTY_OPPONENTS = collections.OrderedDict([
+    ('zoo_1_train', 'Zoo*1T'),
+    ('zoo_1_test', 'Zoo*1V'),
+    ('zoo_2', 'Zoo*2'),
+    ('zoo_3', 'Zoo*3'),
+    ('random_none', 'Rand'),
+    ('ppo2_1', 'Adv'),
+])
+
+CYCLE_ORDER = ['Adv', 'Zoo*1T', 'Rand', 'Zoo*1V', 'Zoo*2', 'Zoo*3']
+BAR_ORDER = ['Zoo*1T', 'Zoo*1V', 'Zoo*2', 'Zoo*3', 'Rand', 'Adv']
 
 
 def get_full_directory(env, victim_id, n_components, covariance):
@@ -70,13 +73,11 @@ def comparative_densities(env_name, victim, n_components, covariance,
     fig = plt.figure(figsize=(10, 7))
 
     grped = df.groupby('opponent_id')
-    log_probs = {}
     for name, grp in grped:
         # clean up random_none to just random
         name = name.replace('_none', '')
         avg_log_proba = np.mean(grp['log_proba'])
         sns.kdeplot(grp['log_proba'], label=f"{name}: {round(avg_log_proba, 2)}", shade=shade)
-        log_probs[name] = avg_log_proba
 
     xmin, xmax = plt.xlim()
     xmin = max(xmin, cutoff_point)
@@ -88,19 +89,16 @@ def comparative_densities(env_name, victim, n_components, covariance,
     if savefile is not None:
         fig.savefig(f'{savefile}.pdf')
 
-    return log_probs
 
-
-def bar_chart(log_probs, savefile=None):
-    log_probs = pd.DataFrame(log_probs).T
-    log_probs.index = log_probs.index.map(lambda env: PRETTY_ENVS.get(env, env))
-    log_probs = log_probs.rename(columns=PRETTY_COLS)
-    log_probs = log_probs.loc[PRETTY_ENVS.values(), PRETTY_COLS.values()]
-
-    log_probs.index.name = 'Environment'
-    log_probs.columns.name = 'Opponent'
-    longform = log_probs.stack().reset_index()
-    longform = longform.rename(columns={0: 'Mean Log Likelihood'})
+def bar_chart(envs, victim, n_components, covariance, savefile=None):
+    dfs = []
+    for env in envs:
+        df = get_train_test_merged_df(env, victim, n_components, covariance)
+        df['Environment'] = PRETTY_ENVS.get(env, env)
+        dfs.append(df)
+    longform = pd.concat(dfs)
+    longform['opponent_id'] = longform['opponent_id'].apply(PRETTY_OPPONENTS.get)
+    longform = longform.reset_index(drop=True)
 
     width, height = plt.rcParams.get('figure.figsize')
     legend_height = 0.4
@@ -116,12 +114,13 @@ def bar_chart(log_probs, savefile=None):
 
     # Make colors consistent with previous figures
     standard_cycle = list(plt.rcParams['axes.prop_cycle'])
-    palette = {label: standard_cycle[HUE_ORDER.index(label)]['color']
-               for label in PRETTY_COLS.values()}
+    palette = {label: standard_cycle[CYCLE_ORDER.index(label)]['color']
+               for label in PRETTY_OPPONENTS.values()}
 
     # Actually plot
-    sns.barplot(x='Environment', y='Mean Log Likelihood',
-                hue='Opponent', data=longform, palette=palette)
+    sns.barplot(x='Environment', y='log_proba', hue='opponent_id',
+                order=PRETTY_ENVS.values(), hue_order=BAR_ORDER,
+                data=longform, palette=palette, errwidth=1)
     plt.locator_params(axis='y', nbins=4)
     util.rotate_labels(ax, xrot=0)
 
@@ -184,7 +183,7 @@ def main():
         return x['train_bic'] / 1000000
 
     log_probs = {}
-    for env in ['KickAndDefend', 'SumoAnts', 'SumoHumans', 'YouShallNotPassHumans']:
+    for env in ENV_NAMES:
         heatmap_plot(env_name=env, metric=train_bic_in_millions,
                      savefile=f"{output_dir}/{env}_train_bic.pdf")
         heatmap_plot(env_name=env, metric='validation_log_likelihood',
@@ -198,7 +197,8 @@ def main():
     with open(f'{output_dir}/log_probs.json', 'w') as f:
         json.dump(log_probs, f)
 
-    bar_chart(log_probs, savefile=f"{output_dir}/bar_chart.pdf")
+    bar_chart(ENV_NAMES, victim='1', n_components=20, covariance='full',
+              savefile=f"{output_dir}/bar_chart.pdf")
 
 
 if __name__ == "__main__":
