@@ -13,7 +13,6 @@ density_ex = sacred.Experiment('density', ingredients=[generate_activations_ex, 
 logger = logging.getLogger('modelfree.density.pipeline')
 
 
-
 @density_ex.config
 def main_config(generate_activations, fit_density_model):
     generate_activations = dict(generate_activations)

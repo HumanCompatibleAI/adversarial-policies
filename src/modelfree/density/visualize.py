@@ -3,7 +3,6 @@ from glob import glob
 import json
 import os
 
-from cycler import cycler
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -31,12 +30,6 @@ PRETTY_ENVS = collections.OrderedDict([
 
 HUE_ORDER = ['Adv', 'Zoo*1T', 'Rand', 'Zoo*1V', 'Zoo*2', 'Zoo*3']
 
-def opponent_convert(x):
-    if 'zoo' in x:
-        return 'zoo'
-    else:
-        return x
-
 
 def get_full_directory(env, victim_id, n_components, covariance):
     hp_dir = f"{DENSITY_DIR}/gmm_{n_components}_components_{covariance}"
@@ -57,9 +50,6 @@ def get_train_test_merged_df(env, victim_id, n_components, covariance):
     test_df.loc[test_df['opponent_id'] == 'zoo_1', 'opponent_id'] = 'zoo_1_test'
 
     merged = pd.concat([train_df, test_df])
-    merged['broad_opponent'] = merged['opponent_id'].apply(lambda x: opponent_convert(x))
-    merged['raw_proba'] = np.exp(merged['log_proba'])
-
     return merged
 
 
@@ -122,7 +112,8 @@ def bar_chart(log_probs, savefile=None):
 
     # Make colors consistent with previous figures
     standard_cycle = list(plt.rcParams['axes.prop_cycle'])
-    palette = {label: standard_cycle[HUE_ORDER.index(label)]['color'] for label in PRETTY_COLS.values()}
+    palette = {label: standard_cycle[HUE_ORDER.index(label)]['color']
+               for label in PRETTY_COLS.values()}
 
     # Actually plot
     sns.barplot(x='Environment', y='Mean Log Probability',
@@ -132,10 +123,6 @@ def bar_chart(log_probs, savefile=None):
     # Plot our own legend
     ax.get_legend().remove()
     legend_entries = ax.get_legend_handles_labels()
-    # handle_by_label = {label: handle for handle, label in zip(*legend_entries)}
-    # labels = list(PRETTY_COLS.values())
-    # handles = [handle_by_label[label] for label in labels]
-    # legend_entries = (handles, labels)
     util.outside_legend(legend_entries, 3, fig, ax, ax,
                         legend_padding=0.05, legend_height=0.6,
                         handletextpad=0.2)
@@ -177,7 +164,7 @@ def heatmap_plot(env_name, metric, victim=1, savefile=None, error_val=-1):
         fig.savefig(savefile)
 
 
-if __name__ == "__main__":
+def main():
     output_dir = "data/density/visualize"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -185,7 +172,6 @@ if __name__ == "__main__":
     sns.set_style("whitegrid")
     for style in styles:
         plt.style.use(STYLES[style])
-
 
     def train_bic_in_millions(x):
         return x['train_bic'] / 1000000
@@ -197,11 +183,16 @@ if __name__ == "__main__":
         heatmap_plot(env_name=env, metric='validation_log_likelihood',
                      savefile=f"{output_dir}/{env}_validation_log_likelihood.pdf")
 
-        log_probs[env] = comparative_densities(env_name=env, victim='1', n_components=20, covariance='full',
-                                               savefile=f"{output_dir}/{env}_20_full_comparative_density",
+        savefile = f"{output_dir}/{env}_20_full_comparative_density"
+        log_probs[env] = comparative_densities(env_name=env, victim='1', n_components=20,
+                                               covariance='full', savefile=savefile,
                                                cutoff_point=-1000)
 
     with open(f'{output_dir}/log_probs.json', 'w') as f:
         json.dump(log_probs, f)
 
     bar_chart(log_probs, savefile=f"{output_dir}/bar_chart.pdf")
+
+
+if __name__ == "__main__":
+    main()
