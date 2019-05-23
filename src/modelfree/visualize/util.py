@@ -3,6 +3,7 @@ import logging
 import os.path
 
 import matplotlib.backends.backend_pdf
+from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -229,9 +230,17 @@ class DogmaticNormalize(matplotlib.colors.Normalize):
         return super(DogmaticNormalize, self).__call__(*args, **kwargs)
 
 
+DIRECTIONS = {  # Which way is better?
+    'Opponent Win': 1,  # bigger better
+    'Victim Win': -1,  # smaller better
+    'Ties': 0,  # neither
+}
+
+
 def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yaxis=True):
     group_members, num_matches = _split_groups(single_env)
     single_kind = single_env[col].unstack()
+    direction = DIRECTIONS[col]
 
     gridspec_kw = dict(gridspec_kw)
     gridspec_kw.update({
@@ -256,12 +265,23 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yax
     norm = DogmaticNormalize(vmin=-10, vmax=100)
     for i, (row_axs, row_members) in enumerate(zip(axs, group_members['rows'])):
         first_col = True
+        best_vals = (direction * single_kind.loc[row_members, :]).max(axis=1)
         for ax, col_members in zip(row_axs, group_members['cols']):
             subset = single_kind.loc[row_members, col_members]
 
-            sns.heatmap(subset, cmap=cmap, norm=norm,
-                        vmin=0, vmax=100, annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
-                        ax=ax, cbar=cbar, cbar_ax=cbar_ax)
+            # Plot heat map
+            kwargs = dict(norm=norm, vmin=0, vmax=100,
+                          annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
+                          ax=ax)
+            sns.heatmap(subset, cmap=cmap, cbar=cbar, cbar_ax=cbar_ax, **kwargs)
+
+            # Bold maximum entries
+            if direction != 0:
+                not_best = (direction * subset.T < best_vals).T
+                kwargs['annot_kws']['weight'] = 'bold'
+                all_black = ListedColormap([(0, 0, 0, 1)])
+                sns.heatmap(subset, mask=not_best, cbar=False, cmap=all_black, **kwargs)
+
             ax.get_yaxis().set_visible(yaxis and first_col)
             ax.get_xaxis().set_visible(i == nrows - 1)
 
