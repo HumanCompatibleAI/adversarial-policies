@@ -11,8 +11,7 @@ function wait_proc {
 }
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-OUT_ROOT=/home/ubuntu/data/aws/score_agents
-#OUT_ROOT=data/aws/score_agents
+OUT_ROOT=data/aws/score_agents
 TIMESTAMP=`date --iso-8601=seconds`
 
 MULTI_SCORE_CMD="python -m modelfree.multi.score with medium_accuracy "
