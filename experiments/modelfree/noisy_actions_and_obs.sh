@@ -34,32 +34,32 @@ ADVERSARY_PATHS=${OUT_ROOT}/normal/2019-05-05T18:12:24+00:00/best_adversaries.js
 export ADVERSARY_PATHS=${ADVERSARY_PATHS}
 
 
-#${MULTI_SCORE_CMD} zoo_baseline noise_adversary_actions \
-#    save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_zoo_opponent.json&
-#wait_proc
-#
-#echo "Zoo baseline noisy actions completed"
+${MULTI_SCORE_CMD} zoo_baseline noise_adversary_actions \
+    save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_zoo_opponent.json&
+wait_proc
 
-#${MULTI_SCORE_CMD} adversary_trained noise_adversary_actions \
-#    save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_adversary.json&
-#wait_proc
-#
-#echo "Noisy actions completed"
+echo "Zoo baseline noisy actions completed"
 
-#${MULTI_SCORE_CMD} adversary_trained noise_victim_actions \
-#    save_path=${OUT_ROOT}/noisy_victim_actions/${TIMESTAMP}/noisy_victim.json&
-#wait_proc
-#
-#echo "Noisy victim actions completed"
+${MULTI_SCORE_CMD} adversary_trained noise_adversary_actions \
+    save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_adversary.json&
+wait_proc
 
-#${MULTI_SCORE_CMD} zoo_baseline mask_observations_of_victim mask_observations_with_additive_noise \
-#    save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_zoo_observations.json&
-#wait_proc
-#echo "Additive noise masking zoo baseline complete"
+echo "Noisy actions completed"
 
-#${MULTI_SCORE_CMD} adversary_trained mask_observations_of_victim mask_observations_with_additive_noise \
-#    save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_adversary_observations.json&
-#wait_proc
+${MULTI_SCORE_CMD} adversary_trained noise_victim_actions \
+    save_path=${OUT_ROOT}/noisy_victim_actions/${TIMESTAMP}/noisy_victim.json&
+wait_proc
+
+echo "Noisy victim actions completed"
+
+${MULTI_SCORE_CMD} zoo_baseline mask_observations_of_victim mask_observations_with_additive_noise \
+    save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_zoo_observations.json&
+wait_proc
+echo "Additive noise masking zoo baseline complete"
+
+${MULTI_SCORE_CMD} adversary_trained mask_observations_of_victim mask_observations_with_additive_noise \
+    save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_adversary_observations.json&
+wait_proc
 
 ${MULTI_SCORE_CMD} zoo_baseline mask_observations_of_victim mask_observations_with_smaller_additive_noise \
     save_path=${OUT_ROOT}/noisy_victim_obs/${TIMESTAMP}/noisy_zoo_observations.json&
