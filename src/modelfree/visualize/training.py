@@ -224,9 +224,11 @@ def plot_baselines(env_name, victim_path, ycol, ax, baseline):
     num_episodes = util.num_episodes(scores)
     scores = scores / num_episodes * 100  # convert to percent
 
-    opponent_name = f'Zoo{victim_path}' if is_symmetric(env_name) else f'ZooO{victim_path}'
-    scores = scores.rename(index={opponent_name: 'Zoo'})
-    scores = scores.loc[['Zoo', 'Rand', 'Zero'], ycol]
+    scores = scores[ycol]
+    zoo_mask = scores.index.str.startswith('Zoo')
+    zoo_score = scores.loc[zoo_mask].max()
+    scores['Zoo'] = zoo_score
+    scores = scores.loc[['Zoo', 'Rand', 'Zero']]
 
     num_lines = len(ax.get_legend_handles_labels()[0])
     for i, (opponent, score) in enumerate(scores.items()):
@@ -301,20 +303,21 @@ def default_config():
 def paper_config():
     command = opponent_win_rate_per_victim_env
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/training_single')
+    # Plot for each environment against victim with median (adversary win rate - best zoo win rate)
     plot_cfg = {
         'subplots': [
             [
                 {
-                    'filter': {'env_name': 'multicomp/KickAndDefend-v0', 'victim_path': 1},
-                    'title': 'Kick and Defend',
+                    'filter': {'env_name': 'multicomp/KickAndDefend-v0', 'victim_path': 2},
+                    'title': 'Kick and Defend 2',
                 },
                 {
                     'filter': {'env_name': 'multicomp/YouShallNotPassHumans-v0', 'victim_path': 1},
-                    'title': 'You Shall Not Pass',
+                    'title': 'You Shall Not Pass 1',
                 },
                 {
-                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 1},
-                    'title': 'Sumo Humans',
+                    'filter': {'env_name': 'multicomp/SumoHumansAutoContact-v0', 'victim_path': 2},
+                    'title': 'Sumo Humans 2',
                 },
             ],
         ]

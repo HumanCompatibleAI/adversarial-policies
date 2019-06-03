@@ -31,6 +31,7 @@ STYLES = {
     },
     'scores_twocol': {
         'figure.figsize': (2.7, 1.6),
+        'ytick.labelsize': 8,
     },
     'scores_threecol': {
         'figure.figsize': (1.76, 1.6),
