@@ -1,12 +1,12 @@
-cluster_name: aprl
+cluster_name: aprl-cody
 min_workers: 0
 max_workers: 10
 initial_workers: 0
-target_utilization_fraction: 0.4
+target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:latest
+  image: humancompatibleai/adversarial_policies:noisy-adversary
   container_name: ray-cody
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
@@ -40,7 +40,7 @@ head_node:
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: c5.18xlarge
+  InstanceType: c5.9xlarge
   ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
@@ -50,6 +50,8 @@ worker_nodes:
         VolumeType: gp2
   InstanceMarketOptions:
     MarketType: spot
+  IamInstanceProfile:
+    Name: EC2AccessS3
 
 # List of shell commands to run to set up nodes.
 initialization_commands: []  # before entering Docker
@@ -57,6 +59,7 @@ setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco
   - ln -sf /home/ubuntu/ray_bootstrap_key.pem /root/ray_bootstrap_key.pem
+  - ln -sf /home/ubuntu/data /adversarial-policies/data
 head_setup_commands: []
 worker_setup_commands: []
 
@@ -66,8 +69,12 @@ head_start_ray_commands:
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git fetch &&
+    git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
     pip install --force dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
@@ -82,8 +89,12 @@ worker_start_ray_commands:
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
+    git fetch &&
+    git checkout noisy_adversary_actions &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
+    aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
+    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
     pip install --force dist/aprl-*.whl &&
     ray stop &&
