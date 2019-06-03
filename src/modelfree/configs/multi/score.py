@@ -8,25 +8,15 @@ import pkgutil
 import numpy as np
 from ray import tune
 
-# from modelfree.configs.multi.common import BANSAL_GOOD_ENVS
+from modelfree.configs.multi.common import BANSAL_GOOD_ENVS
 from modelfree.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('modelfree.configs.multi.score')
 
 
-# XXX: delete
-QUICK_ENVS = [
-    'multicomp/KickAndDefend-v0',
-    'multicomp/SumoHumansAutoContact-v0',
-    'multicomp/YouShallNotPassHumans-v0',
-]
-
-# XXX: revert these to defaults (see master)
-
-
 def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
     if envs is None:
-        envs = QUICK_ENVS
+        envs = BANSAL_GOOD_ENVS
 
     configs = []
     for env in envs:
@@ -125,8 +115,8 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def medium_accuracy(score):
         score = dict(score)
-        score['episodes'] = 500
-        score['num_env'] = 4
+        score['episodes'] = 100
+        score['num_env'] = 16
         exp_name = 'medium_accuracy_'
         _ = locals()
         del _
@@ -194,8 +184,8 @@ def make_configs(multi_score_ex):
         }
         spec['num_samples'] = 25
         spec['config']['mask_agent_noise'] = tune.sample_from(
-                    lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
-                )
+            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
+        )
         exp_name = 'additive_noise_' + exp_name
 
     @multi_score_ex.named_config
@@ -217,8 +207,8 @@ def make_configs(multi_score_ex):
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
         spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
-                    lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
-                )
+            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
+        )
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
