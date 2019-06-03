@@ -17,7 +17,7 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_mul
 from modelfree.common.policy_loader import load_policy
 from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
-from modelfree.envs.observation_masking import make_mask_for_env
+from modelfree.envs.observation_masking import make_mask_agent_wrappers
 from modelfree.training.shaping_wrappers import NoisyAgentWrapper
 from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
@@ -203,11 +203,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agent_wrappers = {}
     if mask_agent_index is not None:
-        masker = make_mask_for_env(env_name, mask_agent_index)
         if mask_agent_noise is not None:
             mask_agent_kwargs['noise_magnitude'] = mask_agent_noise
-        masker = functools.partial(masker, **mask_agent_kwargs)
-        agent_wrappers = {mask_agent_index: masker}
+
+        agent_wrappers = make_mask_agent_wrappers(env_name, mask_agent_index, **mask_agent_kwargs)
 
     def env_fn(i):
         env = make_env(env_name, _seed, i, None,
