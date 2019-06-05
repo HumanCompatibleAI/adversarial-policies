@@ -135,7 +135,8 @@ def make_configs(multi_score_ex):
         score = dict(score)
         score['videos'] = True
         score['num_env'] = 1
-        score['episodes'] = 20
+        score['episodes'] = None
+        score['timesteps'] = 60 * 60  # one minute of video @ 60 fps
         score['video_params'] = {
             'annotation_params': {
                 'resolution': (1920, 1080),

@@ -16,21 +16,42 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
-from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
+from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv, VecMultiWrapper,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
+from modelfree.envs.observation_masking import make_mask_agent_wrappers
 from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
-from modelfree.training.victim_envs import EmbedVictimWrapper
+from modelfree.training.victim_envs import CurryVecEnv, TransparentCurryVecEnv
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
+
+
+class EmbedVictimWrapper(VecMultiWrapper):
+    def __init__(self, multi_env, victim, victim_index, transparent):
+        self.victim = victim
+        if transparent:
+            curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        else:
+            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
+        super().__init__(curried_env)
+
+    def reset(self):
+        return self.venv.reset()
+
+    def step_wait(self):
+        return self.venv.step_wait()
+
+    def close(self):
+        self.victim.sess.close()
+        super().close()
 
 
 def _save(model, root_dir, save_callbacks):
@@ -223,6 +244,11 @@ def train_config():
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
 
+    mask_victim = False             # should victim obsevations be limited
+    mask_victim_kwargs = {          # control how victim observations are limited
+        'masking_type': 'initialization',
+    }
+
     # RL Algorithm Hyperparameters
     rl_algo = "ppo2"                # RL algorithm to use
     policy = "MlpPolicy"            # policy network type
@@ -284,12 +310,16 @@ def wrappers_config(env_name):
 
 @train_ex.capture
 def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
-              debug, lookback_params):
+              mask_victim, mask_victim_kwargs, lookback_params, debug):
     pre_wrappers = []
     if env_name.startswith('multicomp/'):
         pre_wrappers.append(GymCompeteToOurs)
     if lookback_params['lb_num'] > 0:
         pre_wrappers.append(OldMujocoResettableWrapper)
+
+    agent_wrappers = {}
+    if mask_victim:
+        agent_wrappers = make_mask_agent_wrappers(env_name, victim_index, **mask_victim_kwargs)
 
     if victim_type == 'none':
         our_idx = 0
@@ -297,7 +327,8 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
         our_idx = 1 - victim_index
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrappers=pre_wrappers)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx,
+                              pre_wrappers=pre_wrappers, agent_wrappers=agent_wrappers)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env

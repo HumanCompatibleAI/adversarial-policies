@@ -3,6 +3,7 @@ import logging
 import os.path
 
 import matplotlib.backends.backend_pdf
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -229,14 +230,25 @@ class DogmaticNormalize(matplotlib.colors.Normalize):
         return super(DogmaticNormalize, self).__call__(*args, **kwargs)
 
 
-def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yaxis=True):
+DIRECTIONS = {  # Which way is better?
+    'Opponent Win': 1,  # bigger better
+    'Victim Win': -1,  # smaller better
+    'Ties': 0,  # neither
+}
+
+
+def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
+                    xlabel=False, ylabel=False, cbar_width=0.0, yaxis=True):
     group_members, num_matches = _split_groups(single_env)
     single_kind = single_env[col].unstack()
+    direction = DIRECTIONS[col]
 
     gridspec_kw = dict(gridspec_kw)
     gridspec_kw.update({
         'width_ratios': num_matches['cols'],
         'height_ratios': num_matches['rows'],
+        'bottom': gridspec_kw['bottom'] + (0.02 if xlabel else 0.0),
+        'left': gridspec_kw['left'] + (0.05 if ylabel else 0.0),
     })
     nrows = len(num_matches['rows'])
     ncols = len(num_matches['cols'])
@@ -256,12 +268,25 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yax
     norm = DogmaticNormalize(vmin=-10, vmax=100)
     for i, (row_axs, row_members) in enumerate(zip(axs, group_members['rows'])):
         first_col = True
+        best_vals = (direction * single_kind.loc[row_members, :]).max(axis=1)
         for ax, col_members in zip(row_axs, group_members['cols']):
             subset = single_kind.loc[row_members, col_members]
 
-            sns.heatmap(subset, cmap=cmap, norm=norm,
-                        vmin=0, vmax=100, annot=True, annot_kws={'fontsize': 8}, fmt='.0f',
-                        ax=ax, cbar=cbar, cbar_ax=cbar_ax)
+            # Plot heat map
+            sns.heatmap(subset, cbar=cbar, cbar_ax=cbar_ax, norm=norm, cmap=cmap,
+                        vmin=0, vmax=100, annot=True, annot_kws={'fontsize': 8}, fmt='.0f', ax=ax)
+
+            # Red border around maximal entries
+            if direction != 0:
+                best = (direction * subset.T >= best_vals).T
+
+                subplot_rows, subplot_cols = best.shape
+                for m in range(subplot_rows):
+                    for n in range(subplot_cols):
+                        if best.iloc[m, n]:
+                            rectangle = Rectangle((m, n), 1, 1, fill=False, edgecolor='red', lw=1)
+                            ax.add_patch(rectangle)
+
             ax.get_yaxis().set_visible(yaxis and first_col)
             ax.get_xaxis().set_visible(i == nrows - 1)
 
@@ -269,22 +294,34 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=0.0, yax
             first_col = False
             cbar = False
 
+    if xlabel:
+        midpoint = (axs[-1, 0].get_position().x0 + axs[-1, -1].get_position().x1) / 2
+        fig.text(midpoint, 0.01, 'Opponent', ha='center')
+    if ylabel:
+        fig.text(0.01, 0.5 * (gridspec_kw['left'] + 1), 'Victim', va='center', rotation='vertical')
+
     return axs
 
 
-def heatmap_one_col(single_env, col, cbar, cmap='Blues'):
-    fig = plt.figure()
+def heatmap_one_col(single_env, col, cbar, xlabel, ylabel, cmap='Blues'):
+    width, height = plt.rcParams['figure.figsize']
+    if xlabel:
+        height += 0.17
+    fig = plt.figure(figsize=(width, height))
+
     cbar_width = 0.15 if cbar else 0.0
     gridspec_kw = {
-        'left': 0.22,
+        'left': 0.2,
         'right': 0.98 - cbar_width,
-        'bottom': 0.3,
+        'bottom': 0.28,
         'top': 0.95,
         'wspace': 0.05,
         'hspace': 0.05,
     }
     single_env *= 100 / num_episodes(single_env)  # convert to percentages
-    _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw, cbar_width=cbar_width)
+
+    _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
+                    xlabel=xlabel, ylabel=ylabel, cbar_width=cbar_width)
     return fig
 
 
