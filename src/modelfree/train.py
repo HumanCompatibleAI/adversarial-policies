@@ -16,7 +16,7 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
-from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv, VecMultiWrapper,
+from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
@@ -28,30 +28,10 @@ from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
-from modelfree.training.victim_envs import CurryVecEnv, TransparentCurryVecEnv
+from modelfree.training.victim_envs import EmbedVictimWrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
-
-
-class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index, transparent):
-        self.victim = victim
-        if transparent:
-            curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        else:
-            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        super().__init__(curried_env)
-
-    def reset(self):
-        return self.venv.reset()
-
-    def step_wait(self):
-        return self.venv.step_wait()
-
-    def close(self):
-        self.victim.sess.close()
-        super().close()
 
 
 def _save(model, root_dir, save_callbacks):
