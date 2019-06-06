@@ -6,21 +6,7 @@ from multiprocessing import Pipe, Process
 import gym
 from stable_baselines.common.vec_env import CloudpickleWrapper
 
-from aprl.common.mujoco import MujocoState
-
-
-class ResettableEnv(gym.Env):
-    """A Gym environment that can be reset to an arbitrary state."""
-    @abstractmethod
-    def get_state(self):
-        """Returns a serialized representation of the current state."""
-        pass
-
-    @abstractmethod
-    def set_state(self, x):
-        """Restores the environment to a previously saved state.
-        :param x: return value of a previous call to get_state()."""
-        pass
+from aprl.common.mujoco import MujocoState, ResettableEnv
 
 
 class MujocoResettableWrapper(ResettableEnv, gym.Wrapper):

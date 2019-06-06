@@ -50,3 +50,6 @@ class MultiMonitor(Monitor):
             info['episode'] = ep_info
         self.total_steps += 1
         return observation, reward, done, info
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
