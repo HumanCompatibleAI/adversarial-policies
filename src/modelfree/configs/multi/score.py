@@ -177,7 +177,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def mask_observations_with_additive_noise(exp_name, score, spec):
-        score = score.copy()
+        score = dict(score)
         score['index_keys'] = ['hashable_mask_agent_kwargs', 'mask_agent_noise']
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
@@ -190,7 +190,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def mask_observations_with_smaller_additive_noise(exp_name, score, spec):
-        score = score.copy()
+        score = dict(score)
         score['index_keys'] = ['hashable_mask_agent_kwargs', 'mask_agent_noise']
         score['mask_agent_kwargs'] = {
             'masking_type': 'additive_noise'
@@ -203,7 +203,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def noise_adversary_actions(exp_name, score, spec):
-        score = score.copy()
+        score = dict(score)
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
         spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
@@ -217,7 +217,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.named_config
     def noise_victim_actions(exp_name, score, spec):
-        score = score.copy()
+        score = dict(score)
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
         spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(

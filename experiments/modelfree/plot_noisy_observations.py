@@ -8,21 +8,18 @@ import seaborn as sns
 
 RESULT_DIR = "/Users/cody/Data/adversarial_policies/ray_results/noisy_victim_obs/"
 OUT_DIR = "/Users/cody/Data/adversarial_policies/noisy_obs_plots/results_may_22"
-env_lookup = {
+ENV_LOOKUP = {
     'SumoHumans': 'multicomp/SumoHumansAutoContact-v0',
     'SumoAnts': 'multicomp/SumoAntsAutoContact-v0',
     'KickAndDefend': 'multicomp/KickAndDefend-v0',
     # 'YouShallNotPass': 'multicomp/YouShallNotPassHumans-v0' (Removed for now because I don't have
     # time at the moment to fix the plotting logic to deal with victim in different location)
 }
-available_zoos = {
+AVAILABLE_ZOOS = {
     'SumoHumans': 3,
     'SumoAnts': 4,
     'KickAndDefend': 3
 }
-
-k_keys = ['env', 'agent0_type', 'agent0_path', 'agent1_type',
-          'agent1_path', 'masking_param', 'noise_magnitude']
 
 
 def transform(df, transform_list):
@@ -39,7 +36,7 @@ def subset(df, spec):
     return ret
 
 
-def process_element_into_flat_dict(el, key_order=k_keys):
+def process_element_into_flat_dict(el, key_order):
     outp = {}
     for i, k in enumerate(key_order):
         outp[k] = el['k'][i]
@@ -105,21 +102,26 @@ def generate_plots(experiment):
     with open(adversary_path, "r") as fp:
         noisy_obs_against_adv = json.load(fp)
 
+    DATAFRAME_KEYS = ['env', 'agent0_type', 'agent0_path', 'agent1_type',
+                      'agent1_path', 'masking_param', 'noise_magnitude']
+
     with open(zoo_path, "r") as fp:
         noisy_obs_against_zoo = json.load(fp)
     noisy_zoo_obs_df = pd.DataFrame(
-        [process_element_into_flat_dict(el) for el in noisy_obs_against_zoo])
+        [process_element_into_flat_dict(el, key_order=DATAFRAME_KEYS)
+         for el in noisy_obs_against_zoo])
     noisy_adv_obs_df = pd.DataFrame(
-        [process_element_into_flat_dict(el) for el in noisy_obs_against_adv])
+        [process_element_into_flat_dict(el, key_order=DATAFRAME_KEYS)
+         for el in noisy_obs_against_adv])
     experiment_out_dir = os.path.join(OUT_DIR, experiment)
 
     if not os.path.exists(experiment_out_dir):
         os.mkdir(experiment_out_dir)
-    for short_env in env_lookup:
-        for zoo_id in range(1, available_zoos[short_env] + 1):
+    for short_env in ENV_LOOKUP:
+        for zoo_id in range(1, AVAILABLE_ZOOS[short_env] + 1):
             subset_params = {
                 'agent0_path': str(zoo_id),
-                'env': env_lookup[short_env]}
+                'env': ENV_LOOKUP[short_env]}
 
             zoo_plot_path = os.path.join(experiment_out_dir,
                                          f"{experiment}_ZooBaseline_"
