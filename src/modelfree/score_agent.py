@@ -140,7 +140,6 @@ def _save_video_or_metadata(env_dir, saved_video_path):
 
 @score_ex.config
 def default_score_config():
-
     env_name = 'multicomp/SumoAnts-v0'    # Gym env ID
     agent_a_type = 'zoo'                  # type supported by policy_loader.py
     agent_a_path = '1'                    # path or other unique identifier

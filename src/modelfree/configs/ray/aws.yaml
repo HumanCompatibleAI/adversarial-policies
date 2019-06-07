@@ -7,7 +7,7 @@ idle_timeout_minutes: 5
 
 docker:
   image: humancompatibleai/adversarial_policies:latest
-  container_name: ray-cody
+  container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
     - "--env MUJOCO_KEY=${MUJOCO_KEY}"
