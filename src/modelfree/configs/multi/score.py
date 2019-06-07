@@ -199,7 +199,7 @@ def make_configs(multi_score_ex):
         spec['config']['mask_agent_noise'] = tune.sample_from(
             lambda spec: np.random.exponential(scale=1.0)
         )
-        exp_name = 'additive_noise_' + exp_name
+        exp_name = 'smaller_additive_noise_' + exp_name
 
     @multi_score_ex.named_config
     def noise_adversary_actions(exp_name, score, spec):
