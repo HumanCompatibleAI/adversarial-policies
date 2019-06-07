@@ -167,18 +167,18 @@ def default_score_config():
             'font_size': 24,
         },
     }
-    index_keys = []
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
+    index_keys = []                       # Additional keys to add to the ray result file index
     noisy_agent_index = None              # Agent to add add action noise to
     noisy_agent_magnitude = 1.0           # Magnitude of action noise for agent being noised
     mask_agent_index = None               # index of agent whose observations should be limited
-    mask_agent_kwargs = {                 # control how agent observations are limited
-        'masking_type': 'initialization',
-    }
-    mask_agent_noise = None
-    hashable_mask_agent_kwargs = '_'.join([k + '_' + v for k, v in mask_agent_kwargs.items()])
+    mask_agent_masking_type = 'initialization'  # Type of masking to apply to a masked agent
+    mask_agent_noise = None               # Noise to apply to a noisy masked agent.
+    # mask_agent_noise should be inside mask_agent_kwargs, but is being taken out to allow it to
+    # be added to the ray results index (since mask_agent_kwargs isn't hashable)
+
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
     del _
