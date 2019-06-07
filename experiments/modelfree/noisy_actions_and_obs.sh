@@ -16,12 +16,6 @@ TIMESTAMP=`date --iso-8601=seconds`
 
 MULTI_SCORE_CMD="python -m modelfree.multi.score with medium_accuracy "
 
-# Not sure what this is doing
-if [[ $# -eq 0 ]]; then
-    echo "usage: $0 <logdir> [logdir ...]"
-    exit 1
-fi
-
 # Make a directory for each of the experiments we'll be running, to store results in
 for dir in noisy_adversary_actions noisy_victim_actions noisy_victim_obs; do
     mkdir -p ${OUT_ROOT}/${dir}/${TIMESTAMP}
