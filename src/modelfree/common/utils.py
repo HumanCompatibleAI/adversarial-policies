@@ -409,25 +409,36 @@ def simulate(venv, policies, render=False, record=True):
         yield observations, rewards, dones, infos
 
 
-def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrapper=None, post_wrapper=None,
+def _apply_wrappers(wrappers, multi_env):
+    """Helper method to apply wrappers if they are present. Returns wrapped multi_env"""
+    if wrappers is None:
+        wrappers = []
+    for wrap in wrappers:
+        multi_env = wrap(multi_env)
+    return multi_env
+
+
+def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrappers=None, post_wrappers=None,
              agent_wrappers=None):
     multi_env = gym.make(env_name)
+
     if agent_wrappers is not None:
         for agent_id in agent_wrappers:
             multi_env.agents[agent_id] = agent_wrappers[agent_id](multi_env.agents[agent_id])
-    if pre_wrapper is not None:
-        multi_env = pre_wrapper(multi_env)
+
+    multi_env = _apply_wrappers(pre_wrappers, multi_env)
+
     if not isinstance(multi_env, MultiAgentEnv):
         multi_env = SingleToMulti(multi_env)
-    multi_env.seed(seed + i)
 
     if out_dir is not None:
         mon_dir = osp.join(out_dir, 'mon')
         os.makedirs(mon_dir, exist_ok=True)
         multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)), our_idx)
 
-    if post_wrapper is not None:
-        multi_env = post_wrapper(multi_env)
+    multi_env = _apply_wrappers(post_wrappers, multi_env)
+
+    multi_env.seed(seed + i)
 
     return multi_env
 
