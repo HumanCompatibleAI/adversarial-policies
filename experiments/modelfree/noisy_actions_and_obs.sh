@@ -22,10 +22,7 @@ for dir in noisy_adversary_actions noisy_victim_actions noisy_victim_obs; do
 done
 # Rerun highest_win_rate and store the results in ADVERSARY_PATHS, which we
 # export as an environment variable which multi score will use
-ADVERSARY_PATHS=${OUT_ROOT}/normal/2019-05-05T18:12:24+00:00/best_adversaries.json
-
-export ADVERSARY_PATHS=${ADVERSARY_PATHS}
-
+export ADVERSARY_PATHS=${OUT_ROOT}/normal/2019-05-05T18:12:24+00:00/best_adversaries.json
 
 ${MULTI_SCORE_CMD} zoo_baseline noise_adversary_actions \
     save_path=${OUT_ROOT}/noisy_adversary_actions/${TIMESTAMP}/noisy_zoo_opponent.json&
