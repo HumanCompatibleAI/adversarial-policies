@@ -6,8 +6,8 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-RESULT_DIR = "/Users/cody/Data/adversarial_policies/ray_results/noisy_victim_obs/"
-OUT_DIR = "/Users/cody/Data/adversarial_policies/noisy_obs_plots/results_may_22"
+RESULT_DIR = "data/aws/score_agents/victim_masked_noise/"
+OUT_DIR = "data/aws/score_agents/masked_obs_visualization/"
 ENV_LOOKUP = {
     'SumoHumans': 'multicomp/SumoHumansAutoContact-v0',
     'SumoAnts': 'multicomp/SumoAntsAutoContact-v0',
