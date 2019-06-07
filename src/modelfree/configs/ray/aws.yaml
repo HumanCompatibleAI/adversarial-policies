@@ -2,7 +2,7 @@ cluster_name: aprl
 min_workers: 0
 max_workers: 10
 initial_workers: 0
-target_utilization_fraction: 0.4
+target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
