@@ -21,6 +21,9 @@ STYLES = {
     'slides': {
         'figure.figsize': (9.32, 3),
     },
+    'slides_density': {
+        'figure.figsize': (5, 3),
+    },
     'monolithic': {
         'figure.figsize': (5.5, 2.0625),
     },
