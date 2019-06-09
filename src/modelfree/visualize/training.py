@@ -299,10 +299,8 @@ def default_config():
     del _
 
 
-@visualize_training_ex.named_config
-def paper_config():
+def _summary_plot():
     command = opponent_win_rate_per_victim_env
-    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/training_single')
     # Plot for each environment against victim with median (adversary win rate - best zoo win rate)
     plot_cfg = {
         'subplots': [
@@ -323,8 +321,24 @@ def paper_config():
         ]
     }
     ci = None
-    styles = ['paper', 'monolithic']
     tb_dir = os.path.join('data', 'aws', 'multi_train', 'paper', '20190429_011349')
+    return locals()
+
+
+@visualize_training_ex.named_config
+def paper_config():
+    locals().update(_summary_plot())
+    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/training_single')
+    styles = ['paper', 'monolithic']
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_training_ex.named_config
+def slides_config():
+    locals().update(_summary_plot())
+    fig_dir = os.path.expanduser('~/tmp/adversarial_slides')
+    styles = ['paper', 'slides']
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

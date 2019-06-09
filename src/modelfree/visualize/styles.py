@@ -17,6 +17,9 @@ STYLES = {
         'xtick.labelsize': 9,
         'ytick.labelsize': 9,
     },
+    'slides': {
+        'figure.figsize': (9.32, 3),
+    },
     'monolithic': {
         'figure.figsize': (5.5, 2.0625),
     },
