@@ -14,12 +14,16 @@ make_videos_ex = Experiment('make_videos')
 make_videos_logger = logging.getLogger('make_videos')
 
 
+BASIC_CONFIGS = ['adversary_transfer', 'zoo_baseline', 'fixed_baseline']
+
+
 @make_videos_ex.config
 def default_config():
     adversary_path = osp.join('data', 'aws', 'score_agents', 'normal',
                               '2019-05-05T18:12:24+00:00', 'best_adversaries.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on baremetal
-    score_configs = ['adversary_transfer', 'zoo_baseline', 'fixed_baseline']
+    score_configs = [(x, ) for x in BASIC_CONFIGS]
+    score_configs += [(x, 'mask_observations_of_victim') for x in BASIC_CONFIGS]
     multi_score = {}
     root_dir = 'data/videos'
     exp_name = 'default'
@@ -29,8 +33,9 @@ def default_config():
 
 @make_videos_ex.named_config
 def debug_config():
-    score_configs = ['debug_one_each_type']
-    config_updates = {'score': {'episodes': 2}}
+    score_configs = [('debug_one_each_type', ),
+                     ('debug_one_each_type', 'mask_observations_of_victim')]
+    multi_score = {'score': {'episodes': 2}}
     exp_name = 'debug'
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -46,9 +51,17 @@ def generate_videos(score_configs, multi_score, adversary_path):
 @make_videos_ex.capture
 def extract_videos(out_dir, video_dirs, ray_upload_dir):
     def path_generator(trial_root, env_name, victim_index, victim_type, victim_path,
-                       opponent_type, opponent_path):
+                       opponent_type, opponent_path, cfg):
         src_path = osp.join(trial_root, 'data', 'sacred', 'score', '1',
                             'videos', 'env_0_episode_0_recording.mp4')
+
+        mask_index = cfg['mask_agent_index']
+        if mask_index is not None:
+            if mask_index == victim_index:
+                victim_type += '-masked'
+            else:
+                opponent_type += '-masked'
+
         new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
                     f'_opponent_{opponent_type}_{opponent_path}')
         return src_path, new_name, 'mp4'

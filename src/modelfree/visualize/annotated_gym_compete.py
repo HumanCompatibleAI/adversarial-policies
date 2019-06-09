@@ -20,7 +20,7 @@ VICTIM_OPPONENT_COLORS = {
 }
 
 
-def body_color(is_victim, agent_type, agent_path):
+def body_color(is_victim, is_masked, agent_type, agent_path):
     key = 'Victim' if is_victim else 'Opponent'
     return VICTIM_OPPONENT_COLORS[key]
 
@@ -68,7 +68,7 @@ PRETTY_POLICY_TYPES = {
 }
 
 
-def pretty_policy_type(env_name, is_victim, policy_type, policy_path):
+def pretty_policy_type(env_name, is_victim, is_masked, policy_type, policy_path):
     if policy_type == 'zero':
         return 'Lifeless (Zero)'
     elif policy_type == 'random':
@@ -87,7 +87,11 @@ def pretty_policy_type(env_name, is_victim, policy_type, policy_path):
             prefix = 'ZooV' if is_victim else 'ZooO'
         else:
             prefix = 'Zoo'
-        return f'Normal ({prefix}{policy_path})'
+        label = 'Normal'
+        if is_masked:
+            prefix += 'M'
+            label = 'Masked'
+        return f'{label} ({prefix}{policy_path})'
     else:
         raise ValueError(f"Unrecognized policy type '{policy_type}'")
 
@@ -98,19 +102,23 @@ class AnnotatedGymCompete(gym.Wrapper):
     }
 
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 resolution, font, font_size, ypos=0.0, spacing=0.05, num_frames=120):
+                 mask_agent_index, resolution, font, font_size, ypos=0.0, spacing=0.05,
+                 num_frames=120):
         super(AnnotatedGymCompete, self).__init__(env)
 
         # Set agent colors
         self.env_name = env_name
         self.victim_index = VICTIM_INDEX[env_name]
+        self.mask_agent_index = mask_agent_index
         self.agent_a_type = agent_a_type
         self.agent_a_path = agent_a_path
         self.agent_b_type = agent_b_type
         self.agent_b_path = agent_b_path
         self.agent_mapping = {
-            0: (0 == self.victim_index, self.agent_a_type, self.agent_a_path),
-            1: (1 == self.victim_index, self.agent_b_type, self.agent_b_path),
+            0: (0 == self.victim_index, 0 == self.mask_agent_index,
+                self.agent_a_type, self.agent_a_path),
+            1: (1 == self.victim_index, 1 == self.mask_agent_index,
+                self.agent_b_type, self.agent_b_path),
         }
 
         # Text overlay

@@ -207,7 +207,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                 if 'multicomp' in env_name:
                     assert num_env == 1, "pretty videos requires num_env=1"
                     env = AnnotatedGymCompete(env, env_name, agent_a_type, agent_a_path,
-                                              agent_b_type, agent_b_path,
+                                              agent_b_type, agent_b_path, mask_agent_index,
                                               **video_params['annotation_params'])
                 else:
                     warnings.warn(f"Annotated videos not supported for environment '{env_name}'")
