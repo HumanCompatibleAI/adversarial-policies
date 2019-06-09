@@ -35,9 +35,8 @@ class NormalizeModel(DummyModel):
 def load_stable_baselines(cls):
     def f(root_dir, env, env_name, index, transparent_params):
         denv = FakeSingleSpacesVec(env, agent_id=index)
-        model_path = os.path.join(root_dir, 'model.pkl')
-        pylog.info(f"Loading Stable Baselines policy for '{cls}' from '{model_path}'")
-        model = load_backward_compatible_model(cls, model_path, denv)
+        pylog.info(f"Loading Stable Baselines policy for '{cls}' from '{root_dir}'")
+        model = load_backward_compatible_model(cls, root_dir, denv)
         try:
             vec_normalize = VecNormalize(denv, training=False)
             vec_normalize.load_running_average(root_dir)
@@ -128,7 +127,7 @@ def load_policy(policy_type, policy_path, env, env_name, index, transparent_para
     return agent_loader(policy_path, env, env_name, index, transparent_params)
 
 
-def load_backward_compatible_model(cls, model_path, denv=None, **kwargs):
+def load_backward_compatible_model(cls, root_dir, denv=None, **kwargs):
     """Backwards compatibility hack to load old pickled policies
     which still expect modelfree.scheduling to exist.
     """
@@ -137,6 +136,7 @@ def load_backward_compatible_model(cls, model_path, denv=None, **kwargs):
     if 'env' in kwargs:
         denv = kwargs['env']
         del kwargs['env']
+    model_path = os.path.join(root_dir, 'model.pkl')
     model = cls.load(model_path, env=denv, **kwargs)
     del sys.modules['modelfree.scheduling']
     return model

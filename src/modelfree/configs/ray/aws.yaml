@@ -1,4 +1,4 @@
-cluster_name: aprl-cody
+cluster_name: aprl
 min_workers: 0
 max_workers: 10
 initial_workers: 1
@@ -7,7 +7,7 @@ idle_timeout_minutes: 5
 
 docker:
   image: humancompatibleai/adversarial_policies:density
-  container_name: ray-cody
+  container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
     - "--env MUJOCO_KEY=${MUJOCO_KEY}"

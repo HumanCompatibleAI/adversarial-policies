@@ -146,6 +146,12 @@ TRAIN_CONFIGS = [
         'env_name': 'multicomp/YouShallNotPassHumans-v0',
         'transparent_params': ['ff_policy'],
     },
+    {
+        'env_name': 'multicomp/SumoHumans-v0',
+        'lookback_params': {'lb_num': 2, 'lb_path': 1, 'lb_type': 'zoo'},
+        'adv_noise_params': {'noise_val': 0.1},
+        'transparent_params': ['ff_policy'],
+    },
 ]
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']

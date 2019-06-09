@@ -1,5 +1,7 @@
+from abc import abstractmethod
 from collections import namedtuple
 
+import gym
 import numpy as np
 
 
@@ -19,8 +21,26 @@ class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
         return MujocoState(qpos, qvel)
 
     def set_mjdata(self, data):
-        data.qpos[:] = self.qpos
-        data.qvel[:] = self.qvel
+        try:
+            data.qpos[:] = self.qpos
+            data.qvel[:] = self.qvel
+        except ValueError:  # older mujoco version
+            data.qpos = self.qpos
+            data.qvel = self.qvel
 
     def flatten(self):
-        return np.concatenate((self. qpos, self.qvel))
+        return np.concatenate((self.qpos, self.qvel))
+
+
+class ResettableEnv(gym.Env):
+    """A Gym environment that can be reset to an arbitrary state."""
+    @abstractmethod
+    def get_state(self):
+        """Returns a serialized representation of the current state."""
+        pass
+
+    @abstractmethod
+    def set_state(self, x):
+        """Restores the environment to a previously saved state.
+        :param x: return value of a previous call to get_state()."""
+        pass

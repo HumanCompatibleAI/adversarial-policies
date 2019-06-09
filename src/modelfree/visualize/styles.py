@@ -18,6 +18,9 @@ STYLES = {
         'xtick.labelsize': 9,
         'ytick.labelsize': 9,
     },
+    'slides': {
+        'figure.figsize': (9.32, 3),
+    },
     'monolithic': {
         'figure.figsize': (5.5, 2.0625),
     },
@@ -32,6 +35,7 @@ STYLES = {
     },
     'scores_twocol': {
         'figure.figsize': (2.7, 1.6),
+        'ytick.labelsize': 8,
     },
     'scores_threecol': {
         'figure.figsize': (1.76, 1.6),

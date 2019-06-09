@@ -16,40 +16,22 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
-from aprl.envs.multi_agent import (CurryVecEnv, FlattenSingletonVecEnv, MergeAgentVecEnv,
-                                   VecMultiWrapper, make_dummy_vec_multi_env,
-                                   make_subproc_vec_multi_env)
+from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
+                                   make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
 from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
-from modelfree.common.transparent import TransparentCurryVecEnv
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
+from modelfree.envs.observation_masking import make_mask_agent_wrappers
 from modelfree.training.logger import setup_logger
+from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
+                                         OldMujocoResettableWrapper)
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
+from modelfree.training.victim_envs import EmbedVictimWrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
-
-
-class EmbedVictimWrapper(VecMultiWrapper):
-    def __init__(self, multi_env, victim, victim_index, transparent):
-        self.victim = victim
-        if transparent:
-            curried_env = TransparentCurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        else:
-            curried_env = CurryVecEnv(multi_env, self.victim, agent_idx=victim_index)
-        super().__init__(curried_env)
-
-    def reset(self):
-        return self.venv.reset()
-
-    def step_wait(self):
-        return self.venv.step_wait()
-
-    def close(self):
-        self.victim.sess.close()
-        super().close()
 
 
 def _save(model, root_dir, save_callbacks):
@@ -242,6 +224,11 @@ def train_config():
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
 
+    mask_victim = False             # should victim obsevations be limited
+    mask_victim_kwargs = {          # control how victim observations are limited
+        'masking_type': 'initialization',
+    }
+
     # RL Algorithm Hyperparameters
     rl_algo = "ppo2"                # RL algorithm to use
     policy = "MlpPolicy"            # policy network type
@@ -255,9 +242,19 @@ def train_config():
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by policy_loader.py
     }
-    adv_noise_params = None         # param dict for epsilon-ball noise policy added to zoo policy
+    adv_noise_params = {            # param dict for epsilon-ball noise policy added to zoo policy
+        'noise_val': None,          # size of noise ball. Set to nonnegative float to activate.
+        'base_path': victim_path,   # path of agent to be wrapped with noise ball
+        'base_type': victim_type,   # type of agent to be wrapped with noise ball
+    }
     transparent_params = None       # param set for transparent victim policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
+    lookback_params = {             # parameters for doing lookback white-box attacks
+        'lb_num': 0,                # number of lookback venvs, if zero, lookback is disabled
+        'lb_mul': 0.05,             # amount by which we weight differences in lookback
+        'lb_path': None,            # path of lookback base policy
+        'lb_type': rl_algo,         # type of lookback base policy
+    }
 
     # General
     checkpoint_interval = 131072    # save weights to disk after this many timesteps
@@ -292,8 +289,17 @@ def wrappers_config(env_name):
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debug):
-    pre_wrapper = GymCompeteToOurs if env_name.startswith('multicomp/') else None
+def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
+              mask_victim, mask_victim_kwargs, lookback_params, debug):
+    pre_wrappers = []
+    if env_name.startswith('multicomp/'):
+        pre_wrappers.append(GymCompeteToOurs)
+    if lookback_params['lb_num'] > 0:
+        pre_wrappers.append(OldMujocoResettableWrapper)
+
+    agent_wrappers = {}
+    if mask_victim:
+        agent_wrappers = make_mask_agent_wrappers(env_name, victim_index, **mask_victim_kwargs)
 
     if victim_type == 'none':
         our_idx = 0
@@ -301,13 +307,16 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index, debu
         our_idx = 1 - victim_index
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, our_idx, pre_wrapper=pre_wrapper)
+        return utils.make_env(env_name, _seed, i, out_dir, our_idx,
+                              pre_wrappers=pre_wrappers, agent_wrappers=agent_wrappers)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env
     else:
         make_vec_env = make_dummy_vec_multi_env
     multi_venv = make_vec_env([functools.partial(env_fn, i) for i in range(num_env)])
+    if debug and lookback_params['lb_num'] > 0:
+        multi_venv = DebugVenv(multi_venv)
 
     if victim_type == 'none':
         assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
@@ -329,34 +338,39 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 
 
 @train_ex.capture
-def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type):
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type,
+                        deterministic):
     adv_noise_agent_val = adv_noise_params['noise_val']
-    base_policy_path = adv_noise_params.get('base_path', victim_path)
-    base_policy_type = adv_noise_params.get('base_type', victim_type)
+    base_policy_path = adv_noise_params['base_path']
+    base_policy_type = adv_noise_params['base_type']
     base_policy = load_policy(policy_path=base_policy_path, policy_type=base_policy_type,
                               env=multi_venv, env_name=env_name, index=our_idx)
+
     base_action_space = multi_venv.action_space.spaces[our_idx]
     adv_noise_action_space = Box(low=adv_noise_agent_val * base_action_space.low,
                                  high=adv_noise_agent_val * base_action_space.high)
     multi_venv = MergeAgentVecEnv(venv=multi_venv, policy=base_policy,
                                   replace_action_space=adv_noise_action_space,
-                                  merge_agent_idx=our_idx)
+                                  merge_agent_idx=our_idx, deterministic=deterministic)
     return multi_venv
 
 
 @train_ex.capture
 def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
                        victim_path, victim_index, victim_noise, victim_noise_params,
-                       adv_noise_params, transparent_params):
+                       adv_noise_params, transparent_params, lookback_params):
     if victim_type != 'none':
+        deterministic = lookback_params is not None
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
-        if adv_noise_params is not None:
-            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv)
+        if adv_noise_params['noise_val'] is not None:
+            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
+                                             deterministic=deterministic)
 
         # Load the victim and then wrap it if appropriate.
         victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
                              env_name=env_name, index=victim_index,
                              transparent_params=transparent_params)
+
         if victim_noise:
             victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
                                           scheduler=scheduler)
@@ -365,15 +379,16 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
         # Curry the victim
         transparent = transparent_params is not None
         multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                        victim_index=victim_index,
-                                        transparent=transparent)
+                                        victim_index=victim_index, transparent=transparent,
+                                        deterministic=deterministic)
 
     return multi_venv
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
-                    rew_shape, rew_shape_params, log_callbacks, save_callbacks):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
+                    victim_index, victim_path, victim_type, debug, env_name, load_policy,
+                    lookback_params, transparent_params, log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -384,12 +399,22 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, load_policy,
             if scheduler.is_conditional(anneal_type):
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
-    if normalize:
-        if load_policy['type'] == 'zoo':
-            raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
-                             "implicitly. Please set normalize=False to disable VecNormalize.")
+    if lookback_params['lb_num'] > 0:
+        lookback_venv = LookbackRewardVecWrapper(single_venv, env_name, debug,
+                                                 victim_index, victim_path, victim_type,
+                                                 transparent_params, **lookback_params)
+        single_venv = lookback_venv
 
+    if normalize:
         normalized_venv = VecNormalize(single_venv)
+
+        if load_policy['path'] is not None:
+            if load_policy['type'] == 'zoo':
+                raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
+                                 "implicitly. Please set normalize=False to disable VecNormalize.")
+
+                normalized_venv.load_running_average(load_policy['path'])
+
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
 
@@ -410,7 +435,8 @@ NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 
 
 @train_ex.main
-def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_formats):
+def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
+          log_output_formats, lookback_params):
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
@@ -424,8 +450,8 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate, log_output_
     multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
 
     single_venv = FlattenSingletonVecEnv(multi_venv)
-    single_venv = single_wrappers(single_venv, scheduler, our_idx,
-                                  log_callbacks=log_callbacks, save_callbacks=save_callbacks)
+    single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks=log_callbacks,
+                                  save_callbacks=save_callbacks)
 
     train_fn = RL_ALGOS[rl_algo]
     res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),

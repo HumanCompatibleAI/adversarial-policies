@@ -145,6 +145,19 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
+    def paper_sumohumans_only(train):
+        """Final experiments for paper. Like best_guess but more seeds & timesteps."""
+        train = dict(train)
+        _sparse_reward(train)
+        _best_guess_train(train)
+        train['total_timesteps'] = int(20e6)
+        spec = _best_guess_spec(envs=['multicomp/SumoHumans-v0'])
+        spec['config']['seed'] = tune.grid_search([0, 1, 2, 3, 4])
+        exp_name = 'paper'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
     def best_guess(train):
         """Train with promising hyperparameters for 10 million timesteps."""
         train = dict(train)
