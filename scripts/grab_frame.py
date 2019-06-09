@@ -13,13 +13,22 @@ import imageio
 import mujoco_py
 import numpy as np
 
+from modelfree.common.utils import make_env
+from modelfree.envs.gym_compete import GymCompeteToOurs
+from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
+
 
 def get_img(env_name, seed):
-    env = gym.make(env_name)
-    env.seed(int(seed))
+    pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else []
+
+    env = make_env(env_name, int(seed), 0, None,
+                   pre_wrappers=pre_wrappers)
+    env = AnnotatedGymCompete(env, env_name, 'zoo', '1', 'zoo', '1', None,
+                              resolution=(640, 480), font='times', font_size=24,
+                              draw=False)
     env.reset()
 
-    env_scene = env.env_scene
+    env_scene = env.unwrapped.env_scene
     env_scene.viewer = mujoco_py.MjViewer(init_width=1000, init_height=750)
     env_scene.viewer.start()
     env_scene.viewer.set_model(env_scene.model)

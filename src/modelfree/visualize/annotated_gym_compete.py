@@ -103,7 +103,7 @@ class AnnotatedGymCompete(gym.Wrapper):
 
     def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
                  mask_agent_index, resolution, font, font_size, ypos=0.0, spacing=0.05,
-                 num_frames=120):
+                 num_frames=120, draw=True):
         super(AnnotatedGymCompete, self).__init__(env)
 
         # Set agent colors
@@ -132,6 +132,7 @@ class AnnotatedGymCompete(gym.Wrapper):
         self.changed = collections.defaultdict(int)
         self.last_won = None
         self.num_frames = num_frames
+        self.draw = draw
 
         env_scene = self.env.unwrapped.env_scene
 
@@ -184,8 +185,13 @@ class AnnotatedGymCompete(gym.Wrapper):
 
     def _render(self, mode='human', close=False):
         res = self.env.render(mode, close)
+
         if mode == 'rgb_array':
+            if not self.draw:
+                return res
+
             img = Image.fromarray(res)
+
             draw = ImageDraw.Draw(img)
 
             width, height = img.size
