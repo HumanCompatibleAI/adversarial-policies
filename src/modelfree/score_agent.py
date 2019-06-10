@@ -187,7 +187,7 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params, num_env,
-                videos, video_params, mask_agent_index, mask_agent_kwargs, noisy_agent_index,
+                videos, video_params, mask_agent_index, noisy_agent_index,
                 noisy_agent_magnitude, mask_agent_noise):
     if videos:
         if video_params['save_dir'] is None:
@@ -202,6 +202,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agent_wrappers = {}
     if mask_agent_index is not None:
+        mask_agent_kwargs = {}
         if mask_agent_noise is not None:
             mask_agent_kwargs['noise_magnitude'] = mask_agent_noise
 
