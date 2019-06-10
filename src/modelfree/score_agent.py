@@ -18,7 +18,7 @@ from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
 from modelfree.envs.wrappers import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.policies.loader import load_policy
-from modelfree.training.shaping_wrappers import NoisyAgentWrapper
+from modelfree.policies.wrappers import NoisyAgentWrapper
 from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 score_ex = Experiment('score')
