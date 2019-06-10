@@ -6,20 +6,11 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from modelfree.envs.gym_compete import NUM_ZOO_POLICIES
+from modelfree.visualize.util import PRETTY_ENV
+
 RESULT_DIR = "data/aws/score_agents/victim_masked_noise/"
 OUT_DIR = "data/aws/score_agents/masked_obs_visualization/"
-ENV_LOOKUP = {
-    'SumoHumans': 'multicomp/SumoHumansAutoContact-v0',
-    'SumoAnts': 'multicomp/SumoAntsAutoContact-v0',
-    'KickAndDefend': 'multicomp/KickAndDefend-v0',
-    # 'YouShallNotPass': 'multicomp/YouShallNotPassHumans-v0' (Removed for now because I don't have
-    # time at the moment to fix the plotting logic to deal with victim in different location)
-}
-AVAILABLE_ZOOS = {
-    'SumoHumans': 3,
-    'SumoAnts': 4,
-    'KickAndDefend': 3
-}
 
 
 def transform(df, transform_list):
@@ -117,11 +108,17 @@ def generate_plots(experiment):
 
     if not os.path.exists(experiment_out_dir):
         os.mkdir(experiment_out_dir)
-    for short_env in ENV_LOOKUP:
-        for zoo_id in range(1, AVAILABLE_ZOOS[short_env] + 1):
+    for env_name, pretty_env in PRETTY_ENV.items():
+        short_env = pretty_env.replace(' ', '')
+        if env_name == 'multicomp/YouShallNotPassHumans-v0':
+            # skip for now as has different victim index, need to fix plotting code
+            continue
+
+        for zoo_id in range(1, NUM_ZOO_POLICIES[short_env] + 1):
             subset_params = {
                 'agent0_path': str(zoo_id),
-                'env': ENV_LOOKUP[short_env]}
+                'env': env_name
+            }
 
             zoo_plot_path = os.path.join(experiment_out_dir,
                                          f"{experiment}_ZooBaseline_"
