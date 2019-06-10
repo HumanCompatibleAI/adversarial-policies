@@ -2,6 +2,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${DIR}/common.sh
+
 OUT_ROOT=data/aws/score_agents
 TIMESTAMP=`date --iso-8601=seconds`
 
