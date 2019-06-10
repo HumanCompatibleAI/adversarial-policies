@@ -9,8 +9,9 @@ from gym_compete.policy import LSTMPolicy, MlpPolicyValue
 import tensorflow as tf
 
 from aprl.envs.multi_agent import MultiAgentEnv, VecMultiWrapper
-from modelfree.common.transparent import TransparentPolicy
-from modelfree.common.utils import PolicyToModel, make_session
+from modelfree.common.utils import make_session
+from modelfree.policies.base import PolicyToModel
+from modelfree.policies.transparent import TransparentPolicy
 
 pylog = logging.getLogger('modelfree.envs.gym_compete_conversion')
 

@@ -4,7 +4,7 @@ from itertools import islice
 import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
-from modelfree.common.utils import DummyModel
+from modelfree.policies.base import DummyModel
 from modelfree.training.scheduling import ConditionalAnnealer, ConstantAnnealer, LinearAnnealer
 
 REW_TYPES = set(('sparse', 'dense'))

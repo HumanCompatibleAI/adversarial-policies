@@ -14,10 +14,10 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
-from modelfree.common.policy_loader import load_policy
-from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
+from modelfree.envs.wrappers import TrajectoryRecorder, VideoWrapper, make_env, simulate
+from modelfree.policies.loader import load_policy
 from modelfree.training.shaping_wrappers import NoisyAgentWrapper
 from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
@@ -141,9 +141,9 @@ def _save_video_or_metadata(env_dir, saved_video_path):
 @score_ex.config
 def default_score_config():
     env_name = 'multicomp/SumoAnts-v0'    # Gym env ID
-    agent_a_type = 'zoo'                  # type supported by policy_loader.py
+    agent_a_type = 'zoo'                  # type supported by loader.py
     agent_a_path = '1'                    # path or other unique identifier
-    agent_b_type = 'zoo'                  # type supported by policy_loader.py
+    agent_b_type = 'zoo'                  # type supported by loader.py
     agent_b_path = '2'                    # path or other unique identifier
     record_traj = False                   # whether to record trajectories
     record_traj_params = {                # parameters for recording trajectories
