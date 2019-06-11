@@ -1,25 +1,35 @@
 import json
 import math
 import os
+import os.path as osp
 
 from matplotlib import pyplot as plt
 import pandas as pd
+from sacred import Experiment
+from sacred.observers import FileStorageObserver
 import seaborn as sns
 
-RESULT_DIR = "data/aws/score_agents/victim_masked_noise/"
-OUT_DIR = "data/aws/score_agents/masked_obs_visualization/"
-ENV_LOOKUP = {
-    'SumoHumans': 'multicomp/SumoHumansAutoContact-v0',
-    'SumoAnts': 'multicomp/SumoAntsAutoContact-v0',
-    'KickAndDefend': 'multicomp/KickAndDefend-v0',
-    # 'YouShallNotPass': 'multicomp/YouShallNotPassHumans-v0' (Removed for now because I don't have
-    # time at the moment to fix the plotting logic to deal with victim in different location)
-}
-AVAILABLE_ZOOS = {
-    'SumoHumans': 3,
-    'SumoAnts': 4,
-    'KickAndDefend': 3
-}
+plot_noisy_obs_exp = Experiment('plot_noisy_observations')
+
+
+@plot_noisy_obs_exp.config
+def base_config():
+    root_dir = "data/aws/score_agents/victim_masked_noise/"
+    out_dir = "data/aws/score_agents/masked_obs_visualization/"
+    env_lookup = {
+        'SumoHumans': 'multicomp/SumoHumansAutoContact-v0',
+        'SumoAnts': 'multicomp/SumoAntsAutoContact-v0',
+        'KickAndDefend': 'multicomp/KickAndDefend-v0'
+    }
+    available_zoos = {
+        'SumoHumans': 3,
+        'SumoAnts': 4,
+        'KickAndDefend': 3
+    }
+    input_run = "ep_500_5-22_all_zoo"
+    # Runs known to work: ["ep_500_5-22_single_zoo", "ep_100_5-21", "ep_500_5-22_all_zoo"]
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
 
 
 def transform(df, transform_list):
@@ -85,9 +95,9 @@ def noisy_multiple_opponent_subset_plot(original_df, subset_specs, transform_spe
     plt.close()
 
 
-def generate_plots(experiment):
-    num_episodes = int(experiment.split("_")[1])
-
+@plot_noisy_obs_exp.main
+def generate_plots(input_run, root_dir, out_dir, env_lookup, available_zoos):
+    num_episodes = int(input_run.split("_")[1])
     baseline_transformations = [
         {'new_col': 'log_noise', 'old_col': 'noise_magnitude',
          'func': lambda x: math.log(x)},
@@ -97,8 +107,8 @@ def generate_plots(experiment):
          'func': lambda x: x / num_episodes}
     ]
 
-    zoo_path = os.path.join(RESULT_DIR, experiment, "noisy_zoo_observations.json")
-    adversary_path = os.path.join(RESULT_DIR, experiment, "noisy_adversary_observations.json")
+    zoo_path = os.path.join(root_dir, input_run, "noisy_zoo_observations.json")
+    adversary_path = os.path.join(root_dir, input_run, "noisy_adversary_observations.json")
     with open(adversary_path, "r") as fp:
         noisy_obs_against_adv = json.load(fp)
 
@@ -113,22 +123,22 @@ def generate_plots(experiment):
     noisy_adv_obs_df = pd.DataFrame(
         [process_element_into_flat_dict(el, key_order=DATAFRAME_KEYS)
          for el in noisy_obs_against_adv])
-    experiment_out_dir = os.path.join(OUT_DIR, experiment)
+    experiment_out_dir = os.path.join(out_dir, input_run)
 
     if not os.path.exists(experiment_out_dir):
         os.mkdir(experiment_out_dir)
-    for short_env in ENV_LOOKUP:
-        for zoo_id in range(1, AVAILABLE_ZOOS[short_env] + 1):
+    for short_env in env_lookup:
+        for zoo_id in range(1, available_zoos[short_env] + 1):
             subset_params = {
                 'agent0_path': str(zoo_id),
-                'env': ENV_LOOKUP[short_env]}
+                'env': env_lookup[short_env]}
 
             zoo_plot_path = os.path.join(experiment_out_dir,
-                                         f"{experiment}_ZooBaseline_"
+                                         f"{input_run}_ZooBaseline_"
                                          f"{short_env}_AgainstZoo{zoo_id}")
 
             adversary_plot_path = os.path.join(experiment_out_dir,
-                                               f"{experiment}_AdversaryTrained_"
+                                               f"{input_run}_AdversaryTrained_"
                                                f"{short_env}_AgainstZoo{zoo_id}")
             noisy_multiple_opponent_subset_plot(noisy_zoo_obs_df, subset_specs=subset_params,
                                                 transform_specs=baseline_transformations,
@@ -138,6 +148,11 @@ def generate_plots(experiment):
                                                  savefile=os.path.join(adversary_plot_path))
 
 
-if __name__ == "__main__":
-    for experiment_run in ["ep_500_5-22_single_zoo", "ep_100_5-21", "ep_500_5-22_all_zoo"]:
-        generate_plots(experiment_run)
+def main():
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'plot_noisy_observations'))
+    plot_noisy_obs_exp.observers.append(observer)
+    plot_noisy_obs_exp.run_commandline()
+
+
+if __name__ == '__main__':
+    main()
