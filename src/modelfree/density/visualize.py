@@ -121,7 +121,7 @@ def bar_chart(envs, victim, n_components, covariance, savefile=None):
     sns.barplot(x='Environment', y='log_proba', hue='opponent_id',
                 order=PRETTY_ENVS.values(), hue_order=BAR_ORDER,
                 data=longform, palette=palette, errwidth=1)
-    ax.set_ylabel('Mean Log Probability')
+    ax.set_ylabel('Mean Log Probability Density')
     plt.locator_params(axis='y', nbins=4)
     util.rotate_labels(ax, xrot=0)
 
