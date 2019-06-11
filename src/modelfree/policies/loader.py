@@ -10,9 +10,9 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
 from aprl.envs.multi_agent import FakeSingleSpacesVec
-from modelfree.common.utils import (DummyModel, OpenAIToStablePolicy, PolicyToModel, RandomPolicy,
-                                    ZeroPolicy)
 from modelfree.envs.gym_compete import load_zoo_agent
+from modelfree.policies.base import (DummyModel, OpenAIToStablePolicy, PolicyToModel, RandomPolicy,
+                                     ZeroPolicy)
 
 pylog = logging.getLogger('modelfree.policy_loader')
 
@@ -131,7 +131,6 @@ def load_backward_compatible_model(cls, root_dir, denv=None, **kwargs):
     """Backwards compatibility hack to load old pickled policies
     which still expect modelfree.scheduling to exist.
     """
-    import modelfree.training.scheduling  # noqa: F401
     sys.modules['modelfree.scheduling'] = sys.modules['modelfree.training.scheduling']
     if 'env' in kwargs:
         denv = kwargs['env']

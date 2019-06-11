@@ -19,10 +19,11 @@ import tensorflow as tf
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from modelfree.common import utils
-from modelfree.common.policy_loader import load_backward_compatible_model, load_policy
 from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
+import modelfree.envs.wrappers
+from modelfree.policies.loader import load_backward_compatible_model, load_policy
 from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
@@ -220,7 +221,7 @@ def train_config():
     total_timesteps = 4096          # total number of timesteps to training for
 
     # Victim Config
-    victim_type = "zoo"             # type supported by policy_loader.py
+    victim_type = "zoo"             # type supported by loader.py
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
 
@@ -240,7 +241,7 @@ def train_config():
     # RL Algorithm Policies/Demonstrations
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
-        'type': rl_algo,            # type supported by policy_loader.py
+        'type': rl_algo,            # type supported by loader.py
     }
     adv_noise_params = {            # param dict for epsilon-ball noise policy added to zoo policy
         'noise_val': None,          # size of noise ball. Set to nonnegative float to activate.
@@ -307,8 +308,9 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
         our_idx = 1 - victim_index
 
     def env_fn(i):
-        return utils.make_env(env_name, _seed, i, out_dir, our_idx,
-                              pre_wrappers=pre_wrappers, agent_wrappers=agent_wrappers)
+        return modelfree.envs.wrappers.make_env(env_name, _seed, i, out_dir, our_idx,
+                                                pre_wrappers=pre_wrappers,
+                                                agent_wrappers=agent_wrappers)
 
     if not debug and num_env > 1:
         make_vec_env = make_subproc_vec_multi_env

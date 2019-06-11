@@ -9,6 +9,9 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import seaborn as sns
 
+from modelfree.envs.gym_compete import NUM_ZOO_POLICIES
+from modelfree.visualize.util import PRETTY_ENV
+
 plot_noisy_obs_exp = Experiment('plot_noisy_observations')
 
 
@@ -127,11 +130,18 @@ def generate_plots(input_run, root_dir, out_dir, env_lookup, available_zoos):
 
     if not os.path.exists(experiment_out_dir):
         os.mkdir(experiment_out_dir)
-    for short_env in env_lookup:
-        for zoo_id in range(1, available_zoos[short_env] + 1):
+
+    for env_name, pretty_env in PRETTY_ENV.items():
+        short_env = pretty_env.replace(' ', '')
+        if env_name == 'multicomp/YouShallNotPassHumans-v0':
+            # skip for now as has different victim index, need to fix plotting code
+            continue
+
+        for zoo_id in range(1, NUM_ZOO_POLICIES[short_env] + 1):
             subset_params = {
                 'agent0_path': str(zoo_id),
-                'env': env_lookup[short_env]}
+                'env': env_name
+            }
 
             zoo_plot_path = os.path.join(experiment_out_dir,
                                          f"{input_run}_ZooBaseline_"
