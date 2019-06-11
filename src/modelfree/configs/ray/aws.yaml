@@ -50,6 +50,8 @@ worker_nodes:
         VolumeType: gp2
   InstanceMarketOptions:
     MarketType: spot
+  IamInstanceProfile:
+    Name: EC2AccessS3
 
 # List of shell commands to run to set up nodes.
 initialization_commands: []  # before entering Docker
