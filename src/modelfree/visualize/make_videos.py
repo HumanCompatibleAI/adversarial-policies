@@ -32,10 +32,48 @@ def default_config():
 
 
 @make_videos_ex.named_config
+def slides_config():
+    """Generate a subset of videos, with tighter-cropped camera.
+       Intended for slideshows/demos."""
+    score_configs = [('summary', ), ('summary', 'mask_observations_of_victim')]
+    multi_score = {
+        'score': {
+            'video_params': {
+                'annotation_params': {
+                    'camera_config': 'close',
+                    'short_labels': True,
+                }
+            }
+        }
+    }
+    exp_name = 'slides'
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+LOW_RES = {
+    'score': {
+        'video_params': {
+            'annotation_params': {
+                'resolution': (640, 480),
+                'font_size': 24,
+            }
+        }
+    }
+}
+
+
+@make_videos_ex.named_config
+def low_res():
+    multi_score = LOW_RES  # noqa: F841
+
+
+@make_videos_ex.named_config
 def debug_config():
     score_configs = [('debug_one_each_type', ),
                      ('debug_one_each_type', 'mask_observations_of_victim')]
-    multi_score = {'score': {'episodes': 2}}
+    multi_score = dict(LOW_RES)
+    multi_score['score']['episodes'] = 2
     exp_name = 'debug'
     _ = locals()  # quieten flake8 unused variable warning
     del _

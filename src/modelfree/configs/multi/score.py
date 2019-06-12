@@ -3,7 +3,6 @@
 import json
 import logging
 import os.path
-import pkgutil
 
 from ray import tune
 
@@ -13,18 +12,30 @@ from modelfree.envs import VICTIM_INDEX, gym_compete
 logger = logging.getLogger('modelfree.configs.multi.score')
 
 
-def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
-    if envs is None:
-        envs = BANSAL_GOOD_ENVS
+def _gen_configs(victim_fn, adversary_fn, agents=None):
+    """Helper function to generate configs.
+
+    :param victim_fn: (callable) called with environment name, victim index, victim id,
+                      and adversary ID. Should return a victim_type, victim_path tuple.
+    :param adversary_fn: (callable) analogous to victim_fn.
+    :param agents: (dict or None) optional dict of environments to (victim_ids, adversary_ids)
+                   where victim_ids and adversary_ids are iterables. If None, then defaults to
+                   {victim,adversary}_ids = range(num_zoo_policies) for each
+                   env in BANSAL_GOOD_ENVS.
+
+    :return A list of (env, agent_a_type, agent_a_path, agent_b_type, agent_b_path).
+    """
+    if agents is None:
+        agents = {}
+        for env in BANSAL_GOOD_ENVS:
+            num_zoo = gym_compete.num_zoo_policies(env)
+            agents[env] = (range(1, num_zoo + 1), range(1, num_zoo + 1))
 
     configs = []
-    for env in envs:
-        num_zoo = gym_compete.num_zoo_policies(env)
-        if max_zoo is not None:
-            num_zoo = min(num_zoo, max_zoo)
+    for env, (victim_ids, adversary_ids) in agents.items():
         victim_index = VICTIM_INDEX[env]
-        for victim_id in range(num_zoo):
-            for adversary_id in range(num_zoo):
+        for victim_id in victim_ids:
+            for adversary_id in adversary_ids:
                 victim_type, victim_path = victim_fn(env, victim_index, victim_id, adversary_id)
                 adversary = adversary_fn(env, victim_index, adversary_id, victim_id)
                 if adversary is None:
@@ -45,7 +56,7 @@ def _gen_configs(victim_fn, adversary_fn, max_zoo=None, envs=None):
 
 
 def _zoo_identity(_env, _victim_index, our_id, _opponent_id):
-    return 'zoo', str(our_id + 1)
+    return 'zoo', str(our_id)
 
 
 def _env_agents(**kwargs):
@@ -56,24 +67,24 @@ def _fixed_vs_victim(fixed_type, envs=None):
     def adversary_fn(_env, _victim_index, _our_id, _opponent_id):
         return fixed_type, 'none'
 
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
+    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, agents=envs)
 
 
-def _adversary_vs_victims(adversary_type, adversary_paths, envs=None, no_transfer=False):
+def _adversary_vs_victims(adversary_type, adversary_paths, no_transfer=False, **kwargs):
     """Generates configs for adversaries.
 
     :param adversary_type: (str) the policy type of the adversary.
     :param adversary_paths: (dict) paths to adversaries, loaded by _get_adversary_paths
-    :param envs: (list<str> or None) optional list of environments to restrict to
     :param no_transfer: (bool) when True, only return the adversary trained against that victim;
                                 otherwise, returns all adversaries (useful for testing transfer).
+    :param kwargs: (dict) passed through to `gen_configs`.
     """
     def adversary_fn(env, victim_index, our_id, opponent_id):
         if no_transfer and our_id != opponent_id:
             return None
 
         victim_index = str(victim_index)
-        our_id = str(our_id + 1)
+        our_id = str(our_id)
 
         path = adversary_paths.get(env, {}).get(victim_index, {}).get(our_id)
         if path is None:
@@ -82,12 +93,7 @@ def _adversary_vs_victims(adversary_type, adversary_paths, envs=None, no_transfe
         else:
             return adversary_type, os.path.abspath(path)
 
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, envs=envs)
-
-
-def load_json(path):
-    content = pkgutil.get_data('modelfree', path)
-    return json.loads(content)
+    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, **kwargs)
 
 
 PATHS_AND_TYPES = 'env_name:agent_a_type:agent_a_path:agent_b_type:agent_b_path'
@@ -102,6 +108,21 @@ def _get_adversary_paths():
                          "to generate this.)")
     with open(path, 'r') as f:
         return json.load(f)['policies']
+
+
+def _summary_paths():
+    summary_agents = {
+        # ([median victim Zoo id], [best Zoo opponent ID]) -- note 0-indexed
+        'multicomp/KickAndDefend-v0': ([2], [2]),
+        'multicomp/YouShallNotPassHumans-v0': ([1], [1]),
+        'multicomp/SumoHumansAutoContact-v0': ([2], [3]),
+    }
+    adversary_agents = {env: (victim_ids, victim_ids)
+                        for env, (victim_ids, _opponent_ids) in summary_agents.items()}
+    adversaries = _adversary_vs_victims('ppo2', _get_adversary_paths(),
+                                        no_transfer=True, agents=adversary_agents)
+    zoo = _env_agents(agents=summary_agents)
+    return adversaries + zoo
 
 
 def make_configs(multi_score_ex):
@@ -174,7 +195,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _env_agents(max_zoo=1) +
+                    _env_agents(agents={env: (range(1), range(1)) for env in BANSAL_GOOD_ENVS}) +
                     _fixed_vs_victim('zero')[0:1] +
                     _fixed_vs_victim('random')[0:1] +
                     _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
@@ -252,6 +273,19 @@ def make_configs(multi_score_ex):
             }
         }
         exp_name = 'adversary_trained'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
+    def summary():
+        """Try adversaries against the victim they were trained against."""
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(_summary_paths()),
+            }
+        }
+        exp_name = 'summary'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _

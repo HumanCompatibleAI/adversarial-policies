@@ -161,6 +161,8 @@ def default_score_config():
         'single_file': True,              # if False, stores one file per episode
         'annotated': True,                # for gym_compete, color-codes the agents and adds scores
         'annotation_params': {
+            'camera_config': 'default',
+            'short_labels': False,
             'resolution': (640, 480),
             'font': 'times',
             'font_size': 24,
