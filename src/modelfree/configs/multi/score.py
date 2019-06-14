@@ -128,17 +128,18 @@ def _summary_paths():
 
 def make_configs(multi_score_ex):
     @multi_score_ex.named_config
-    def high_accuracy(score):
+    def high_accuracy(exp_name, score):
         score = dict(score)
         score['episodes'] = 1000
         score['num_env'] = 16
+        exp_name = 'high_accuracy_' + exp_name
 
     @multi_score_ex.named_config
-    def medium_accuracy(score):
+    def medium_accuracy(exp_name, score):
         score = dict(score)
-        score['episodes'] = 100
+        score['episodes'] = 1
         score['num_env'] = 16
-        exp_name = 'medium_accuracy_'
+        exp_name = 'medium_accuracy_' + exp_name
         _ = locals()
         del _
 
@@ -196,12 +197,15 @@ def make_configs(multi_score_ex):
         score['mask_agent_masking_type'] = 'zeros'
         exp_name = 'zero_' + exp_name
 
-    @multi_score_ex.named_config
-    def mask_observations_with_additive_noise(exp_name, score, spec):
-        score = dict(score)
+    def _mask_obserations_with_additive_noise(score, spec):
         score['index_keys'] = ['mask_agent_masking_type', 'mask_agent_noise']
         score['mask_agent_masking_type'] = 'additive_noise'
         spec['num_samples'] = 25
+
+    @multi_score_ex.named_config
+    def mask_observations_with_additive_noise(exp_name, score, spec):
+        score = dict(score)
+        _mask_obserations_with_additive_noise(score, spec)
         spec['config']['mask_agent_noise'] = tune.sample_from(
             lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
         )
@@ -210,36 +214,32 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def mask_observations_with_smaller_additive_noise(exp_name, score, spec):
         score = dict(score)
-        score['index_keys'] = ['mask_agent_masking_type', 'mask_agent_noise']
-        score['mask_agent_masking_type'] = 'additive_noise'
-        spec['num_samples'] = 25
+        _mask_obserations_with_additive_noise(score, spec)
         spec['config']['mask_agent_noise'] = tune.sample_from(
             lambda spec: np.random.exponential(scale=1.0)
         )
         exp_name = 'smaller_additive_noise_' + exp_name
 
-    @multi_score_ex.named_config
-    def noise_adversary_actions(exp_name, score, spec):
-        score = dict(score)
+    def _noise_actions(score, spec):
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
         spec['num_samples'] = 25
         spec['config']['noisy_agent_magnitude'] = tune.sample_from(
             lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
         )
+
+    @multi_score_ex.named_config
+    def noise_adversary_actions(exp_name, score, spec):
+        score = dict(score)
+        _noise_actions(score, spec)
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-
         exp_name = 'adversary_action_noise_' + exp_name
 
     @multi_score_ex.named_config
     def noise_victim_actions(exp_name, score, spec):
         score = dict(score)
-        score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
-        spec['num_samples'] = 25
-        spec['config']['noisy_agent_magnitude'] = tune.sample_from(
-            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
-        )
+        _noise_actions(score, spec)
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
