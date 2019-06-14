@@ -8,9 +8,9 @@ from stable_baselines.common.vec_env import VecEnvWrapper
 from aprl.common.mujoco import MujocoState, ResettableEnv
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
-from modelfree.common.policy_loader import load_policy
-from modelfree.common.utils import make_env
 from modelfree.envs.gym_compete import GymCompeteToOurs
+from modelfree.envs.wrappers import make_env
+from modelfree.policies.loader import load_policy
 from modelfree.training.victim_envs import EmbedVictimWrapper
 
 LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])

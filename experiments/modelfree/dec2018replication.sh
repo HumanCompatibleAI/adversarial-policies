@@ -2,12 +2,12 @@
 
 # Reproduce results of Dec 2018 draft write-up
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${DIR}/../common.sh
+
 ENV_NAMES="multicomp/KickAndDefend-v0 multicomp/SumoAnts-v0"
 PRETRAINED="1 2 3"
 SEEDS="0 1 2"
-
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-. ${DIR}/../common.sh
 
 OUT_DIR=data/mf-dec2018rep
 

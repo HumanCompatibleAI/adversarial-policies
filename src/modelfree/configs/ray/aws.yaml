@@ -49,6 +49,8 @@ worker_nodes:
         VolumeType: gp2
   InstanceMarketOptions:
     MarketType: spot
+  IamInstanceProfile:
+    Name: EC2AccessS3
 
 # List of shell commands to run to set up nodes.
 initialization_commands: []  # before entering Docker
@@ -67,13 +69,13 @@ head_start_ray_commands:
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    pip install . &&
+    python3 setup.py sdist bdist_wheel &&
+    pip install --force dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
     ray stop &&
     ulimit -n 65536 &&
     ray start --head --redis-port=6379 --object-manager-port=8076 \
               --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=4
-
 # Command to start ray on worker nodes. You don't need to change this.
 worker_start_ray_commands:
   # (Re)start spot termination monitor.
@@ -83,7 +85,8 @@ worker_start_ray_commands:
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    pip install . &&
+    python3 setup.py sdist bdist_wheel &&
+    pip install --force dist/aprl-*.whl &&
     ray stop &&
     (python /adversarial-policies/scripts/aws/termination.py >> /tmp/aws_termination.log 2>&1 &) &&
     ulimit -n 65536 &&

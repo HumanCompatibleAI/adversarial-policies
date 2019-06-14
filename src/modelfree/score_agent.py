@@ -14,10 +14,11 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
-from modelfree.common.policy_loader import load_policy
-from modelfree.common.utils import TrajectoryRecorder, VideoWrapper, make_env, simulate
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
+from modelfree.envs.wrappers import TrajectoryRecorder, VideoWrapper, make_env, simulate
+from modelfree.policies.loader import load_policy
+from modelfree.policies.wrappers import NoisyAgentWrapper
 from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 score_ex = Experiment('score')
@@ -140,9 +141,9 @@ def _save_video_or_metadata(env_dir, saved_video_path):
 @score_ex.config
 def default_score_config():
     env_name = 'multicomp/SumoAnts-v0'    # Gym env ID
-    agent_a_type = 'zoo'                  # type supported by policy_loader.py
+    agent_a_type = 'zoo'                  # type supported by modelfree.policies.loader
     agent_a_path = '1'                    # path or other unique identifier
-    agent_b_type = 'zoo'                  # type supported by policy_loader.py
+    agent_b_type = 'zoo'                  # type supported by modelfree.policies.loader
     agent_b_path = '2'                    # path or other unique identifier
     record_traj = False                   # whether to record trajectories
     record_traj_params = {                # parameters for recording trajectories
@@ -171,10 +172,14 @@ def default_score_config():
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
+    index_keys = []                       # Additional keys to add to the ray result file index
+    noisy_agent_index = None              # Agent to add add action noise to
+    noisy_agent_magnitude = 1.0           # Magnitude of action noise for agent being noised
     mask_agent_index = None               # index of agent whose observations should be limited
-    mask_agent_kwargs = {                 # control how agent observations are limited
-        'masking_type': 'initialization',
-    }
+    mask_agent_masking_type = 'initialization'  # Type of masking to apply to a masked agent
+    mask_agent_noise = None               # Noise to apply to a noisy masked agent.
+    # mask_agent_noise should be inside mask_agent_kwargs, but is being taken out to allow it to
+    # be added to the ray results index (since mask_agent_kwargs isn't hashable)
 
     seed = 0
     _ = locals()  # quieten flake8 unused variable warning
@@ -184,7 +189,8 @@ def default_score_config():
 @score_ex.main
 def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
                 record_traj, record_traj_params, transparent_params, num_env,
-                videos, video_params, mask_agent_index, mask_agent_kwargs):
+                videos, video_params, mask_agent_index, noisy_agent_index,
+                noisy_agent_magnitude, mask_agent_noise):
     if videos:
         if video_params['save_dir'] is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
@@ -198,6 +204,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     agent_wrappers = {}
     if mask_agent_index is not None:
+        mask_agent_kwargs = {}
+        if mask_agent_noise is not None:
+            mask_agent_kwargs['noise_magnitude'] = mask_agent_noise
+
         agent_wrappers = make_mask_agent_wrappers(env_name, mask_agent_index, **mask_agent_kwargs)
 
     def env_fn(i):
@@ -233,6 +243,10 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     zipped = list(zip(agent_types, agent_paths))
     agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
               for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
+
+    if noisy_agent_index is not None:
+        agents[noisy_agent_index] = NoisyAgentWrapper(agents[noisy_agent_index],
+                                                      noise_annealer=lambda: noisy_agent_magnitude)
 
     score = get_empirical_score(venv, agents)
 

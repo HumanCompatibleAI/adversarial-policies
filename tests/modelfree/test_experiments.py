@@ -9,9 +9,9 @@ import numpy as np
 import pytest
 from ray.tune.trial import Trial
 
-from modelfree.common.policy_loader import AGENT_LOADERS
 from modelfree.multi.score import multi_score_ex
 from modelfree.multi.train import multi_train_ex
+from modelfree.policies.loader import AGENT_LOADERS
 from modelfree.score_agent import score_ex
 from modelfree.train import NO_VECENV, RL_ALGOS, train_ex
 from modelfree.train_and_score import train_and_score
@@ -34,7 +34,9 @@ SCORE_AGENT_CONFIGS = [
         'record_traj': True,
         'record_traj_params': {'save_dir': 'test_dir'},
     },
+    {'noisy_agent_index': 0},
     {'mask_agent_index': 0},
+    {'mask_agent_index': 0, 'mask_agent_masking_type': 'additive_noise', 'mask_agent_noise': 1.0},
 ]
 SCORE_AGENT_CONFIGS += [
     {

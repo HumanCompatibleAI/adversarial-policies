@@ -70,7 +70,10 @@ RUN    curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
 
 # Delay copying (and installing) the code until the very end
 COPY . /adversarial-policies
-RUN parallel ". {}venv/bin/activate && pip install ." ::: aprl modelfree
+# Build a wheel then install to avoid copying whole directory (pip issue #2195)
+RUN python3 setup.py sdist bdist_wheel
+RUN parallel ". {}venv/bin/activate && \
+              pip install dist/aprl-*.whl" ::: aprl modelfree
 
 # Default entrypoints
 ENTRYPOINT ["/adversarial-policies/vendor/Xdummy-entrypoint"]
