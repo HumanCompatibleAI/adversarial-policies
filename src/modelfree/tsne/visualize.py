@@ -47,11 +47,11 @@ def inline_config():
     external_legend_params = None
     pretty_labels = {
         'Adv': 'Adv',
-        'Zoo': 'ZooO2',
+        'Zoo': 'Zoo',
         'Rand': 'Rand',
     }
 
-    model_glob = 'data/tsne/default/20190505_193250/fitted/KickAndDefend-v0_victim_zoo_2'
+    model_glob = 'data/tsne/default/20190505_193250/fitted/*'
     output_root = 'data/tsne/default/20190505_193250/figures_inline/'
 
     _ = locals()
