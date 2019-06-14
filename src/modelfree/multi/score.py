@@ -113,12 +113,13 @@ def run_external(named_configs, post_named_configs, config_updates, adversary_pa
     os.environ['ADVERSARY_PATHS'] = adversary_path
 
     output_dir = {}
-    for config in named_configs:
-        run = multi_score_ex.run(named_configs=[config] + post_named_configs,
+    for trial_configs in named_configs:
+        configs = list(trial_configs) + list(post_named_configs)
+        run = multi_score_ex.run(named_configs=configs,
                                  config_updates=config_updates)
         assert run.status == 'COMPLETED'
         exp_id = run.result['exp_id']
-        output_dir[config] = exp_id
+        output_dir[tuple(trial_configs)] = exp_id
 
     return output_dir
 
@@ -165,6 +166,7 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
                 opponent_path = opponent_cfg['victim_path']
 
             src_path, new_name, suffix = path_generator(trial_root=trial_root,
+                                                        cfg=cfg,
                                                         env_name=env_name,
                                                         victim_index=victim_index,
                                                         victim_type=victim_type,

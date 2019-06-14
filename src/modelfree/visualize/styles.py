@@ -8,14 +8,28 @@ PRETTY_LABELS = {
 STYLES = {
     'paper': {
         'figure.figsize': (5.5, 7.5),
-        'font.serif': 'Times New Roman',
         'font.family': 'serif',
+        'font.serif': 'Times New Roman',
         'font.size': 9,
         'legend.fontsize': 9,
         'axes.titlesize': 9,
         'axes.labelsize': 9,
         'xtick.labelsize': 9,
         'ytick.labelsize': 9,
+    },
+    'slides': {
+        'figure.figsize': (9.32, 3),
+    },
+    'poster': {
+        'font.family': 'sans-serif',
+        'font.sans-serif': 'Arial',
+        'font.weight': 'bold',
+        'font.size': 14,
+        'legend.fontsize': 14,
+        'axes.titlesize': 14,
+        'axes.labelsize': 14,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
     },
     'monolithic': {
         'figure.figsize': (5.5, 2.0625),
@@ -31,10 +45,14 @@ STYLES = {
     },
     'scores_twocol': {
         'figure.figsize': (2.7, 1.6),
+        'font.size': 8,
         'ytick.labelsize': 8,
     },
     'scores_threecol': {
         'figure.figsize': (1.76, 1.6),
+    },
+    'scores_poster_threecol': {
+        'figure.figsize': (5.15, 3.1),
     },
     'a4': {
         'figure.figsize': (8.27, 11.69),

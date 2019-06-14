@@ -19,7 +19,7 @@ def activation_storing_config():
     ray_upload_dir = 'data'     # where Ray will upload multi.score outputs. 'data' works on local
     out_dir = None
 
-    score_configs = ['zoo_baseline', 'random_baseline', 'adversary_trained']
+    score_configs = [(x, ) for x in ['zoo_baseline', 'random_baseline', 'adversary_trained']]
     score_update = {}
 
     _ = locals()    # quieten flake8 unused variable warning

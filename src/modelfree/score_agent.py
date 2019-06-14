@@ -162,6 +162,8 @@ def default_score_config():
         'single_file': True,              # if False, stores one file per episode
         'annotated': True,                # for gym_compete, color-codes the agents and adds scores
         'annotation_params': {
+            'camera_config': 'default',
+            'short_labels': False,
             'resolution': (640, 480),
             'font': 'times',
             'font_size': 24,
@@ -217,7 +219,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                 if 'multicomp' in env_name:
                     assert num_env == 1, "pretty videos requires num_env=1"
                     env = AnnotatedGymCompete(env, env_name, agent_a_type, agent_a_path,
-                                              agent_b_type, agent_b_path,
+                                              agent_b_type, agent_b_path, mask_agent_index,
                                               **video_params['annotation_params'])
                 else:
                     warnings.warn(f"Annotated videos not supported for environment '{env_name}'")

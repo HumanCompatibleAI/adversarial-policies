@@ -14,10 +14,8 @@ logger = logging.getLogger('modelfree.visualize.scores')
 visualize_score_ex = Experiment('visualize_score')
 
 
-def heatmap_opponent(single_env, cmap):
-    row_starts = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0']
-    row_ends = ['multicomp/YouShallNotPassHumans-v0', 'multicomp/SumoAntsAutoContact-v0']
-    col_ends = ['multicomp/SumoHumansAutoContact-v0', 'multicomp/SumoAntsAutoContact-v0']
+@visualize_score_ex.capture
+def heatmap_opponent(single_env, cmap, row_starts, row_ends, col_ends):
     xlabel = single_env.name in col_ends
     ylabel = single_env.name in row_starts
     cbar = single_env.name in row_ends
@@ -73,15 +71,13 @@ def full_masked_config():
 
 
 @visualize_score_ex.named_config
-def use_heatmap_opponent():
-    command = heatmap_opponent  # noqa: F841
-
-
-@visualize_score_ex.named_config
 def paper_config():
     transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
 
     styles = ['paper', 'scores_twocol']
+    row_starts = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0']
+    row_ends = ['multicomp/YouShallNotPassHumans-v0', 'multicomp/SumoAntsAutoContact-v0']
+    col_ends = ['multicomp/SumoHumansAutoContact-v0', 'multicomp/SumoAntsAutoContact-v0']
     command = heatmap_opponent
     publication = True
 
@@ -99,6 +95,24 @@ def supplementary_config():
     publication = True
 
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores')
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
+def poster_config():
+    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+
+    styles = ['poster', 'scores_poster_threecol']
+    row_starts = ['multicomp/KickAndDefend-v0']
+    row_ends = ['multicomp/YouShallNotPassHumans-v0']
+    col_ends = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0',
+                'multicomp/YouShallNotPassHumans-v0']
+    command = heatmap_opponent
+    publication = True
+
+    fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores_poster')
 
     _ = locals()  # quieten flake8 unused variable warning
     del _
