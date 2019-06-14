@@ -131,14 +131,14 @@ def check_monte_carlo(kind, score_thresholds, total_horizon,
 
 
 MC_SINGLE_THRESHOLDS = {
-        'Reacher-v2': -10,  # tested -9.5, random -17.25 s.d. 1.5
-        'HalfCheetah-v2': 20,  # tested 21.6, random -4.2 s.d. 3.7
-        'Hopper-v2': 30,  # tested 31.1, random 15.2 s.d. 5.9
+        'Reacher-v2': -11,  # tested -9.5, random -17.25 s.d. 1.5
+        'HalfCheetah-v2': 19,  # tested 21.6, random -4.2 s.d. 3.7
+        'Hopper-v2': 29,  # tested 31.1, random 15.2 s.d. 5.9
 }
 MC_PARALLEL_THRESHOLDS = {
-        'Reacher-v2': -16,  # tested at -15.3; random -25.8 s.d. 1.8
-        'HalfCheetah-v2': 34,  # tested at 35.5; random -6.0 s.d. 7.1
-        'Hopper-v2': 53,  # tested at 54.7; random 21.1 s.d. 13.2
+        'Reacher-v2': -17,  # tested at -15.3; random -25.8 s.d. 1.8
+        'HalfCheetah-v2': 33,  # tested at 35.5; random -6.0 s.d. 7.1
+        'Hopper-v2': 52,  # tested at 54.7; random 21.1 s.d. 13.2
 }
 _test_mc_single = check_monte_carlo('single', MC_SINGLE_THRESHOLDS,
                                     total_horizon=20, planning_horizon=10, trajectories=100)
