@@ -1,12 +1,12 @@
 cluster_name: aprl
 min_workers: 0
 max_workers: 10
-initial_workers: 1
+initial_workers: 0
 target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:density
+  image: humancompatibleai/adversarial_policies:latest
   container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)
@@ -15,7 +15,6 @@ docker:
     - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
-    - "-v /home/ubuntu/data:/home/ubuntu/data"
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
 
@@ -68,12 +67,8 @@ head_start_ray_commands:
   - >
     DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-guest-utils &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
-    git fetch &&
-    git checkout density_pipeline &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
-    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
     pip install --force dist/aprl-*.whl &&
     /adversarial-policies/scripts/aws/cloudwatch.sh &&
@@ -82,19 +77,14 @@ head_start_ray_commands:
     ray start --head --redis-port=6379 --object-manager-port=8076 \
               --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=4
 
-# Command to start ray on worker nodes. You don't need to change this.
 worker_start_ray_commands:
   # (Re)start spot termination monitor.
   # Then (re)start Ray.
   - >
     (pkill -x -f "python /adversarial-policies/scripts/aws/termination.py" || true) &&
     git remote set-url origin https://github.com/HumanCompatibleAI/adversarial-policies.git &&
-    git fetch &&
-    git checkout density_pipeline &&
     git pull &&
     env=modelfree . /adversarial-policies/ci/prepare_env.sh &&
-    aws s3 sync s3://adversarial-policies/score_agents/ /home/ubuntu/data/aws/score_agents/ &&
-    aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/multi_train/paper/20190429_011349/ /home/ubuntu/data/aws/multi_train/paper/20190429_011349/ &&
     python3 setup.py sdist bdist_wheel &&
     pip install --force dist/aprl-*.whl &&
     ray stop &&

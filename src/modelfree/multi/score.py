@@ -79,10 +79,12 @@ def multi_score(score, save_path):
             f = open(save_path, 'w')  # open it now so we fail fast if file is unwriteable
 
         trials, exp_id = run(base_config=score)
+        additional_index_keys = score.get('index_keys', [])
         results = {}
         for trial in trials:
             idx = trial.last_result['idx']
             cols = ['env_name', 'agent_a_type', 'agent_a_path', 'agent_b_type', 'agent_b_path']
+            cols += additional_index_keys
             key = tuple(idx[col] for col in cols)
             results[key] = trial.last_result['score']
 
@@ -111,12 +113,13 @@ def run_external(named_configs, post_named_configs, config_updates, adversary_pa
     os.environ['ADVERSARY_PATHS'] = adversary_path
 
     output_dir = {}
-    for config in named_configs:
-        run = multi_score_ex.run(named_configs=[config] + post_named_configs,
+    for trial_configs in named_configs:
+        configs = list(trial_configs) + list(post_named_configs)
+        run = multi_score_ex.run(named_configs=configs,
                                  config_updates=config_updates)
         assert run.status == 'COMPLETED'
         exp_id = run.result['exp_id']
-        output_dir[config] = exp_id
+        output_dir[tuple(trial_configs)] = exp_id
 
     return output_dir
 
@@ -163,6 +166,7 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
                 opponent_path = opponent_cfg['victim_path']
 
             src_path, new_name, suffix = path_generator(trial_root=trial_root,
+                                                        cfg=cfg,
                                                         env_name=env_name,
                                                         victim_index=victim_index,
                                                         victim_type=victim_type,

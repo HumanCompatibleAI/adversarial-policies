@@ -1,22 +1,12 @@
 from collections import deque
 from itertools import islice
 
-import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
-from modelfree.common.utils import DummyModel
+from modelfree.policies.wrappers import NoisyAgentWrapper
 from modelfree.training.scheduling import ConditionalAnnealer, ConstantAnnealer, LinearAnnealer
 
 REW_TYPES = set(('sparse', 'dense'))
-
-
-def _anneal(reward_dict, reward_annealer):
-    c = reward_annealer()
-    assert 0 <= c <= 1
-    sparse_weight = 1 - c
-    dense_weight = c
-    return (reward_dict['sparse'] * sparse_weight
-            + reward_dict['dense'] * dense_weight)
 
 
 class RewardShapingVecWrapper(VecEnvWrapper):
@@ -100,41 +90,6 @@ class RewardShapingVecWrapper(VecEnvWrapper):
         return obs, rew, done, infos
 
 
-class NoisyAgentWrapper(DummyModel):
-    def __init__(self, agent, noise_annealer, noise_type='gaussian'):
-        """
-        Wrap an agent and add noise to its actions
-        :param agent: (BaseRLModel) the agent to wrap
-        :param noise_annealer: Annealer.get_value - presumably the noise should be decreased
-        over time in order to get the adversarial policy to perform well on a normal victim.
-        :param noise_type: str - the type of noise parametrized by noise_annealer's value.
-        Current options are [gaussian]
-        """
-        super().__init__(policy=agent, sess=agent.sess)
-        self.noise_annealer = noise_annealer
-        self.noise_generator = self._get_noise_generator(noise_type)
-
-    @staticmethod
-    def _get_noise_generator(noise_type):
-        noise_generators = {
-            'gaussian': lambda x, size: np.random.normal(scale=x, size=size)
-        }
-        return noise_generators[noise_type]
-
-    def log_callback(self, logger):
-        current_noise_param = self.noise_annealer()
-        logger.logkv('shaping/victim_noise', current_noise_param)
-
-    def predict(self, observation, state=None, mask=None, deterministic=False):
-        original_actions, states = self.policy.predict(observation, state, mask, deterministic)
-        action_shape = original_actions.shape
-        noise_param = self.noise_annealer()
-
-        noise = self.noise_generator(noise_param, action_shape)
-        noisy_actions = original_actions * (1 + noise)
-        return noisy_actions, states
-
-
 def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
     if 'metric' in shaping_params:
         rew_shape_annealer = ConditionalAnnealer.from_dict(shaping_params, get_logs=None)
@@ -168,3 +123,12 @@ def apply_victim_wrapper(victim, noise_params, scheduler):
         noise_annealer = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac)
     scheduler.set_annealer('noise', noise_annealer)
     return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_annealer('noise'))
+
+
+def _anneal(reward_dict, reward_annealer):
+    c = reward_annealer()
+    assert 0 <= c <= 1
+    sparse_weight = 1 - c
+    dense_weight = c
+    return (reward_dict['sparse'] * sparse_weight
+            + reward_dict['dense'] * dense_weight)

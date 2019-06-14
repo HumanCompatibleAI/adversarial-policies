@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
 . ${DIR}/common.sh
 
 CMD="python -m modelfree.multi.score with high_accuracy"

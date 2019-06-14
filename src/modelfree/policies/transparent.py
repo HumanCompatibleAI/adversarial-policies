@@ -1,10 +1,12 @@
+"""Policies """
+
 from abc import ABC
 
 import numpy as np
 from stable_baselines.common.policies import FeedForwardPolicy, nature_cnn
 import tensorflow as tf
 
-from modelfree.common.utils import _filter_dict
+from modelfree.envs.wrappers import _filter_dict
 
 TRANSPARENCY_KEYS = set(['obs', 'ff_policy', 'ff_value', 'hid'])
 

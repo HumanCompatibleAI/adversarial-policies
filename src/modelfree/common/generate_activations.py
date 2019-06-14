@@ -8,8 +8,8 @@ from sacred.observers import FileStorageObserver
 from modelfree.common import utils
 from modelfree.multi.score import extract_data, run_external
 
-generate_activations_ex = sacred.Experiment('generate_activations')
-logger = logging.getLogger('modelfree.common.generate_activations')
+generate_activations_ex = sacred.Experiment('tsne_activations')
+logger = logging.getLogger('modelfree.tsne.generate_activations')
 
 
 @generate_activations_ex.config
@@ -20,8 +20,9 @@ def activation_storing_config():
     out_dir = None
 
     # Configs for the multi-score experiments
-    score_configs = ['zoo_baseline', 'random_baseline', 'adversary_trained']
+    score_configs = [(x, ) for x in ['zoo_baseline', 'random_baseline', 'adversary_trained']]
     score_update = {}
+
     _ = locals()    # quieten flake8 unused variable warning
     del _
 

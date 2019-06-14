@@ -126,7 +126,8 @@ def make_sacred(ex, worker_name, worker_fn):
             platform = 'local'
 
         if platform == 'local':
-            spec['sync_function'] = 'mkdir -p {remote_dir} && cp -av {local_dir}/* {remote_dir}'
+            spec['sync_function'] = ('mkdir -p {remote_dir} && '
+                                     'cp -aTv {local_dir}/* {local_dir}/.* {remote_dir}')
 
             if local_dir is None:
                 local_dir = osp.abspath(osp.join(os.getcwd(), 'data'))

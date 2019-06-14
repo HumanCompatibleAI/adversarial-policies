@@ -113,7 +113,7 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
         ncols = len(datasets)
         width = width * ncols
 
-        gridspec_kw = {'wspace': 0.0, 'top': 0.85}
+        gridspec_kw = {'wspace': 0.0, 'top': 0.85 if internal_legend else 1.0}
         fig, axs = plt.subplots(figsize=(width, height), nrows=1, ncols=ncols, squeeze=False,
                                 sharex=True, sharey=True, gridspec_kw=gridspec_kw)
 
