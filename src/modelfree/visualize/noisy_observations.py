@@ -19,16 +19,6 @@ plot_noisy_obs_exp = Experiment('plot_noisy_observations')
 def base_config():
     root_dir = "data/aws/score_agents/victim_masked_noise/"
     out_dir = "data/aws/score_agents/masked_obs_visualization/"
-    env_lookup = {
-        'SumoHumans': 'multicomp/SumoHumansAutoContact-v0',
-        'SumoAnts': 'multicomp/SumoAntsAutoContact-v0',
-        'KickAndDefend': 'multicomp/KickAndDefend-v0'
-    }
-    available_zoos = {
-        'SumoHumans': 3,
-        'SumoAnts': 4,
-        'KickAndDefend': 3
-    }
     input_run = "ep_500_5-22_all_zoo"
     # Runs known to work: ["ep_500_5-22_single_zoo", "ep_100_5-21", "ep_500_5-22_all_zoo"]
     _ = locals()  # quieten flake8 unused variable warning
@@ -99,7 +89,7 @@ def noisy_multiple_opponent_subset_plot(original_df, subset_specs, transform_spe
 
 
 @plot_noisy_obs_exp.main
-def generate_plots(input_run, root_dir, out_dir, env_lookup, available_zoos):
+def generate_plots(input_run, root_dir, out_dir):
     num_episodes = int(input_run.split("_")[1])
     baseline_transformations = [
         {'new_col': 'log_noise', 'old_col': 'noise_magnitude',
