@@ -29,11 +29,20 @@ def main_config():
     save_type = 'pdf'
     styles = ['paper', 'threecol']
     ordering = ['Adv', 'Zoo', 'Rand']
-
+    pretty_labels = True
     external_legend_params = {
         'legend_styles': ['paper'],
         'legend_height': 0.3,
     }
+    _ = locals()
+    del _
+
+
+@visualize_ex.named_config
+def inline_config():
+    styles = ['paper', 'twocol']
+    pretty_labels = False  # make legend smaller
+    external_legend_params = None
     _ = locals()
     del _
 
@@ -65,7 +74,7 @@ PALETTES = {
 
 
 @visualize_ex.capture
-def _make_handles(palette_name, ordering):
+def _make_handles(palette_name, ordering, pretty_labels):
     palette = PALETTES[palette_name]
     handles, labels = [], []
     for key in ordering:
@@ -73,7 +82,8 @@ def _make_handles(palette_name, ordering):
         handle = matplotlib.lines.Line2D(range(1), range(1), color=color,
                                          marker='o', markerfacecolor=color, linewidth=0)
         handles.append(handle)
-        labels.append(PRETTY_LABELS[key])
+        label = PRETTY_LABELS[key] if pretty_labels else key
+        labels.append(label)
     return handles, labels
 
 
@@ -108,8 +118,9 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
 
             if legend:
                 handles, labels = _make_handles()
-                ax.legend(handles=handles, labels=labels,
-                          loc=9, ncol=len(handles), bbox_to_anchor=(0.48, 1.18))
+                ax.legend(handles=handles, labels=labels, borderpad=0.4, handletextpad=0.2,
+                          columnspacing=1.0, loc='lower left', ncol=len(handles),
+                          bbox_to_anchor=(0.035, 1.0, 0.1, 0.1))
 
         fig.savefig(save_path, dpi=800, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
