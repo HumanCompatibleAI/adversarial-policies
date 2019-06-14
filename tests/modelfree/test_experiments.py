@@ -34,7 +34,9 @@ SCORE_AGENT_CONFIGS = [
         'record_traj': True,
         'record_traj_params': {'save_dir': 'test_dir'},
     },
+    {'noisy_agent_index': 0},
     {'mask_agent_index': 0},
+    {'mask_agent_index': 0, 'mask_agent_masking_type': 'additive_noise', 'mask_agent_noise': 1.0},
 ]
 SCORE_AGENT_CONFIGS += [
     {
