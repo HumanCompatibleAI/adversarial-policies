@@ -15,7 +15,6 @@ docker:
     - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
-    - "-v /home/ubuntu/data:/home/ubuntu/data"
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
 
