@@ -131,6 +131,7 @@ def load_backward_compatible_model(cls, root_dir, denv=None, **kwargs):
     """Backwards compatibility hack to load old pickled policies
     which still expect modelfree.scheduling to exist.
     """
+    import modelfree.training.scheduling  # noqa:F401
     sys.modules['modelfree.scheduling'] = sys.modules['modelfree.training.scheduling']
     if 'env' in kwargs:
         denv = kwargs['env']

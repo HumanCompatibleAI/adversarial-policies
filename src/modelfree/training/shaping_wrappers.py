@@ -6,52 +6,7 @@ from stable_baselines.common.vec_env import VecEnvWrapper
 from modelfree.policies.wrappers import NoisyAgentWrapper
 from modelfree.training.scheduling import ConditionalAnnealer, ConstantAnnealer, LinearAnnealer
 
-
-def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
-    if 'metric' in shaping_params:
-        rew_shape_annealer = ConditionalAnnealer.from_dict(shaping_params, get_logs=None)
-        scheduler.set_conditional('rew_shape')
-    else:
-        anneal_frac = shaping_params.get('anneal_frac')
-        if anneal_frac is not None:
-            rew_shape_annealer = LinearAnnealer(1, 0, anneal_frac)
-        else:
-            # In this case, we weight the reward terms as per shaping_params
-            # but the ratio of sparse to dense reward remains constant.
-            rew_shape_annealer = ConstantAnnealer(0.5)
-
-    scheduler.set_annealer('rew_shape', rew_shape_annealer)
-    return RewardShapingVecWrapper(single_env, agent_idx=agent_idx,
-                                   shaping_params=shaping_params['weights'],
-                                   reward_annealer=scheduler.get_annealer('rew_shape'))
-
-
-def apply_victim_wrapper(victim, noise_params, scheduler):
-    if 'metric' in noise_params:
-        noise_annealer = ConditionalAnnealer.from_dict(noise_params, get_logs=None)
-        scheduler.set_conditional('noise')
-    else:
-        victim_noise_anneal_frac = noise_params.get('anneal_frac', 0)
-        victim_noise_param = noise_params.get('param', 0)
-
-        if victim_noise_anneal_frac <= 0:
-            msg = "victim_noise_params.anneal_frac must be >0 if using a NoisyAgentWrapper."
-            raise ValueError(msg)
-        noise_annealer = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac)
-    scheduler.set_annealer('noise', noise_annealer)
-    return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_annealer('noise'))
-
-
 REW_TYPES = set(('sparse', 'dense'))
-
-
-def _anneal(reward_dict, reward_annealer):
-    c = reward_annealer()
-    assert 0 <= c <= 1
-    sparse_weight = 1 - c
-    dense_weight = c
-    return (reward_dict['sparse'] * sparse_weight
-            + reward_dict['dense'] * dense_weight)
 
 
 class RewardShapingVecWrapper(VecEnvWrapper):
@@ -133,3 +88,47 @@ class RewardShapingVecWrapper(VecEnvWrapper):
                     self.step_rew_dict[rew_type][env_num] = []
                 self.ep_logs['total_episodes'] += 1
         return obs, rew, done, infos
+
+
+def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
+    if 'metric' in shaping_params:
+        rew_shape_annealer = ConditionalAnnealer.from_dict(shaping_params, get_logs=None)
+        scheduler.set_conditional('rew_shape')
+    else:
+        anneal_frac = shaping_params.get('anneal_frac')
+        if anneal_frac is not None:
+            rew_shape_annealer = LinearAnnealer(1, 0, anneal_frac)
+        else:
+            # In this case, we weight the reward terms as per shaping_params
+            # but the ratio of sparse to dense reward remains constant.
+            rew_shape_annealer = ConstantAnnealer(0.5)
+
+    scheduler.set_annealer('rew_shape', rew_shape_annealer)
+    return RewardShapingVecWrapper(single_env, agent_idx=agent_idx,
+                                   shaping_params=shaping_params['weights'],
+                                   reward_annealer=scheduler.get_annealer('rew_shape'))
+
+
+def apply_victim_wrapper(victim, noise_params, scheduler):
+    if 'metric' in noise_params:
+        noise_annealer = ConditionalAnnealer.from_dict(noise_params, get_logs=None)
+        scheduler.set_conditional('noise')
+    else:
+        victim_noise_anneal_frac = noise_params.get('anneal_frac', 0)
+        victim_noise_param = noise_params.get('param', 0)
+
+        if victim_noise_anneal_frac <= 0:
+            msg = "victim_noise_params.anneal_frac must be >0 if using a NoisyAgentWrapper."
+            raise ValueError(msg)
+        noise_annealer = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac)
+    scheduler.set_annealer('noise', noise_annealer)
+    return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_annealer('noise'))
+
+
+def _anneal(reward_dict, reward_annealer):
+    c = reward_annealer()
+    assert 0 <= c <= 1
+    sparse_weight = 1 - c
+    dense_weight = c
+    return (reward_dict['sparse'] * sparse_weight
+            + reward_dict['dense'] * dense_weight)

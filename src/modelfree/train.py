@@ -221,7 +221,7 @@ def train_config():
     total_timesteps = 4096          # total number of timesteps to training for
 
     # Victim Config
-    victim_type = "zoo"             # type supported by loader.py
+    victim_type = "zoo"             # type supported by modelfree.policies.loader
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
 
@@ -241,7 +241,7 @@ def train_config():
     # RL Algorithm Policies/Demonstrations
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
-        'type': rl_algo,            # type supported by loader.py
+        'type': rl_algo,            # type supported by modelfree.policies.loader
     }
     adv_noise_params = {            # param dict for epsilon-ball noise policy added to zoo policy
         'noise_val': None,          # size of noise ball. Set to nonnegative float to activate.
