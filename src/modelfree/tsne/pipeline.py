@@ -25,10 +25,14 @@ def activation_storing_config():
 
 
 @tsne_ex.named_config
-def debug_config(generate_activations):
+def debug_config(generate_activations, tsne_visualize):
     generate_activations = dict(generate_activations)
-    generate_activations['score_configs'] = [('debug_three_agents', )]
+    generate_activations['score_configs'] = [('debug_two_agents', )]
     generate_activations['score_update'] = {'score': {'timesteps': 100}}
+
+    tsne_visualize = dict(tsne_visualize)
+    tsne_visualize['ordering'] = ['Zoo', 'Rand']
+
     exp_name = 'debug'
 
     _ = locals()    # quieten flake8 unused variable warning

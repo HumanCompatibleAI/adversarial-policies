@@ -32,7 +32,7 @@ def debug_config(generate_activations, fit_density_model):
     generate_activations = dict(generate_activations)
     fit_density_model = dict(fit_density_model)
 
-    generate_activations['score_configs'] = [('debug_three_agents', )]
+    generate_activations['score_configs'] = [('debug_two_agents', )]
     generate_activations['score_update'] = {'score': {'timesteps': 100}}
     fit_density_model['max_timesteps'] = 100
     fit_density_model['model_kwargs'] = {'n_components': 2}
