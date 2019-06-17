@@ -4,17 +4,20 @@ Only cursory 'smoke' checks -- there are plenty of errors this won't catch."""
 
 import os
 import shutil
+import tempfile
 
 import numpy as np
 import pytest
 from ray.tune.trial import Trial
 
+from modelfree.density.pipeline import density_ex
 from modelfree.multi.score import multi_score_ex
 from modelfree.multi.train import multi_train_ex
 from modelfree.policies.loader import AGENT_LOADERS
 from modelfree.score_agent import score_ex
 from modelfree.train import NO_VECENV, RL_ALGOS, train_ex
 from modelfree.train_and_score import train_and_score
+from modelfree.tsne.pipeline import tsne_ex
 
 EXPERIMENTS = [score_ex, train_and_score, train_ex]
 
@@ -174,9 +177,6 @@ def test_train(config):
     assert os.path.isfile(os.path.join(final_dir, 'model.pkl')), "model weights not saved"
 
 
-MULTI_EXPERIMENTS = [multi_score_ex, multi_train_ex]
-
-
 def _test_multi(ex):
     multi_config = {
         'spec': {
@@ -206,3 +206,29 @@ def test_multi_train():
     assert isinstance(exp_id, str)
     for trial in trials:
         assert isinstance(trial, Trial)
+
+
+ACTIVATION_EXPERIMENTS = [density_ex, tsne_ex]
+
+
+@pytest.mark.parametrize('ex', ACTIVATION_EXPERIMENTS)
+def test_activation_pipeline(ex):
+    with tempfile.TemporaryDirectory(prefix='test_activation_pipeline') as tmpdir:
+        config_updates = {
+            'generate_activations': {
+                'score_update': {
+                    'spec': {
+                        'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
+                        'upload_dir': os.path.join(tmpdir, 'ray'),
+                        'sync_function': ('mkdir -p {remote_dir} && '
+                                          'rsync -rlptv {local_dir}/ {remote_dir}'),
+                    },
+                },
+                'ray_upload_dir': os.path.join(tmpdir, 'ray'),
+            },
+            'output_root': os.path.join(tmpdir, 'main'),
+        }
+
+        run = ex.run(config_updates=config_updates, named_configs=('debug_config', ))
+        assert run.status == 'COMPLETED'
+        os.stat(run.result)  # check output path exists

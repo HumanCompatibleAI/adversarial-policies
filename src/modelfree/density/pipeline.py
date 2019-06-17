@@ -32,9 +32,10 @@ def debug_config(generate_activations, fit_density_model):
     generate_activations = dict(generate_activations)
     fit_density_model = dict(fit_density_model)
 
-    generate_activations['score_configs'] = [('debug_one_each_type', )]
-    generate_activations['score_update'] = {'score': {'timesteps': 1000}}
-    fit_density_model['max_timesteps'] = 1000
+    generate_activations['score_configs'] = [('debug_three_agents', )]
+    generate_activations['score_update'] = {'score': {'timesteps': 100}}
+    fit_density_model['max_timesteps'] = 100
+    fit_density_model['model_kwargs'] = {'n_components': 2}
 
     _ = locals()    # quieten flake8 unused variable warning
     del _

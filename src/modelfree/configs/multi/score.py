@@ -267,6 +267,26 @@ def make_configs(multi_score_ex):
         del _
 
     @multi_score_ex.named_config
+    def debug_three_agents(score):
+        """Zoo1, Rand, Adv1 in Kick and Defend. Very minimalistic test case."""
+        score = dict(score)
+        score['episodes'] = 2
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(
+                    _env_agents(agents={BANSAL_GOOD_ENVS[0]: ([1], [1])}) +
+                    _fixed_vs_victim('random')[0:1] +
+                    _adversary_vs_victims('ppo2', _get_adversary_paths(),
+                                          agents={BANSAL_GOOD_ENVS[0]: ([1], [1])})
+                ),
+            }
+        }
+        exp_name = 'debug_two_agents'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
     def zoo_baseline():
         """Try all pre-trained policies from Bansal et al's gym_compete zoo against each other."""
         spec = {

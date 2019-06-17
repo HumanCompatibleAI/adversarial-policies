@@ -27,7 +27,8 @@ def activation_storing_config():
 @tsne_ex.named_config
 def debug_config(generate_activations):
     generate_activations = dict(generate_activations)
-    generate_activations['score_configs'] = ['debug_one_each_type']
+    generate_activations['score_configs'] = [('debug_three_agents', )]
+    generate_activations['score_update'] = {'score': {'timesteps': 100}}
     exp_name = 'debug'
 
     _ = locals()    # quieten flake8 unused variable warning
