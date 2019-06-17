@@ -1,3 +1,5 @@
+"""Fits density model to activations of victim's policy network."""
+
 import json
 import logging
 import os
@@ -22,6 +24,11 @@ logger = logging.getLogger('modelfree.density.fit_density')
 
 
 def gen_exp_name(model_class, model_kwargs):
+    """Generates experiment name from model class and parameters.
+
+    :param model_class: (type) the class, one of GaussianMixture, PCAPreDensity or KernelDensity.
+    :param model_kwargs: (dict) constructor arguments to the class.
+    :return A string succinctly encoding the class and parameters."""
     if model_class == GaussianMixture:
         n_components = model_kwargs.get('n_components', 1)
         covariance_type = model_kwargs.get('covariance_type', 'full')
@@ -40,19 +47,28 @@ def gen_exp_name(model_class, model_kwargs):
 
 
 class PCAPreDensity(object):
-    def __init__(self, density_class, pca_components, **kwargs):
+    """Performs PCA dimensionality reduction before density modelling with density_class."""
+    def __init__(self, density_class, num_components, **kwargs):
+        """Inits a PCAPreDensity object.
+
+        :param density_class: (type) A class for the density model.
+        :param pca_components: (int) Number of PCA components.
+        :param kwargs: (dict) Additional keyword arguments passed-through to density_class.
+        """
         super(PCAPreDensity, self).__init__()
         self.density_class = density_class
-        self.num_components = pca_components
+        self.num_components = num_components
         self.kwargs = kwargs
         self.density_obj = self.density_class(**self.kwargs)
         self.pca_obj = PCA(n_components=self.num_components)
 
     def fit(self, X):
+        """Fits PCA transform on X, and then fits wrapped density model on reduced data."""
         reduced_representation = self.pca_obj.fit_transform(X)
         self.density_obj.fit(reduced_representation)
 
     def score_samples(self, X):
+        """Performs PCA transformation on X, and then scores samples using wraped density model."""
         reduced_test_representation = self.pca_obj.transform(X)
         return self.density_obj.score_samples(reduced_test_representation)
 
@@ -60,22 +76,22 @@ class PCAPreDensity(object):
 @fit_model_ex.config
 def base_config():
     ray_server = None  # by default will launch a server
-    activation_dir = None
-    output_root = None
-    data_type = 'ff_policy'
-    num_observations = None
+    activation_dir = None  # directory of generated activatoins
+    output_root = None  # directory to write output
+    data_type = 'ff_policy'  # key into activations
+    max_timesteps = None  # if specified, maximum number of timesteps of activations to use
     seed = 0
-    model_class = GaussianMixture
-    model_kwargs = {'n_components': 10}
-    train_opponent = 'zoo_1'
-    train_percentage = 0.5
+    model_class = GaussianMixture  # density model to use
+    model_kwargs = {'n_components': 10}  # parameters for density model
+    train_opponent = 'zoo_1'  # opponent ID to use for fitting density model (extracted from path)
+    train_percentage = 0.5  # percentage of data to use for training (remainder is validation)
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @fit_model_ex.named_config
 def debug_config():
-    num_observations = 1000
+    max_timesteps = 1000
     model_class = KernelDensity
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -111,113 +127,117 @@ def kde():
     del _
 
 
-def _load_and_reshape_single_file(np_path, opponent_type, data_type):
+def _load_and_reshape_single_file(np_path, col, opponent_id):
+    """Loads data from np_path, extracting column col.
+
+    :param np_path: (str) a path to a pickled dict of NumPy arrays.
+    :param col: (str) the key to extract from the dict.
+    :param opponent_id: (str) an identifier, added to the metadata.
+    :return A tuple (concatenated_data, metadata_df) where concatenated_data is a flattened
+            array of activations at different timesteps, and metadata_df is a pandas DataFrame
+            containing the episode_id, timestep, frac_timestep and opponent_id.
+    """
     traj_data = np.load(np_path, allow_pickle=True)
-    episode_list = traj_data[data_type].tolist()
+    episode_list = traj_data[col].tolist()
+
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
-    observation_index = []
-    relative_observation_index = []
+    timesteps = []
+    frac_timesteps = []
     for i, episode_length in enumerate(episode_lengths):
         episode_id += [i] * episode_length
-        episode_observation_ids = list(range(episode_length))
-        observation_index += episode_observation_ids
-        relative_observation_index += [el / episode_length for el in episode_observation_ids]
+        episode_timesteps = list(range(episode_length))
+        timesteps += episode_timesteps
+        frac_timesteps += [el / episode_length for el in episode_timesteps]
 
     concatenated_data = np.concatenate(episode_list)
-    opponent_type = [opponent_type] * len(concatenated_data)
+    opponent_id = [opponent_id] * len(concatenated_data)
 
+    # TODO: only opponent_id is used in this code. Are the others worth keeping around?
     metadata_df = pd.DataFrame({'episode_id': episode_id,
-                                'observation_index': observation_index,
-                                'relative_observation_index': relative_observation_index,
-                                'opponent_id': opponent_type})
+                                'timesteps': timesteps,
+                                'frac_timesteps': frac_timesteps,
+                                'opponent_id': opponent_id})
     return concatenated_data, metadata_df
 
 
 @ray.remote
 def density_fitter(activation_paths, output_dir,
                    model_class, model_kwargs,
-                   num_observations, data_type, train_opponent, train_percentage):
+                   max_timesteps, data_key, train_opponent, train_frac):
+    """Fits a density model with data from activation_paths, saving results to output_dir.
 
+    :param activation_paths: (dict) a dictionary mapping from opponent ID to a path
+                                    to a pickle file containing activations.
+    :param output_dir: (str) path to an output directory.
+    :param model_class: (type) a class to use for density modelling.
+    :param model_kwargs: (dict) parameters for the model.
+    :param max_timesteps: (int or None) the maximum number of timesteps of data to use.
+    :param data_key: (str) key into the activation file, specifying e.g. the layer.
+    :param train_opponent: (str) the opponent ID to fit the model to.
+    :param train_frac: (float) the proportion of data to use for training (remainder is test set).
+    :return A dictionary of metrics."""
     logger.info(f"Starting density fitting, saving to {output_dir}")
 
-    all_file_data = []
-    all_metadata = []
+    # Load data
+    activations = []
+    metadata = []
     for opponent_type, path in activation_paths.items():
         logger.debug(f"Loaded data for {opponent_type} from {path}")
-        file_data, metadata = _load_and_reshape_single_file(path, opponent_type, data_type)
-        all_file_data.append(file_data)
-        all_metadata.append(metadata)
-
-    merged_file_data = np.concatenate(all_file_data)
-    merged_metadata = pd.concat(all_metadata)
+        act, meta = _load_and_reshape_single_file(path, opponent_type, data_key)
+        activations.append(act)
+        metadata.append(meta)
+    activations = np.concatenate(activations)
+    metadata = pd.concat(metadata)
+    # Flatten activations (but preserve timestep)
+    activations = activations.reshape(activations.shape[0], -1)
 
     # Optionally, sub-sample
-    if num_observations is None:
-        num_observations = len(merged_metadata)
-    sub_data = merged_file_data[0:num_observations].reshape(num_observations, 128)
-    sub_meta = merged_metadata[0:num_observations]
-    # Save metadata
+    if max_timesteps is None:
+        max_timesteps = len(metadata)
+    activations = activations[0:max_timesteps]
+    meta = metadata[0:max_timesteps]
 
-    train_meta_path = os.path.join(output_dir, 'train_metadata.csv')
-    test_meta_path = os.path.join(output_dir, 'test_metadata.csv')
+    # Split into train, validation and test
+    opponent_mask = meta['opponent_id'] == train_opponent
+    percentage_mask = np.random.choice([True, False], size=len(meta),
+                                       p=[train_frac, 1 - train_frac])
 
-    train_data_path = os.path.join(output_dir, 'train_data.npz')
-    test_data_path = os.path.join(output_dir, 'test_data.npz')
+    meta['is_train'] = opponent_mask & percentage_mask
+    train_data = activations[meta['is_train']]
 
-    opponent_mask = sub_meta['opponent_id'] == train_opponent
-    percentage_mask = np.random.choice([True, False], size=len(sub_meta),
-                                       p=[train_percentage, 1 - train_percentage])
-
-    train_mask = opponent_mask & percentage_mask
     train_opponent_validation_mask = opponent_mask & ~percentage_mask
-    test_mask = ~train_mask
+    train_opponent_validation_data = activations[train_opponent_validation_mask]
 
-    train_meta = sub_meta[train_mask]
-    test_meta = sub_meta[test_mask]
-
-    train_data = sub_data[train_mask]
-    test_data = sub_data[test_mask]
-    same_opponent_test = sub_data[train_opponent_validation_mask]
-
+    # Fit model and evaluate
     model_obj = model_class(**model_kwargs)
     model_obj.fit(train_data)
+    meta['log_proba'] = model_obj.score_samples(activations)
 
-    train_probas = model_obj.score_samples(train_data)
-    test_probas = model_obj.score_samples(test_data)
-    train_meta['log_proba'] = train_probas
-    test_meta['log_proba'] = test_probas
-
-    if model_class.__name__ == 'GaussianMixture':
-        train_bic = model_obj.bic(train_data)
-        validation_bic = model_obj.bic(same_opponent_test)
-        train_log_likelihood = model_obj.score(train_data)
-        validation_log_likelihood = model_obj.score(same_opponent_test)
+    metrics = {}
+    if model_class == GaussianMixture:
         metrics = {
             'n_components': model_kwargs.get('n_components', 1),
             'covariance_type': model_kwargs.get('covariance_type', 'full'),
-            'train_bic': train_bic,
-            'validation_bic': validation_bic,
-            'train_log_likelihood': train_log_likelihood,
-            'validation_log_likelihood': validation_log_likelihood
+            'train_bic': model_obj.bic(train_data),
+            'validation_bic': model_obj.bic(train_opponent_validation_data),
+            'train_log_likelihood': model_obj.score(train_data),
+            'validation_log_likelihood': model_obj.score(train_opponent_validation_data),
         }
-        with open(os.path.join(output_dir, "metrics.json"), 'w') as fp:
-            json.dump(metrics, fp)
+        with open(os.path.join(output_dir, "metrics.json"), 'w') as f:
+            json.dump(metrics, f)
 
-    # Save results out
+    # Save activations, metadata and model weights
+    meta_path = os.path.join(output_dir, 'train_metadata.csv')
+    meta.to_csv(meta_path, index=False)
 
-    train_meta.to_csv(train_meta_path, index=False)
-    test_meta.to_csv(test_meta_path, index=False)
+    # TODO: Do we need to store this? We already have activations stored elsewhere on disk.
+    activations_path = os.path.join(output_dir, 'activations.npy')
+    np.save(activations, activations_path)
 
-    np.save(train_data_path, train_data)
-    np.save(test_data_path, test_data)
-
-    # Save weights
     weights_path = os.path.join(output_dir, f'fitted_{model_class.__name__}_model.pkl')
-    with open(weights_path, "wb") as fp:
-        pickle.dump(model_obj, fp)
-
-    # Save cluster IDs
+    with open(weights_path, "wb") as f:
+        pickle.dump(model_obj, f)
 
     logger.info(
         f"Completed fitting of {model_class.__name__} model with args {model_kwargs}, "
@@ -227,16 +247,20 @@ def density_fitter(activation_paths, output_dir,
 
 
 @fit_model_ex.main
-def fit_model(_run, ray_server, activation_dir, output_root, num_observations, data_type,
+def fit_model(_run, ray_server, activation_dir, output_root, max_timesteps, data_type,
               model_class, model_kwargs, train_opponent, train_percentage):
+    """Fits density models for each environment and victim type in activation_dir,
+       saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
+       running in parallel via Ray."""
     ray.init(redis_address=ray_server)
 
     # Find activation paths for each environment & victim-path tuple
     stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
     opponent_pattern = re.compile(r'.*_opponent_([^\s]+)+\.npz')
+    # activation_paths is indexed by [env_victim][opponent_type] where env_victim is
+    # e.g. 'SumoHumans-v0_victim_zoo_1' and opponent_type is e.g. 'ppo2_1'.
     activation_paths = {}
 
-    #
     for fname in os.listdir(activation_dir):
         stem_match = stem_pattern.match(fname)
         if stem_match is None:
@@ -262,7 +286,7 @@ def fit_model(_run, ray_server, activation_dir, output_root, num_observations, d
         output_dir = osp.join(output_root, stem)
         os.makedirs(output_dir)
         future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
-                                       num_observations, data_type, train_opponent,
+                                       max_timesteps, data_type, train_opponent,
                                        train_percentage)
         results.append(future)
 

@@ -1,3 +1,5 @@
+"""Records activations from victim's policy network and then fits a density model."""
+
 import logging
 import os
 import os.path as osp
@@ -27,11 +29,11 @@ def main_config(generate_activations, fit_density_model):
 def debug_config(generate_activations, fit_density_model):
     # Is this the name of an ingredient? Is it being auto-added to config somehow?
     generate_activations = dict(generate_activations)
-    fit_density_model = fit_density_model.copy()
+    fit_density_model = dict(fit_density_model)
 
     generate_activations['score_configs'] = ['debug_one_each_type']
-    exp_name = 'debug'
     fit_density_model['num_observations'] = 1000
+
     _ = locals()    # quieten flake8 unused variable warning
     del _
 
@@ -47,6 +49,11 @@ def pipeline(_run, output_root, fit_density_model):
         activation_dir = osp.join(out_dir, 'activations')
         generate_activations(out_dir=activation_dir)
 
+    # This is unsuitable for hyperparameter sweeps, as can only run one model fitting step.
+    # See experiments/modelfree/density.sh for a bash script hyperparameter sweep, that
+    # re-uses activations.
+    # SOMEDAY: Add support for running multiple fitting configs?
+    # (Does not neatly fit into Sacred model.)
     model_dir = osp.join(out_dir, 'fitted')
     fit_model(activation_dir=activation_dir, output_root=model_dir)
 

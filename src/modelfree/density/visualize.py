@@ -1,3 +1,5 @@
+"""Visualizes fitted density model: bar charts, CDFs and others."""
+
 import collections
 from glob import glob
 import json
@@ -38,6 +40,13 @@ BAR_ORDER = ['Zoo*1T', 'Zoo*1V', 'Zoo*2', 'Zoo*3', 'Rand', 'Adv']
 
 
 def get_full_directory(env, victim_id, n_components, covariance):
+    """Finds directory containing result for specified environment and parameters.
+
+    :param env: (str) environment name, e.g. SumoHumans
+    :param victim_id: (str) victim ID, e.g. zoo_1
+    :param n_components: (int) number of components of GMM
+    :param covariance: (str) type of covariance matrix, e.g. diag.
+    :return A path to the directory"""
     hp_dir = f"{DENSITY_DIR}/gmm_{n_components}_components_{covariance}"
     exp_dir = glob(hp_dir + "/*")[0]
     env_dir = f"{env}-v0_victim_zoo_{victim_id}"
@@ -45,31 +54,47 @@ def get_full_directory(env, victim_id, n_components, covariance):
     return full_env_dir
 
 
-def get_train_test_merged_df(env, victim_id, n_components, covariance):
+def load_metadata(env, victim_id, n_components, covariance, train_id):
+    """Load metadata for specified environment and parameters. train_id specifies
+    the ID of the opponent trained against; others are as get_full_directory."""
     full_env_dir = get_full_directory(env, victim_id, n_components, covariance)
-    logger.info(f'Loading from {full_env_dir}')
+    metadata_path = os.path.join(full_env_dir, 'metadata.csv')
+    logger.debug(f'Loading from {metadata_path}')
+    df = pd.read_csv(metadata_path)
 
-    train_df = pd.read_csv(os.path.join(full_env_dir, "train_metadata.csv"))
-    train_df = train_df.loc[train_df['opponent_id'] == 'zoo_1', :]
-    train_df['opponent_id'] = 'zoo_1_train'
+    # We want to evaluate on both the train and test set for the train opponent.
+    # To disambiguate, we'll change the opponent_id for the train opponent in the test set.
+    # For all other opponents, doesn't matter if we evaluate on "train" or "test" set
+    # as they were trained on neither; we use the test set.
+    is_train_opponent = df['opponent_id'] == train_id
+    # Rewrite opponent_id for train opponent in test set
+    df.loc[is_train_opponent & ~df['is_train'], 'opponent_id'] = train_id + '_test'
+    # Discard all non-test data, except for train opponent
+    df = df.loc[is_train_opponent | ~df['is_train']]
 
-    test_df = pd.read_csv(os.path.join(full_env_dir, "test_metadata.csv"))
-    test_df.loc[test_df['opponent_id'] == 'zoo_1', 'opponent_id'] = 'zoo_1_test'
-
-    merged = pd.concat([train_df, test_df])
-    return merged
+    return df
 
 
-def get_metrics_dict(env, victim_id, n_components, covariance):
+def load_metrics_dict(env, victim_id, n_components, covariance):
+    """Load metrics for specified environment and parameters.
+       See get_full_directory for argument descriptions."""
     full_env_dir = get_full_directory(env, victim_id, n_components, covariance)
-    with open(os.path.join(full_env_dir, 'metrics.json'), 'r') as fp:
-        metric_dict = json.load(fp)
+    metrics_path = os.path.join(full_env_dir, 'metrics.json')
+    logger.debug(f'Loading from {metrics_path}')
+    with open(metrics_path, 'r') as f:
+        metric_dict = json.load(f)
     return metric_dict
 
 
-def comparative_densities(env_name, victim, n_components, covariance,
-                          savefile=None, shade=False, cutoff_point=None):
-    df = get_train_test_merged_df(env_name, victim, n_components, covariance)
+def comparative_densities(env, victim_id, n_components, covariance,
+                          cutoff_point=None, savefile=None, **kwargs):
+    """PDF of different opponents density distribution.
+    For unspecified parameters, see get_full_directory.
+
+    :param cutoff_point: (float): left x-limit.
+    :param savefile: (None or str) path to save figure to.
+    :param kwargs: (dict) passed through to sns.kdeplot."""
+    df = load_metadata(env, victim_id, n_components, covariance)
     fig = plt.figure(figsize=(10, 7))
 
     grped = df.groupby('opponent_id')
@@ -77,23 +102,66 @@ def comparative_densities(env_name, victim, n_components, covariance,
         # clean up random_none to just random
         name = name.replace('_none', '')
         avg_log_proba = np.mean(grp['log_proba'])
-        sns.kdeplot(grp['log_proba'], label=f"{name}: {round(avg_log_proba, 2)}", shade=shade)
+        sns.kdeplot(grp['log_proba'], label=f"{name}: {round(avg_log_proba, 2)}", **kwargs)
 
     xmin, xmax = plt.xlim()
     xmin = max(xmin, cutoff_point)
     plt.xlim((xmin, xmax))
 
-    plt.suptitle(f"{env_name} Densities, Victim Zoo {victim}: Trained on Zoo 1", y=0.95)
+    plt.suptitle(f"{env} Densities, Victim Zoo {victim_id}: Trained on Zoo 1", y=0.95)
     plt.title("Avg Log Proba* in Legend")
 
     if savefile is not None:
         fig.savefig(f'{savefile}.pdf')
 
 
-def bar_chart(envs, victim, n_components, covariance, savefile=None):
+def heatmap_plot(metric, env, victim_id='1', savefile=None):
+    """Heatmap of metric for all possible hyperparameters, against victim.
+
+    :param metric: (str) a key into metrics.json
+    :param env: (str) environment name
+    :param victim_id: (str) victim ID
+    :param savefile: (None or str) path to save figure to.
+    """
+    n_component_grid = [5, 10, 20, 40, 80]
+    covariance_grid = ['diag', 'full']
+    metric_grid = np.zeros(shape=(len(n_component_grid), len(covariance_grid)))
+    if isinstance(metric, str):
+        metric_name = metric
+    else:
+        metric_name = metric.__name__
+
+    for i, n_components in enumerate(n_component_grid):
+        for j, covariance in enumerate(covariance_grid):
+            try:
+                metrics = load_metrics_dict(env, victim_id, n_components, covariance)
+                if isinstance(metric, str):
+                    metric_grid[i][j] = metrics[metric]
+                else:
+                    metric_grid[i][j] = metric(metrics)
+            except FileNotFoundError:
+                logger.warning(f"Hit exception on {env}, {n_components} components {covariance}",
+                               exc_info=True)
+                metric_grid[i][j] = np.nan
+
+    ll_df = pd.DataFrame(metric_grid, index=n_component_grid, columns=covariance_grid)
+    fig = plt.figure(figsize=(10, 7))
+    sns.heatmap(ll_df, annot=True, mask=ll_df.isnull())
+    plt.title(f"HP Search on {env}, Victim {victim_id}: {metric_name}")
+    if savefile is not None:
+        fig.savefig(savefile)
+
+
+def bar_chart(envs, victim_id, n_components, covariance, savefile=None):
+    """Bar chart of mean log probability for all opponent types, grouped by environment.
+    For unspecified parameters, see get_full_directory.
+
+    :param envs: (list of str) list of environments.
+    :param savefile: (None or str) path to save figure to.
+    """
     dfs = []
     for env in envs:
-        df = get_train_test_merged_df(env, victim, n_components, covariance)
+        df = load_metadata(env, victim_id, n_components, covariance)
         df['Environment'] = PRETTY_ENVS.get(env, env)
         dfs.append(df)
     longform = pd.concat(dfs)
@@ -138,39 +206,26 @@ def bar_chart(envs, victim, n_components, covariance, savefile=None):
     return fig
 
 
-def heatmap_plot(env_name, metric, victim=1, savefile=None, error_val=-1):
-    n_component_grid = [5, 10, 20, 40, 80]
-    covariance_grid = ['diag', 'full']
-    metric_grid = np.zeros(shape=(len(n_component_grid), len(covariance_grid)))
-    if isinstance(metric, str):
-        metric_name = metric
-    else:
-        metric_name = metric.__name__
+def plot_heatmaps(output_dir):
+    def train_bic_in_millions(x):
+        return x['train_bic'] / 1000000
 
-    for i, n_components in enumerate(n_component_grid):
-        for j, covariance in enumerate(covariance_grid):
-            try:
-                metrics = get_metrics_dict(env_name, victim, n_components, covariance)
-                if isinstance(metric, str):
-                    metric_grid[i][j] = metrics[metric]
-                else:
-                    metric_grid[i][j] = metric(metrics)
-            except FileNotFoundError:
-                print(
-                    f"Hit exception on {env_name}, {n_components} components {covariance},"
-                    f" filling in {error_val}")
-                metric_grid[i][j] = error_val
+    for env in ENV_NAMES:
+        heatmap_plot(env=env, metric=train_bic_in_millions,
+                     savefile=f"{output_dir}/{env}_train_bic.pdf")
+        heatmap_plot(env=env, metric='validation_log_likelihood',
+                     savefile=f"{output_dir}/{env}_validation_log_likelihood.pdf")
 
-    ll_df = pd.DataFrame(metric_grid, index=n_component_grid, columns=covariance_grid)
-    fig = plt.figure(figsize=(10, 7))
-    sns.heatmap(ll_df, annot=True)
-    plt.title(f"HP Search on {env_name}, Victim {victim}: {metric_name}")
-    if savefile is not None:
-        fig.savefig(savefile)
+
+def plot_comparative_densities(output_dir):
+    for env in ENV_NAMES:
+        comparative_densities(env=env, victim_id='1', n_components=20,
+                              covariance='full', cutoff_point=-1000,
+                              savefile=f"{output_dir}/{env}_20_full_comparative_density")
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     output_dir = "data/density/visualize"
     os.makedirs(output_dir, exist_ok=True)
@@ -180,25 +235,9 @@ def main():
     for style in styles:
         plt.style.use(STYLES[style])
 
-    def train_bic_in_millions(x):
-        return x['train_bic'] / 1000000
-
-    log_probs = {}
-    for env in ENV_NAMES:
-        heatmap_plot(env_name=env, metric=train_bic_in_millions,
-                     savefile=f"{output_dir}/{env}_train_bic.pdf")
-        heatmap_plot(env_name=env, metric='validation_log_likelihood',
-                     savefile=f"{output_dir}/{env}_validation_log_likelihood.pdf")
-
-        savefile = f"{output_dir}/{env}_20_full_comparative_density"
-        log_probs[env] = comparative_densities(env_name=env, victim='1', n_components=20,
-                                               covariance='full', savefile=savefile,
-                                               cutoff_point=-1000)
-
-    with open(f'{output_dir}/log_probs.json', 'w') as f:
-        json.dump(log_probs, f)
-
-    bar_chart(ENV_NAMES, victim='1', n_components=20, covariance='full',
+    plot_heatmaps(output_dir)
+    plot_comparative_densities(output_dir)
+    bar_chart(ENV_NAMES, victim_id='1', n_components=20, covariance='full',
               savefile=f"{output_dir}/bar_chart.pdf")
 
 
