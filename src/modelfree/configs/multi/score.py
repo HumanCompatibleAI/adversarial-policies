@@ -254,7 +254,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _env_agents(agents={env: (range(1), range(1)) for env in BANSAL_GOOD_ENVS}) +
+                    _env_agents(agents={env: ([1], [1]) for env in BANSAL_GOOD_ENVS}) +
                     _fixed_vs_victim('zero')[0:1] +
                     _fixed_vs_victim('random')[0:1] +
                     _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]

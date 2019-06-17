@@ -28,11 +28,13 @@ def main_config(generate_activations, fit_density_model):
 @density_ex.named_config
 def debug_config(generate_activations, fit_density_model):
     # Is this the name of an ingredient? Is it being auto-added to config somehow?
+    output_root = '/tmp/density-debug'
     generate_activations = dict(generate_activations)
     fit_density_model = dict(fit_density_model)
 
-    generate_activations['score_configs'] = ['debug_one_each_type']
-    fit_density_model['num_observations'] = 1000
+    generate_activations['score_configs'] = [('debug_one_each_type', )]
+    generate_activations['score_update'] = {'score': {'timesteps': 1000}}
+    fit_density_model['max_timesteps'] = 1000
 
     _ = locals()    # quieten flake8 unused variable warning
     del _

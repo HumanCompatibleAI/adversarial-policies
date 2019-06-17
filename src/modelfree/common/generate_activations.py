@@ -36,7 +36,7 @@ def generate_activations(_run, out_dir, score_configs, score_update,
     activation_dirs = run_external(score_configs, post_named_configs=['save_activations'],
                                    config_updates=score_update, adversary_path=adversary_path)
 
-    def path_generator(trial_root, env_name, victim_index, victim_type, victim_path,
+    def path_generator(trial_root, cfg, env_name, victim_index, victim_type, victim_path,
                        opponent_type, opponent_path):
         src_path = osp.join(trial_root, 'data',
                             'trajectories', f'agent_{victim_index}.npz')
