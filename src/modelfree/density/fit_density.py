@@ -199,10 +199,7 @@ def density_fitter(activation_paths, output_dir,
     metadata = metadata.sample(frac=1)
     if max_timesteps is None:
         max_timesteps = len(metadata)
-    print('maximum timesteps', max_timesteps)
-    print('before', activations.shape)
     activations = activations[0:max_timesteps]
-    print('after', activations.shape)
     metadata = metadata[0:max_timesteps].copy()
 
     # Split into train, validation and test
@@ -305,7 +302,7 @@ def fit_model(_run, ray_server, activation_glob, output_root, max_timesteps, dat
 
     # Clean up temporary directory (if needed)
     if tmp_dir is not None:
-        tmp_dir.clean()
+        tmp_dir.cleanup()
 
     ray.shutdown()
 

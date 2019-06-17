@@ -18,7 +18,7 @@ for components in 5 10 20 40 80; do
         python -m modelfree.density.fit_density with gmm \
                                                 model_kwargs.n_components=${components} \
                                                 model_kwargs.covariance_type=${cov_type} \
-                                                activation_dir=${ACTIVATION_DIR}
+                                                activation_glob="${ACTIVATION_DIR}/*" \
                                                 output_root=data/density/${TIMESTAMP}/fitted
         wait_proc
     done

@@ -43,10 +43,11 @@ def pipeline(_run, output_root, fit_density_model):
     out_dir = osp.join(output_root, utils.make_timestamp())
     os.makedirs(out_dir)
 
-    activation_dir = fit_density_model['activation_dir']
-    if activation_dir is None:
+    activation_glob = fit_density_model['activation_glob']
+    if activation_glob is None:
         activation_dir = osp.join(out_dir, 'activations')
         generate_activations(out_dir=activation_dir)
+        activation_glob = osp.join(activation_dir, '*')
 
     # This is unsuitable for hyperparameter sweeps, as can only run one model fitting step.
     # See experiments/modelfree/density.sh for a bash script hyperparameter sweep, that
@@ -54,7 +55,7 @@ def pipeline(_run, output_root, fit_density_model):
     # SOMEDAY: Add support for running multiple fitting configs?
     # (Does not neatly fit into Sacred model.)
     model_dir = osp.join(out_dir, 'fitted')
-    fit_model(activation_dir=activation_dir, output_root=model_dir)
+    fit_model(activation_glob=activation_glob, output_root=model_dir)
 
     return out_dir
 
