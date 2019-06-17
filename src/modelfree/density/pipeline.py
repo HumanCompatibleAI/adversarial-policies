@@ -9,7 +9,7 @@ from sacred.observers import FileStorageObserver
 
 from modelfree.common import utils
 from modelfree.common.generate_activations import generate_activations, generate_activations_ex
-from modelfree.density.fit_density import fit_model, fit_model_ex, gen_exp_name
+from modelfree.density.fit_density import fit_model, fit_model_ex
 
 density_ex = sacred.Experiment('density', ingredients=[generate_activations_ex, fit_model_ex])
 logger = logging.getLogger('modelfree.density.pipeline')
@@ -40,8 +40,7 @@ def debug_config(generate_activations, fit_density_model):
 
 @density_ex.main
 def pipeline(_run, output_root, fit_density_model):
-    exp_name = gen_exp_name(fit_density_model['model_class'], fit_density_model['model_kwargs'])
-    out_dir = osp.join(output_root, exp_name, utils.make_timestamp())
+    out_dir = osp.join(output_root, utils.make_timestamp())
     os.makedirs(out_dir)
 
     activation_dir = fit_density_model['activation_dir']

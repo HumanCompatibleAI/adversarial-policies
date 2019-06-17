@@ -286,6 +286,9 @@ def fit_model(_run, ray_server, activation_glob, output_root, max_timesteps, dat
     if output_root is None:
         tmp_dir = tempfile.TemporaryDirectory()
         output_root = tmp_dir.name
+    else:
+        exp_name = gen_exp_name(model_class, model_kwargs)
+        output_root = os.path.join(output_root, exp_name)
 
     # Fit density model and save weights
     results = []
