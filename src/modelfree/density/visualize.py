@@ -16,6 +16,7 @@ from modelfree.visualize.styles import STYLES
 
 logger = logging.getLogger('modelfree.density.visualize')
 
+TRAIN_ID = 'zoo_1'
 DENSITY_DIR = "data/density"
 
 ENV_NAMES = ['KickAndDefend', 'SumoHumans', 'YouShallNotPassHumans']
@@ -48,15 +49,16 @@ def get_full_directory(env, victim_id, n_components, covariance):
     :param covariance: (str) type of covariance matrix, e.g. diag.
     :return A path to the directory"""
     hp_dir = f"{DENSITY_DIR}/gmm_{n_components}_components_{covariance}"
+    print(hp_dir)
     exp_dir = glob(hp_dir + "/*")[0]
     env_dir = f"{env}-v0_victim_zoo_{victim_id}"
     full_env_dir = os.path.join(exp_dir, 'fitted', env_dir)
     return full_env_dir
 
 
-def load_metadata(env, victim_id, n_components, covariance, train_id):
-    """Load metadata for specified environment and parameters. train_id specifies
-    the ID of the opponent trained against; others are as get_full_directory."""
+def load_metadata(env, victim_id, n_components, covariance):
+    """Load metadata for specified environment and parameters.
+     Parameters are the same as get_full_directory."""
     full_env_dir = get_full_directory(env, victim_id, n_components, covariance)
     metadata_path = os.path.join(full_env_dir, 'metadata.csv')
     logger.debug(f'Loading from {metadata_path}')
@@ -66,9 +68,9 @@ def load_metadata(env, victim_id, n_components, covariance, train_id):
     # To disambiguate, we'll change the opponent_id for the train opponent in the test set.
     # For all other opponents, doesn't matter if we evaluate on "train" or "test" set
     # as they were trained on neither; we use the test set.
-    is_train_opponent = df['opponent_id'] == train_id
+    is_train_opponent = df['opponent_id'] == TRAIN_ID
     # Rewrite opponent_id for train opponent in test set
-    df.loc[is_train_opponent & ~df['is_train'], 'opponent_id'] = train_id + '_test'
+    df.loc[is_train_opponent & ~df['is_train'], 'opponent_id'] = TRAIN_ID + '_test'
     # Discard all non-test data, except for train opponent
     df = df.loc[is_train_opponent | ~df['is_train']]
 

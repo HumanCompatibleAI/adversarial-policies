@@ -1,5 +1,6 @@
 """Fits density model to activations of victim's policy network."""
 
+import glob
 import json
 import logging
 import os
@@ -76,7 +77,7 @@ class PCAPreDensity(object):
 @fit_model_ex.config
 def base_config():
     ray_server = None  # by default will launch a server
-    activation_dir = None  # directory of generated activatoins
+    activation_glob = None  # directory of generated activatoins
     output_root = None  # directory to write output
     data_type = 'ff_policy'  # key into activations
     max_timesteps = None  # if specified, maximum number of timesteps of activations to use
@@ -91,8 +92,9 @@ def base_config():
 
 @fit_model_ex.named_config
 def debug_config():
-    max_timesteps = 1000
-    model_class = KernelDensity
+    max_timesteps = 100
+    model_kwargs = {'n_components': 2}
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -127,18 +129,18 @@ def kde():
     del _
 
 
-def _load_and_reshape_single_file(np_path, col, opponent_id):
+def _load_and_reshape_single_file(np_path, data_key, opponent_id):
     """Loads data from np_path, extracting column col.
 
     :param np_path: (str) a path to a pickled dict of NumPy arrays.
-    :param col: (str) the key to extract from the dict.
+    :param data_key: (str) the key to extract from the dict.
     :param opponent_id: (str) an identifier, added to the metadata.
     :return A tuple (concatenated_data, metadata_df) where concatenated_data is a flattened
             array of activations at different timesteps, and metadata_df is a pandas DataFrame
             containing the episode_id, timestep, frac_timestep and opponent_id.
     """
     traj_data = np.load(np_path, allow_pickle=True)
-    episode_list = traj_data[col].tolist()
+    episode_list = traj_data[data_key].tolist()
 
     episode_lengths = [len(episode) for episode in episode_list]
     episode_id = []
@@ -182,9 +184,9 @@ def density_fitter(activation_paths, output_dir,
     # Load data
     activations = []
     metadata = []
-    for opponent_type, path in activation_paths.items():
-        logger.debug(f"Loaded data for {opponent_type} from {path}")
-        act, meta = _load_and_reshape_single_file(path, opponent_type, data_key)
+    for opponent_id, path in activation_paths.items():
+        logger.debug(f"Loaded data for {opponent_id} from {path}")
+        act, meta = _load_and_reshape_single_file(path, data_key=data_key, opponent_id=opponent_id)
         activations.append(act)
         metadata.append(meta)
     activations = np.concatenate(activations)
@@ -192,19 +194,24 @@ def density_fitter(activation_paths, output_dir,
     # Flatten activations (but preserve timestep)
     activations = activations.reshape(activations.shape[0], -1)
 
-    # Optionally, sub-sample
+    # Sub-sample
+    np.random.shuffle(activations)
+    metadata = metadata.sample(frac=1)
     if max_timesteps is None:
         max_timesteps = len(metadata)
+    print('maximum timesteps', max_timesteps)
+    print('before', activations.shape)
     activations = activations[0:max_timesteps]
-    meta = metadata[0:max_timesteps]
+    print('after', activations.shape)
+    metadata = metadata[0:max_timesteps].copy()
 
     # Split into train, validation and test
-    opponent_mask = meta['opponent_id'] == train_opponent
-    percentage_mask = np.random.choice([True, False], size=len(meta),
+    opponent_mask = metadata['opponent_id'] == train_opponent
+    percentage_mask = np.random.choice([True, False], size=len(metadata),
                                        p=[train_frac, 1 - train_frac])
 
-    meta['is_train'] = opponent_mask & percentage_mask
-    train_data = activations[meta['is_train']]
+    metadata['is_train'] = opponent_mask & percentage_mask
+    train_data = activations[metadata['is_train']]
 
     train_opponent_validation_mask = opponent_mask & ~percentage_mask
     train_opponent_validation_data = activations[train_opponent_validation_mask]
@@ -212,7 +219,7 @@ def density_fitter(activation_paths, output_dir,
     # Fit model and evaluate
     model_obj = model_class(**model_kwargs)
     model_obj.fit(train_data)
-    meta['log_proba'] = model_obj.score_samples(activations)
+    metadata['log_proba'] = model_obj.score_samples(activations)
 
     metrics = {}
     if model_class == GaussianMixture:
@@ -228,12 +235,12 @@ def density_fitter(activation_paths, output_dir,
             json.dump(metrics, f)
 
     # Save activations, metadata and model weights
-    meta_path = os.path.join(output_dir, 'train_metadata.csv')
-    meta.to_csv(meta_path, index=False)
+    meta_path = os.path.join(output_dir, 'metadata.csv')
+    metadata.to_csv(meta_path, index=False)
 
     # TODO: Do we need to store this? We already have activations stored elsewhere on disk.
     activations_path = os.path.join(output_dir, 'activations.npy')
-    np.save(activations, activations_path)
+    np.save(activations_path, activations)
 
     weights_path = os.path.join(output_dir, f'fitted_{model_class.__name__}_model.pkl')
     with open(weights_path, "wb") as f:
@@ -247,7 +254,7 @@ def density_fitter(activation_paths, output_dir,
 
 
 @fit_model_ex.main
-def fit_model(_run, ray_server, activation_dir, output_root, max_timesteps, data_type,
+def fit_model(_run, ray_server, activation_glob, output_root, max_timesteps, data_type,
               model_class, model_kwargs, train_opponent, train_percentage):
     """Fits density models for each environment and victim type in activation_dir,
        saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
@@ -261,18 +268,18 @@ def fit_model(_run, ray_server, activation_dir, output_root, max_timesteps, data
     # e.g. 'SumoHumans-v0_victim_zoo_1' and opponent_type is e.g. 'ppo2_1'.
     activation_paths = {}
 
-    for fname in os.listdir(activation_dir):
-        stem_match = stem_pattern.match(fname)
+    for activation_path in glob.glob(activation_glob):
+        activation_dir = os.path.basename(activation_path)
+        stem_match = stem_pattern.match(activation_dir)
         if stem_match is None:
-            logger.debug(f"Skipping {fname}")
+            logger.debug(f"Skipping {activation_path}")
             continue
         stem = stem_match.groups()[0]
 
-        opponent_match = opponent_pattern.match(fname)
+        opponent_match = opponent_pattern.match(activation_dir)
         opponent_type = opponent_match.groups()[0]
 
-        path = osp.join(activation_dir, fname)
-        activation_paths.setdefault(stem, {})[opponent_type] = path
+        activation_paths.setdefault(stem, {})[opponent_type] = activation_path
 
     # Create temporary output directory (if needed)
     tmp_dir = None
