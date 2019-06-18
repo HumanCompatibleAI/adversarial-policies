@@ -27,6 +27,14 @@ def activation_storing_config():
     del _
 
 
+def _activations_path_generator(trial_root, cfg, env_name, victim_index,
+                                victim_type, victim_path, opponent_type, opponent_path):
+    src_path = osp.join(trial_root, 'data', 'trajectories', f'agent_{victim_index}.npz')
+    new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
+                f'_opponent_{opponent_type}_{opponent_path}')
+    return src_path, new_name, 'npz'
+
+
 @generate_activations_ex.main
 def generate_activations(_run, out_dir, score_configs, score_update,
                          adversary_path, ray_upload_dir):
@@ -36,16 +44,8 @@ def generate_activations(_run, out_dir, score_configs, score_update,
     activation_dirs = run_external(score_configs, post_named_configs=['save_activations'],
                                    config_updates=score_update, adversary_path=adversary_path)
 
-    def path_generator(trial_root, cfg, env_name, victim_index, victim_type, victim_path,
-                       opponent_type, opponent_path):
-        src_path = osp.join(trial_root, 'data',
-                            'trajectories', f'agent_{victim_index}.npz')
-        new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
-                    f'_opponent_{opponent_type}_{opponent_path}')
-        return src_path, new_name, 'npz'
-
     os.makedirs(out_dir)
-    extract_data(path_generator, out_dir, activation_dirs, ray_upload_dir)
+    extract_data(_activations_path_generator, out_dir, activation_dirs, ray_upload_dir)
     logger.info("Activations saved")
 
     utils.add_artifacts(_run, out_dir)

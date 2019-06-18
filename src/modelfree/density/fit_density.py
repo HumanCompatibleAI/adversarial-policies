@@ -37,7 +37,7 @@ def gen_exp_name(model_class, model_kwargs):
     elif model_class == PCAPreDensity:
         if model_kwargs['density_class'] == KernelDensity:
             return 'pca_kde'
-        elif model_kwargs['density_class'] == 'pca_gmm':
+        elif model_kwargs['density_class'] == GaussianMixture:
             return 'pca_gmm'
         else:
             return 'pca_unknown'
@@ -77,7 +77,7 @@ class PCAPreDensity(object):
 @fit_model_ex.config
 def base_config():
     ray_server = None  # by default will launch a server
-    activation_glob = None  # directory of generated activatoins
+    activation_glob = None  # directory of generated activations
     output_root = None  # directory to write output
     data_type = 'ff_policy'  # key into activations
     max_timesteps = None  # if specified, maximum number of timesteps of activations to use
@@ -155,7 +155,8 @@ def _load_and_reshape_single_file(np_path, data_key, opponent_id):
     concatenated_data = np.concatenate(episode_list)
     opponent_id = [opponent_id] * len(concatenated_data)
 
-    # TODO: only opponent_id is used in this code. Are the others worth keeping around?
+    # We currently just use opponent_id, but keep the others around for exploratory data analysis
+    # (for example, spotting patterns in activations depending on position in episode)
     metadata_df = pd.DataFrame({'episode_id': episode_id,
                                 'timesteps': timesteps,
                                 'frac_timesteps': frac_timesteps,
@@ -231,13 +232,9 @@ def density_fitter(activation_paths, output_dir,
         with open(os.path.join(output_dir, "metrics.json"), 'w') as f:
             json.dump(metrics, f)
 
-    # Save activations, metadata and model weights
+    # Save metadata and model weights
     meta_path = os.path.join(output_dir, 'metadata.csv')
     metadata.to_csv(meta_path, index=False)
-
-    # TODO: Do we need to store this? We already have activations stored elsewhere on disk.
-    activations_path = os.path.join(output_dir, 'activations.npy')
-    np.save(activations_path, activations)
 
     weights_path = os.path.join(output_dir, f'fitted_{model_class.__name__}_model.pkl')
     with open(weights_path, "wb") as f:
