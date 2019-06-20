@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.com/HumanCompatibleAI/adversarial-policies.svg?branch=master)](https://travis-ci.com/HumanCompatibleAI/adversarial-policies)
+[![codecov](https://codecov.io/gh/HumanCompatibleAI/adversarial-policies/branch/master/graph/badge.svg)](https://codecov.io/gh/HumanCompatibleAI/adversarial-policies)
 
 Codebase to train, evaluate and analyze adversarial policies: policies attacking a fixed victim
 agent in a multi-agent system. See [paper](https://arxiv.org/abs/1905.10615) for more information.
