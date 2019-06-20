@@ -12,6 +12,7 @@ STYLES = {
         'font.serif': 'Times New Roman',
         'font.size': 9,
         'legend.fontsize': 9,
+        'axes.unicode_minus': False,  # workaround bug with Unicode minus signs not appearing
         'axes.titlesize': 9,
         'axes.labelsize': 9,
         'xtick.labelsize': 9,
@@ -19,6 +20,9 @@ STYLES = {
     },
     'slides': {
         'figure.figsize': (9.32, 3),
+    },
+    'slides_density': {
+        'figure.figsize': (5, 3),
     },
     'poster': {
         'font.family': 'sans-serif',
@@ -50,6 +54,10 @@ STYLES = {
     },
     'scores_threecol': {
         'figure.figsize': (1.76, 1.6),
+    },
+    'density_twocol': {
+        'figure.figsize': (2.7, 2.0625),
+        'legend.fontsize': 8,
     },
     'scores_poster_threecol': {
         'figure.figsize': (5.15, 3.1),
