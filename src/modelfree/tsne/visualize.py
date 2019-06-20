@@ -29,7 +29,9 @@ def main_config():
     save_type = 'pdf'
     styles = ['paper', 'threecol']
     ordering = ['Adv', 'Zoo', 'Rand']
-    pretty_labels = True
+    pretty_labels = PRETTY_LABELS
+
+    internal_legend = False
     external_legend_params = {
         'legend_styles': ['paper'],
         'legend_height': 0.3,
@@ -41,8 +43,17 @@ def main_config():
 @visualize_ex.named_config
 def inline_config():
     styles = ['paper', 'twocol']
-    pretty_labels = False  # make legend smaller
+    internal_legend = True
     external_legend_params = None
+    pretty_labels = {
+        'Adv': 'Adv',
+        'Zoo': 'Zoo',
+        'Rand': 'Rand',
+    }
+
+    model_glob = 'data/tsne/default/20190505_193250/fitted/*'
+    output_root = 'data/tsne/default/20190505_193250/figures_inline/'
+
     _ = locals()
     del _
 
@@ -82,15 +93,14 @@ def _make_handles(palette_name, ordering, pretty_labels):
         handle = matplotlib.lines.Line2D(range(1), range(1), color=color,
                                          marker='o', markerfacecolor=color, linewidth=0)
         handles.append(handle)
-        label = PRETTY_LABELS[key] if pretty_labels else key
-        labels.append(label)
+        labels.append(pretty_labels[key])
     return handles, labels
 
 
 @visualize_ex.capture
 def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
-                         styles, external_legend_params):
-    legend = external_legend_params is None
+                         styles, internal_legend, external_legend_params):
+    assert not internal_legend or external_legend_params is None
     with plt.style.context([STYLES[style] for style in styles]):
         plt.rc('axes.spines', **{'bottom': False, 'left': False, 'right': False, 'top': False})
 
@@ -102,8 +112,10 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
         width, height = plt.rcParams['figure.figsize']
         ncols = len(datasets)
         width = width * ncols
+
+        gridspec_kw = {'wspace': 0.0, 'top': 0.85 if internal_legend else 1.0}
         fig, axs = plt.subplots(figsize=(width, height), nrows=1, ncols=ncols, squeeze=False,
-                                sharex=True, sharey=True, gridspec_kw={'wspace': 0.0})
+                                sharex=True, sharey=True, gridspec_kw=gridspec_kw)
 
         # Color-coded scatter-plot
         for data, ax in zip(datasets, axs[0]):
@@ -116,13 +128,14 @@ def _plot_and_save_chart(save_path, datasets, opacity, dot_size, palette_name,
             ax.scatter(data['ax_1'], data['ax_2'], c=hues, alpha=opacity, s=dot_size,
                        edgecolors='none', linewidth=0)
 
-            if legend:
+            if internal_legend is not None:
                 handles, labels = _make_handles()
-                ax.legend(handles=handles, labels=labels, borderpad=0.4, handletextpad=0.2,
-                          columnspacing=1.0, loc='lower left', ncol=len(handles),
-                          bbox_to_anchor=(0.035, 1.0, 0.1, 0.1))
+                fig.legend(handles=handles, labels=labels, ncol=len(handles),
+                           loc='lower center', bbox_to_anchor=(0.05, 0.88, 0.9, 0.05),
+                           mode='expand', borderaxespad=0, frameon=True)
 
-        fig.savefig(save_path, dpi=800, bbox_inches='tight', pad_inches=0)
+        kwargs = {} if internal_legend else {'bbox_inches': 'tight', 'pad_inches': 0.0}
+        fig.savefig(save_path, dpi=800, **kwargs)
         plt.close(fig)
 
 

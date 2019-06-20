@@ -33,6 +33,7 @@ class TransparentPolicy(ABC):
         :param ff: (dict<str>, [float]) dictionary of lists of feedforward activations.
         :param hid: ([float] or None) LSTM hidden state.
         """
+        # TODO: Do not consolidate -- have this happen later down the pipeline.
         def consolidate(acts):
             """Turn a list of activations into one array with shape (num_env,) + action_space"""
             return np.squeeze(np.concatenate(acts))

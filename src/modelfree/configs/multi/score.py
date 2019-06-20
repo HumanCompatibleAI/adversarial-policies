@@ -149,7 +149,7 @@ def make_configs(multi_score_ex):
         score['episodes'] = None
         # Trajectory length varies a lot between environments and opponents; make sure we have
         # a consistent number of data points.
-        score['timesteps'] = 5000
+        score['timesteps'] = 20000
         score['record_traj'] = True
         score['transparent_params'] = {'ff_policy': True, 'ff_value': True}
         score['record_traj_params'] = {
@@ -254,7 +254,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _env_agents(agents={env: (range(1), range(1)) for env in BANSAL_GOOD_ENVS}) +
+                    _env_agents(agents={env: ([1], [1]) for env in BANSAL_GOOD_ENVS}) +
                     _fixed_vs_victim('zero')[0:1] +
                     _fixed_vs_victim('random')[0:1] +
                     _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
@@ -262,6 +262,24 @@ def make_configs(multi_score_ex):
             }
         }
         exp_name = 'debug_one_each_type'
+
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
+    def debug_two_agents(score):
+        """Zoo1 and Rand in Kick and Defend. Very minimalistic test case."""
+        score = dict(score)
+        score['episodes'] = 2
+        spec = {
+            'config': {
+                PATHS_AND_TYPES: tune.grid_search(
+                    _env_agents(agents={BANSAL_GOOD_ENVS[0]: ([1], [1])}) +
+                    _fixed_vs_victim('random')[0:1],
+                ),
+            }
+        }
+        exp_name = 'debug_two_agents'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
