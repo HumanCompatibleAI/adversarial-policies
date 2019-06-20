@@ -1,14 +1,25 @@
 [![Build Status](https://travis-ci.com/HumanCompatibleAI/adversarial-policies.svg?branch=master)](https://travis-ci.com/HumanCompatibleAI/adversarial-policies)
 
-Codebase to train, evaluate and analyze adversarial policies: policies attacking a victim in
-a multi-agent system. See [paper](https://arxiv.org/abs/1905.10615) for more information.
+Codebase to train, evaluate and analyze adversarial policies: policies attacking a fixed victim
+agent in a multi-agent system. See [paper](https://arxiv.org/abs/1905.10615) for more information.
 
 # Installation
 
 The easiest way to install the code is to build the Docker image in the `Dockerfile`.
-This will install all necessary binary and Python dependencies.
+This will install all necessary binary and Python dependencies. Build the image by:
+
+  ```bash
+  $ docker build --build-arg MUJOCO_KEY=URL_TO_YOUR_MUJOCO_KEY .
+  ```
+
 You can also pull a Docker image for the latest master commit from
-`humancompatibleai/adversarial_policies:latest`.
+`humancompatibleai/adversarial_policies:latest`. Once you have built the image, run it by:
+
+  ```bash
+  docker run -it --env MUJOCO_KEY=URL_TO_YOUR_MUJOCO_KEY \
+         humancompatibleai/adversarial_policies:latest /bin/bash  # change tag if built locally
+  ```
+
 If you want to run outside of Docker (for example, for ease of development), read on.
 
 This codebase uses Python 3.6. The main binary dependencies are MuJoCo (version 1.3.1 for
@@ -22,6 +33,14 @@ Finally, inside the relevant virtual environment run `pip install -e .` to insta
 version of the package.
 
 # Reproducing Results
+
+For all of these experiments, you should be in the `modelfree` virtual environment:
+
+  ```bash
+  source ./modelfreevenv/bin/activate
+  ```
+
+We use [Sacred](https://github.com/IDSIA/sacred) for experiment configuration.
 
 ## Training adversarial policies
 
@@ -47,7 +66,8 @@ To reproduce all the evaluations used in the paper, run the following bash scrip
 `modelfree.multi.score` internally:
   - `experiments/modelfree/baselines.sh`: fixed baselines (no adversarial policies).
   - `experiments/modelfree/attack_transfers.sh <path-to-trained-adversaries>`. To use our
-     pre-trained policies, use the path `data/aws-public/multi_train/paper/20190429_011349`.
+     pre-trained policies, use the path `data/aws-public/multi_train/paper/20190429_011349`
+     after syncing against S3.
 
 ## Visualizing Results
 
@@ -76,11 +96,12 @@ The t-SNE visualizations can be replicated with `modelfree.tsne.pipeline`.
 
 Many of the experiments are computationally intensive. You can run them on a single machine, but it
 might take several weeks. We use [Ray](https://github.com/ray-project/ray) to run distributed
-experiments. We include example configs in `src/modelfree/configs/ray/`. You will need to, at a
-minimum, edit the config to use your own AMI (anything with Docker should work) and private key.
-Then just run `ray up <path-to-config>` and it will start a cluster. SSH into the head node, start
-a shell in Docker, and then follow the above instructions. The script should automatically detect
-it is part of a Ray cluster and run on the existing Ray server, rather than starting a new one.
+experiments. We include example configs in `src/modelfree/configs/ray/`. To use `aws.yaml` you
+will need to, at a minimum, edit the config to use your own AMI (anything with Docker should work)
+and private key. Then just run `ray up <path-to-config>` and it will start a cluster. SSH into the
+head node, start a shell in Docker, and then follow the above instructions. The script should
+automatically detect it is part of a Ray cluster and run on the existing Ray server, rather than
+starting a new one.
 
 # Contributions
 
