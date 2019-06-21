@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 
-aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies/ data/aws/
-aws s3 sync --exclude='*/checkpoint/*' --exclude='*/datasets/*' s3://adversarial-policies-public/ data/aws-public/
+S3_SYNC_CMD="aws s3 sync -exclude='*/checkpoint/*' --exclude='*/datasets/*'"
+
+${S3_SYNC_CMD} s3://adversarial-policies/ data/aws/
+${S3_SYNC_CMD} s3://adversarial-policies-public/ data/aws-public/

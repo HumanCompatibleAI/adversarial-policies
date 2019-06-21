@@ -12,7 +12,7 @@ SEEDS="0 1 2"
 OUT_DIR=data/mf-dec2018rep
 
 # Train PPO against victims
-python -m modelfree.multi_train with dec2018rep
+python -m modelfree.multi.train with dec2018rep
 
 SCORE_AGENT="modelfree.score_agent with episodes=1000 num_env=16 render=False"
 # Baseline: pretrained policy
