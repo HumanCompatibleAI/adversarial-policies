@@ -45,12 +45,19 @@ We use [Sacred](https://github.com/IDSIA/sacred) for experiment configuration.
 
 ## Training adversarial policies
 
-`modelfree.train` trains a single adversarial policy. `modelfree.multi.train` trains multiple
-adversarial policies, using Ray (see below) for parallelization.
+`modelfree.train` trains a single adversarial policy. By default it will train on `SumoAnts` for 
+a brief period of time. You can override any of config parameters, defined in `train_config`, at
+the command line. For example:
 
-To replicate the results in the paper (there may be slight differences due to randomness not
-captured in the seeding), run `python -m modelfree.multi.train with paper`. To run the
-hyperparameter sweep, run `python -m modelfree.multi.train with hyper`.
+  ```bash
+  # Train on Sumo Humans for 10M timesteps
+  python -m modelfree.train with env_name=multicomp/SumoHumans-v0 total_timesteps=10000000
+  ```
+
+`modelfree.multi.train` trains multiple adversarial policies, using Ray (see below) for 
+parallelization. To replicate the results in the paper (there may be slight differences due to 
+randomness not captured in the seeding), run `python -m modelfree.multi.train with paper`. To run 
+the hyperparameter sweep, run `python -m modelfree.multi.train with hyper`.
 
 You can find results from our training run on s3://adversarial-policies-public/multi_train/paper.
 This includes TensorBoard logs, final model weights, checkpoints, and individual policy configs.
@@ -81,10 +88,17 @@ in the paper, use `paper_config`; for those in the appendix, use `supplementary_
 ```
 
 To re-generate all the videos, use `modelfree.visualize.make_videos`. We would recommend running
-in Docker using `Xdummy` for this: there are rendering issues with many graphics drivers.
+in Docker, in which case it will render using `Xdummy`. This avoids rendering issues with many
+graphics drivers.
 
-Note you will likely need to change the default paths in the config to point at your experimental
-results and desired output directory.
+Note you will likely need to change the default paths in the config to point at your evaluation
+results from the previous section, and desired output directory. For example:
+
+  ```bash
+  python -m modelfree.visualize.scores with tb_dir=<path/to/trained/models> \
+                                            transfer_path=<path/to/multi_score/output>
+  python -m modelfree.visualize.make_videos with adversary_path=<path/to/best_adversaries.json>
+  ```
 
 ## Additional Analysis
 
