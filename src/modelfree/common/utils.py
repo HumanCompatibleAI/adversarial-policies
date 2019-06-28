@@ -38,3 +38,17 @@ def add_artifacts(run, dirname, ingredient=None):
             relroot = os.path.relpath(path, dirname)
             name = prefix + relroot.replace('/', '_') + '_' + file
             run.add_artifact(path, name=name)
+
+
+def dict_deep_copy(d):
+    """Perform a deep copy on nested dictionaries.
+
+    Performs a shallow copy using `dict()`. Note this will *lose* subclasses,
+    e.g. OrderedDict. This is useful for e.g. `d` a Sacred read-only dict.
+
+    :param d: (object) if dict, copy recursively; otherwise, identity
+    :return A deep copy of d."""
+    if isinstance(d, dict):
+        return {k: dict_deep_copy(v) for k, v in d.items()}
+    else:
+        return d
