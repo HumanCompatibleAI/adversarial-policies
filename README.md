@@ -23,7 +23,7 @@ You can also pull a Docker image for the latest master commit from
 
 If you want to run outside of Docker (for example, for ease of development), read on.
 
-This codebase uses Python 3.6. The main binary dependencies are MuJoCo (version 1.3.1 for
+This codebase uses Python 3.7. The main binary dependencies are MuJoCo (version 1.3.1 for
 `modelfree` and 1.5.0 for `aprl`). You may also need to install some other libraries,
 such as OpenMPI.
 

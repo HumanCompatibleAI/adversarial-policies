@@ -9,7 +9,7 @@ setup(
     description='Adversarial Policies for Reinforcement Learning',
     author='Adam Gleave, Michael Dennis, et al',
     author_email='adam@gleave.me',
-    python_requires='>=3.6.0',
+    python_requires='>=3.7.0',
     url='https://github.com/HumanCompatibleAI/adversarial-policies',
     packages=find_packages('src'),
     package_dir={'': 'src'},
@@ -31,7 +31,7 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy'
     ],
