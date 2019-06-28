@@ -44,7 +44,7 @@ ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 RUN    mkdir -p /root/.mujoco \
     && wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco200.zip \
     && unzip mujoco200.zip -d /root/.mujoco \
-    && mv /root/.mujoco/mjpro200_linux /root/.mujoco/mujoco200 \
+    && mv /root/.mujoco/mujoco200_linux /root/.mujoco/mujoco200 \
     && rm mujoco200.zip \
     && wget https://www.roboti.us/download/mjpro131_linux.zip -O mujoco131.zip \
     && unzip mujoco131.zip -d /root/.mujoco \
