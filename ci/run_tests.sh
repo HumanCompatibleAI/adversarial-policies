@@ -3,7 +3,7 @@
 env=$1
 case $env in
 aprl)
-    export LD_LIBRARY_PATH=/root/.mujoco/mjpro150/bin:${LD_LIBRARY_PATH}
+    export LD_LIBRARY_PATH=/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}
     ;;
 
 modelfree)
