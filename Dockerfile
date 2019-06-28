@@ -27,13 +27,7 @@ RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula selec
     && rm -rf /var/lib/apt/lists/*
 
 RUN DEBIAN_FRONTEND=noninteractive add-apt-repository --yes ppa:deadsnakes/ppa && apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y python3.6-dev python3.6 python3-pip
-RUN virtualenv --python=python3.6 env
-
-RUN rm /usr/bin/python
-RUN ln -s /env/bin/python3.6 /usr/bin/python
-RUN ln -s /env/bin/pip3.6 /usr/bin/pip
-RUN ln -s /env/bin/pytest /usr/bin/pytest
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y python3.7-dev python3.7 python3-pip
 
 RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
     && chmod +x /usr/local/bin/patchelf
