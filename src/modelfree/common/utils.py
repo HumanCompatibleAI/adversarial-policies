@@ -46,7 +46,7 @@ def dict_deep_copy(d):
 
     If `d` is an instance-of dict, copies `d` to a dict where the values are
     recursively copied using `dict_deep_copy`. If `d` is not a dict, copies it
-    using `copy.deepcopy`. Note this intentioanlly loses subclasses.
+    using `copy.deepcopy`. Note this intentionally loses subclasses.
     This is useful if e.g. `d` is a Sacred read-only dict. However, it can be
     undesirable if e.g. `d` is an OrderedDict.
 
