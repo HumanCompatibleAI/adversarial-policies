@@ -23,7 +23,7 @@ set -o xtrace  # print commands
 COV_PACKAGES="aprl modelfree"
 COV_FLAGS=""
 for package in $COV_PACKAGES; do
-    COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.6/site-packages/${package}"
+    COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.7/site-packages/${package}"
 done
 pytest -vv $COV_FLAGS tests/${env}
 
