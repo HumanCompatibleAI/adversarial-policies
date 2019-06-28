@@ -191,15 +191,16 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
                 record_traj, record_traj_params, transparent_params, num_env,
                 videos, video_params, mask_agent_index, noisy_agent_index,
                 noisy_agent_magnitude, mask_agent_noise):
+    save_dir = video_params['save_dir']
     if videos:
-        if video_params['save_dir'] is None:
+        if save_dir is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
                                  "but videos will be saved to Sacred run directory")
             tmp_dir = tempfile.TemporaryDirectory()
-            video_params['save_dir'] = tmp_dir.name
+            save_dir = tmp_dir.name
         else:
             tmp_dir = None
-        video_dirs = [osp.join(video_params['save_dir'], str(i)) for i in range(num_env)]
+        video_dirs = [osp.join(save_dir, str(i)) for i in range(num_env)]
     pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else []
 
     agent_wrappers = {}
