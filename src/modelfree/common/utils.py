@@ -1,3 +1,4 @@
+import copy
 import datetime
 import os
 
@@ -43,12 +44,15 @@ def add_artifacts(run, dirname, ingredient=None):
 def dict_deep_copy(d):
     """Perform a deep copy on nested dictionaries.
 
-    Performs a shallow copy using `dict()`. Note this will *lose* subclasses,
-    e.g. OrderedDict. This is useful for e.g. `d` a Sacred read-only dict.
+    If `d` is an instance-of dict, copies `d` to a dict where the values are
+    recursively copied using `dict_deep_copy`. If `d` is not a dict, copies it
+    using `copy.deepcopy`. Note this intentioanlly loses subclasses.
+    This is useful if e.g. `d` is a Sacred read-only dict. However, it can be
+    undesirable if e.g. `d` is an OrderedDict.
 
-    :param d: (object) if dict, copy recursively; otherwise, identity
+    :param d: (object) if dict, copy recursively; otherwise, use `copy.deepcopy`.
     :return A deep copy of d."""
     if isinstance(d, dict):
         return {k: dict_deep_copy(v) for k, v in d.items()}
     else:
-        return d
+        return copy.deepcopy(d)
