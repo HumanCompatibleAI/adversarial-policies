@@ -41,18 +41,21 @@ def add_artifacts(run, dirname, ingredient=None):
             run.add_artifact(path, name=name)
 
 
-def dict_deep_copy(d):
-    """Perform a deep copy on nested dictionaries.
+# TODO(adam): delete this once Sacred issue #498 is resolved
+def sacred_copy(o):
+    """Perform a deep copy on nested dictionaries and lists.
 
-    If `d` is an instance-of dict, copies `d` to a dict where the values are
-    recursively copied using `dict_deep_copy`. If `d` is not a dict, copies it
-    using `copy.deepcopy`. Note this intentioanlly loses subclasses.
+    If `d` is an instance of dict or list, copies `d` to a dict or list
+    where the values are recursively copied using `sacred_copy`. Otherwise, `d`
+    is copied using `copy.deepcopy`. Note this intentioanlly loses subclasses.
     This is useful if e.g. `d` is a Sacred read-only dict. However, it can be
     undesirable if e.g. `d` is an OrderedDict.
 
-    :param d: (object) if dict, copy recursively; otherwise, use `copy.deepcopy`.
+    :param o: (object) if dict, copy recursively; otherwise, use `copy.deepcopy`.
     :return A deep copy of d."""
-    if isinstance(d, dict):
-        return {k: dict_deep_copy(v) for k, v in d.items()}
+    if isinstance(o, dict):
+        return {k: sacred_copy(v) for k, v in o.items()}
+    elif isinstance(o, list):
+        return [sacred_copy(v) for v in o]
     else:
-        return copy.deepcopy(d)
+        return copy.deepcopy(o)
