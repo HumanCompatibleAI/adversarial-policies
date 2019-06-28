@@ -47,7 +47,7 @@ def sacred_copy(o):
 
     If `d` is an instance of dict or list, copies `d` to a dict or list
     where the values are recursively copied using `sacred_copy`. Otherwise, `d`
-    is copied using `copy.deepcopy`. Note this intentioanlly loses subclasses.
+    is copied using `copy.deepcopy`. Note this intentionally loses subclasses.
     This is useful if e.g. `d` is a Sacred read-only dict. However, it can be
     undesirable if e.g. `d` is an OrderedDict.
 
