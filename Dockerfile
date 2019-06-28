@@ -42,9 +42,10 @@ ENV LANG C.UTF-8
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 
 RUN    mkdir -p /root/.mujoco \
-    && wget https://www.roboti.us/download/mjpro150_linux.zip -O mujoco150.zip \
-    && unzip mujoco150.zip -d /root/.mujoco \
-    && rm mujoco150.zip \
+    && wget https://www.roboti.us/download/mjpro200_linux.zip -O mujoco200.zip \
+    && unzip mujoco200.zip -d /root/.mujoco \
+    && mv /root/.mujoco/mjpro200_linux /root/.mujoco/mujoco200 \
+    && rm mujoco200.zip \
     && wget https://www.roboti.us/download/mjpro131_linux.zip -O mujoco131.zip \
     && unzip mujoco131.zip -d /root/.mujoco \
     && rm mujoco131.zip
@@ -53,7 +54,6 @@ COPY vendor/Xdummy /usr/local/bin/Xdummy
 RUN chmod +x /usr/local/bin/Xdummy
 
 WORKDIR /adversarial-policies
-ARG MUJOCO_KEY
 # Copy over just requirements.txt at first. That way, the Docker cache doesn't
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial-policies/
@@ -61,9 +61,9 @@ COPY ./requirements.txt /adversarial-policies/
 COPY ./requirements-aprl.txt /adversarial-policies/
 COPY ./requirements-modelfree.txt /adversarial-policies/
 COPY ./ci/build_venv.sh /adversarial-policies/ci/build_venv.sh
-RUN    curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY} \
-    && parallel ci/build_venv.sh {} ::: aprl modelfree \
-    && rm /root/.mujoco/mjkey.txt  # remove activation key to avoid leaking it in image
+# mjkey.txt needs to exist for build, but doesn't need to be a real key
+RUN    touch /root/.mujoco/mjkey.txt \
+    && parallel ci/build_venv.sh {} ::: aprl modelfree
 
 # Delay copying (and installing) the code until the very end
 COPY . /adversarial-policies

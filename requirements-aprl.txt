@@ -1,3 +1,3 @@
 git+git://github.com/HumanCompatibleAI/ilqr.git#egg=ilqr
-gym==0.12.1
-mujoco-py>=1.50,<1.51
+gym==0.13.0
+mujoco-py>=2.0,<2.1
