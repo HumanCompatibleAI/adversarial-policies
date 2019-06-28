@@ -150,12 +150,12 @@ def make_sacred(ex, worker_name, worker_fn):
 
         trainable_name = f'{worker_name}-{cfg_hash}'
         # ReadOnlyDict's aren't picklable: see sacred issue #499
-        base_config = utils.dict_deep_copy(base_config)
+        base_config = utils.sacred_copy(base_config)
         trainable_fn = functools.partial(worker_fn, base_config)
         tune.register_trainable(trainable_name, trainable_fn)
 
         exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}'
-        spec = utils.dict_deep_copy(spec)
+        spec = utils.sacred_copy(spec)
         spec['run'] = trainable_name
         result = tune.run_experiments({exp_id: spec})
 
