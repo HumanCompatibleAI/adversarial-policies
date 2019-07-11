@@ -15,7 +15,7 @@ def score_worker(base_config, tune_config, reporter):
     :param base_config: (dict) default config
     :param tune_config: (dict) overrides values in base_config
     :param reporter: (ray.tune.StatusReporter) Ray Tune internal logger."""
-    # train_ex is not pickleable, so we cannot close on it.
+    # score_ex is not pickleable, so we cannot close on it.
     # Instead, import inside the function.
     from modelfree.score_agent import score_ex
 

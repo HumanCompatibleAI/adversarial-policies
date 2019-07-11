@@ -14,6 +14,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
+from modelfree.common import utils
 from modelfree.envs.gym_compete import GymCompeteToOurs, game_outcome
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
 from modelfree.envs.wrappers import TrajectoryRecorder, VideoWrapper, make_env, simulate
@@ -210,6 +211,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             mask_agent_kwargs['noise_magnitude'] = mask_agent_noise
 
         agent_wrappers = make_mask_agent_wrappers(env_name, mask_agent_index, **mask_agent_kwargs)
+
+    video_params = utils.sacred_copy(video_params)  # Sacred issue #499
 
     def env_fn(i):
         env = make_env(env_name, _seed, i, None,
