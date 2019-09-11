@@ -58,7 +58,7 @@ def _finetune_train(train):
         'path': '1',
         'type': 'zoo',
     }
-    train['normalize'] = False
+    train['normalize_observations'] = False
 
 
 def _finetune_spec(envs=None):

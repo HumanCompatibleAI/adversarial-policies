@@ -1,11 +1,25 @@
+import numpy as np
+
 from aprl.envs.multi_agent import VecMultiWrapper, _tuple_pop, _tuple_space_filter
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
     """Embeds victim in a (Transparent)CurryVecEnv. Also takes care of closing victim's session"""
-    def __init__(self, multi_env, victim, victim_index, transparent, deterministic):
+    def __init__(self, multi_env, victim, victim_index, transparent, deterministic,
+                 multi_victim):
+        self.multi_victim = multi_victim
         self.victim = victim
-        cls = TransparentCurryVecEnv if transparent else CurryVecEnv
+        if multi_victim:
+            # currently don't have transparent and multi-victim combo,
+            # so multi-victim is prioritized
+            cls = MultiCurryVecEnv
+        elif transparent:
+            cls = TransparentCurryVecEnv
+            self.victim = self.victim[0]
+        else:
+            cls = CurryVecEnv
+            self.victim = self.victim[0]
+
         curried_env = cls(multi_env, self.victim, agent_idx=victim_index,
                           deterministic=deterministic)
         super().__init__(curried_env)
@@ -20,7 +34,11 @@ class EmbedVictimWrapper(VecMultiWrapper):
         return self.venv.step_wait()
 
     def close(self):
-        self.victim.sess.close()
+        if self.multi_victim:
+            for individual_victim in self.victim:
+                individual_victim.sess.close()
+        else:
+            self.victim.sess.close()
         super().close()
 
 
@@ -92,6 +110,39 @@ class CurryVecEnv(VecMultiWrapper):
             return self._obs
         else:
             return self._obs[env_idx]
+
+
+class MultiCurryVecEnv(CurryVecEnv):
+    def __init__(self, venv, policies, agent_idx=0, deterministic=False):
+        """Fixes one of the players in a VecMultiEnv, but alternates between policies
+        used to perform response action.
+        :param venv(VecMultiEnv): the environments.
+        :param policies(iterable of Policy): the policies to use for the agent at agent_idx.
+        :param agent_idx(int): the index of the agent that should be fixed.
+        :param policy_selector(func): A function that takes in
+        :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
+                 with all actions at index agent_idx set to those sampled from one policy
+                 within policies"""
+        super().__init__(venv, policies, agent_idx, deterministic)
+
+        self._policies = policies
+        self._policy = None
+        self.state_array = [None]*len(policies)
+        self.current_policy_idx = None
+
+    def step_async(self, actions):
+        action, new_state = self._policy.predict(self._obs,
+                                                 state=self._state[self.current_policy_idx],
+                                                 mask=self._dones,
+                                                 deterministic=self.deterministic)
+        self.state_array[self.current_policy_idx] = new_state
+        actions.insert(self._agent_to_fix, action)
+        self.venv.step_async(actions)
+
+    def reset(self):
+        self.current_policy_idx = np.random.choice(range(len(self.policies)))
+        self._policy = self.policies[self.current_policy_idx]
+        super().reset()
 
 
 class TransparentCurryVecEnv(CurryVecEnv):

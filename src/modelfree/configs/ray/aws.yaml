@@ -1,4 +1,4 @@
-cluster_name: aprl
+cluster_name: aprl-cody
 min_workers: 0
 max_workers: 10
 initial_workers: 0
@@ -6,7 +6,7 @@ target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 docker:
-  image: humancompatibleai/adversarial_policies:latest
+  image: humancompatibleai/adversarial_policies:finetuning_defense
   container_name: ray
   run_options:
     # NOTE: MUJOCO_KEY must be set in environment (it is in our AMI)

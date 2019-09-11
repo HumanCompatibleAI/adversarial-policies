@@ -224,8 +224,9 @@ def train_config():
     victim_type = "zoo"             # type supported by modelfree.policies.loader
     victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
+    multi_victim = False            # Are we training against multiple fixed policies?
 
-    mask_victim = False             # should victim obsevations be limited
+    mask_victim = False             # should victim observations be limited
     mask_victim_kwargs = {          # control how victim observations are limited
         'masking_type': 'initialization',
     }
@@ -236,6 +237,7 @@ def train_config():
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
     normalize = True                # normalize environment observations and reward
+    normalize_observations = True   #
     rl_args = dict()                # algorithm-specific arguments
 
     # RL Algorithm Policies/Demonstrations
@@ -359,7 +361,7 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 @train_ex.capture
 def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
-                       victim_path, victim_index, victim_noise, victim_noise_params,
+                       victim_path, victim_index, victim_noise, victim_noise_params, multi_victim,
                        adv_noise_params, transparent_params, lookback_params):
     if victim_type != 'none':
         deterministic = lookback_params is not None
@@ -367,30 +369,44 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
         if adv_noise_params['noise_val'] is not None:
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
                                              deterministic=deterministic)
+        victims = []
+        if multi_victim:
+            # If we're loading multiple victims
 
-        # Load the victim and then wrap it if appropriate.
-        victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                             env_name=env_name, index=victim_index,
-                             transparent_params=transparent_params)
+            for individual_victim_path in victim_path:
+                victims.append(load_policy(policy_path=individual_victim_path,
+                                           policy_type=victim_type, env=multi_venv,
+                                           env_name=env_name, index=victim_index,
+                                           transparent_params=transparent_params))
+        else:
+            # Load the victim and then wrap it if appropriate.
+            victims.append(load_policy(policy_path=victim_path, policy_type=victim_type,
+                                       env=multi_venv,
+                                       env_name=env_name, index=victim_index,
+                                       transparent_params=transparent_params))
 
         if victim_noise:
-            victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
-                                          scheduler=scheduler)
-            log_callbacks.append(lambda logger, locals, globals: victim.log_callback(logger))
+            for i in range(len(victims)):
+                victims[i] = apply_victim_wrapper(victim=victims[i],
+                                                  noise_params=victim_noise_params,
+                                                  scheduler=scheduler)
+                log_callbacks.append(lambda logger, locals, globals:
+                                     victims[i].log_callback(logger))
 
         # Curry the victim
         transparent = transparent_params is not None
-        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
+        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victims,
                                         victim_index=victim_index, transparent=transparent,
-                                        deterministic=deterministic)
+                                        deterministic=deterministic, multi_victim=multi_victim)
 
     return multi_venv
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
-                    victim_index, victim_path, victim_type, debug, env_name, load_policy,
-                    lookback_params, transparent_params, log_callbacks, save_callbacks):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observations,
+                    rew_shape, rew_shape_params, victim_index, victim_path, victim_type,
+                    debug, env_name, load_policy, lookback_params, transparent_params,
+                    log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -408,14 +424,18 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
         single_venv = lookback_venv
 
     if normalize:
-        normalized_venv = VecNormalize(single_venv)
+        if normalize_observations:
+            if load_policy['path'] is not None:
+                if load_policy['type'] == 'zoo':
+                    raise ValueError(
+                        "Trying to normalize twice. Bansal et al's Zoo agents normalize "
+                        "implicitly. Please set normalize=False to disable VecNormalize.")
+            normalized_venv = VecNormalize(single_venv)
 
-        if load_policy['path'] is not None:
-            if load_policy['type'] == 'zoo':
-                raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
-                                 "implicitly. Please set normalize=False to disable VecNormalize.")
+        else:
+            normalized_venv = VecNormalize(single_venv, ob=False)
 
-                normalized_venv.load_running_average(load_policy['path'])
+        normalized_venv.load_running_average(load_policy['path'])
 
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv

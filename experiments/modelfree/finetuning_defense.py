@@ -14,7 +14,7 @@ def finetuning_defense():
         'type': 'zoo',
     }
     normalize = False
-    total_timesteps = int(10e5)
+    total_timesteps = int(10e6)
     batch_size = 32768
     learning_rate = 1e-4
     rl_args = {
