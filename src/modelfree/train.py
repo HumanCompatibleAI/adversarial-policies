@@ -435,7 +435,8 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observ
         else:
             normalized_venv = VecNormalize(single_venv, ob=False)
 
-        normalized_venv.load_running_average(load_policy['path'])
+        if load_policy['path'] is not None:
+            normalized_venv.load_running_average(load_policy['path'])
 
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
