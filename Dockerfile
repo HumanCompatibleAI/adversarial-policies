@@ -34,10 +34,6 @@ RUN add-apt-repository --yes ppa:deadsnakes/ppa \
 RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
     && chmod +x /usr/local/bin/patchelf
 
-RUN add-apt-repository --yes ppa:marmistrz/openmpi \
-    && apt-get update -q \
-    && apt-get install -y libopenmpi3 libopenmpi-dev
-
 ENV LANG C.UTF-8
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 
