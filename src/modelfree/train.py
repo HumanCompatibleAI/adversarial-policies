@@ -373,9 +373,9 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
         if multi_victim:
             # If we're loading multiple victims
 
-            for individual_victim_path in victim_path:
+            for i, individual_victim_path in enumerate(victim_path):
                 victims.append(load_policy(policy_path=individual_victim_path,
-                                           policy_type=victim_type, env=multi_venv,
+                                           policy_type=victim_type[i], env=multi_venv,
                                            env_name=env_name, index=victim_index,
                                            transparent_params=transparent_params))
         else:

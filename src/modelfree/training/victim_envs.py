@@ -125,24 +125,33 @@ class MultiCurryVecEnv(CurryVecEnv):
                  within policies"""
         super().__init__(venv, policies, agent_idx, deterministic)
 
-        self._policies = policies
-        self._policy = None
+        self.policies = policies
         self.state_array = [None]*len(policies)
-        self.current_policy_idx = None
+        self.current_policy_idx = np.random.choice(range(len(self.policies)))
+        self._policy = self.policies[self.current_policy_idx]
+        self.step_count = 0
+        print(f"Initialized: now sampling from policy of type {type(self._policy)}")
 
     def step_async(self, actions):
         action, new_state = self._policy.predict(self._obs,
-                                                 state=self._state[self.current_policy_idx],
+                                                 state=self.state_array[self.current_policy_idx],
                                                  mask=self._dones,
                                                  deterministic=self.deterministic)
         self.state_array[self.current_policy_idx] = new_state
         actions.insert(self._agent_to_fix, action)
+        self.step_count += 1
+        if self.step_count > 175:
+            self.current_policy_idx = np.random.choice(range(len(self.policies)))
+            self._policy = self.policies[self.current_policy_idx]
+            print(f"Hit step count: now sampling from policy of type {type(self._policy)}")
+            self.step_count = 0
         self.venv.step_async(actions)
 
     def reset(self):
         self.current_policy_idx = np.random.choice(range(len(self.policies)))
         self._policy = self.policies[self.current_policy_idx]
-        super().reset()
+        print(f"Resetting: now sampling from policy of type {type(self._policy)}")
+        return super().reset()
 
 
 class TransparentCurryVecEnv(CurryVecEnv):
