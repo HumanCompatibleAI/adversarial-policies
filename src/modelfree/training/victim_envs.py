@@ -126,36 +126,51 @@ class MultiCurryVecEnv(CurryVecEnv):
         super().__init__(venv, policies, agent_idx, deterministic)
 
         self.policies = policies
-        self.state_array = [None]*len(policies)
-        self.current_policy_idx = np.random.choice(range(len(self.policies)))
-        self._policy = self.policies[self.current_policy_idx]
-        self.step_count = 0
-        print(f"Initialized: now sampling from policy of type {type(self._policy)}")
+        self.num_envs = venv.num_envs
+        self.state_array = [None]*self.num_envs
+        self.current_policy_idx = [None]*self.num_envs
+        self.current_policies = [None]*self.num_envs
+        self.switch_policy()
 
     def step_async(self, actions):
-        action, new_state = self._policy.predict(self._obs,
-                                                 state=self.state_array[self.current_policy_idx],
-                                                 mask=self._dones,
-                                                 deterministic=self.deterministic)
-        self.state_array[self.current_policy_idx] = new_state
-        actions.insert(self._agent_to_fix, action)
-        self.step_count += 1
-        if self.step_count > 175:
-            self.current_policy_idx = np.random.choice(range(len(self.policies)))
-            self._policy = self.policies[self.current_policy_idx]
-            print(f"Hit step count: now sampling from policy of type {type(self._policy)}")
-            self.step_count = 0
+        policy_actions = []
+        for i in range(len(self._obs)):
+            policy = self.current_policies[i]
+            observations = np.array([self._obs[i]]*self.num_envs)
+            state = np.array([self.state_array[i]]*self.num_envs)
+            mask = np.array([self._dones[i]]*self.num_envs)
+            action, new_state = policy.predict(observations,
+                                               state=state,
+                                               mask=mask,
+                                               deterministic=self.deterministic)
+            policy_actions.append(action[0])
+            self.state_array.append(new_state)
+        policy_actions_array = np.array(policy_actions)
+        actions.insert(self._agent_to_fix, policy_actions_array)
         self.venv.step_async(actions)
 
-    def reset(self):
-        self.current_policy_idx = np.random.choice(range(len(self.policies)))
-        self._policy = self.policies[self.current_policy_idx]
-        print(f"Resetting: now sampling from policy of type {type(self._policy)}")
-        return super().reset()
+    def get_policy(self):
+        return self.current_policies[0]
+
+    def step_wait(self):
+        obs, rew, dones, info = super().step_wait()
+        done_environments = np.where(dones)[0]
+        if len(done_environments) > 0:
+            self.switch_policy(done_environments)
+        return obs, rew, dones, info
+
+    def switch_policy(self, indicies_to_change=None):
+        if indicies_to_change is None:
+            indicies_to_change = range(self.num_envs)
+
+        for i in indicies_to_change:
+            policy_ind = np.random.choice(range(len(self.policies)))
+            self.current_policy_idx[i] = policy_ind
+            self.current_policies[i] = self.policies[self.current_policy_idx[i]]
 
 
 class TransparentCurryVecEnv(CurryVecEnv):
-    """CurryVecEnv that provides transparency data about its policy by updating infos dicts."""
+    """CurryVecEnv that provides stransparency data about its policy by updating infos dicts."""
     def __init__(self, venv, policy, agent_idx=0, deterministic=False):
         """
         :param venv (VecMultiEnv): the environments
