@@ -404,7 +404,7 @@ RL_ALGOS = {
 try:
     from mpi4py import MPI
     del MPI
-    RL_ALGOS.extend({
+    RL_ALGOS.update({
         'gail': gail,
         'ppo1': ppo1,
         'sac': sac,
