@@ -38,6 +38,9 @@ class DummyModel(BaseRLModel):
     def _get_pretrain_placeholders(self):
         raise NotImplementedError()
 
+    def get_parameter_list(self):
+        raise NotImplementedError()
+
 
 class PolicyToModel(DummyModel):
     """Converts BasePolicy to a BaseRLModel with only predict implemented."""

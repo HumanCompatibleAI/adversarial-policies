@@ -138,11 +138,6 @@ TRAIN_CONFIGS = [
         'adv_noise_params': {'noise_val': 0.1},
     },
     {
-        'rl_algo': 'gail',
-        'num_env': 1,
-        'expert_dataset_path': os.path.join(BASE_DIR, 'SumoAnts_traj/agent_0.npz'),
-    },
-    {
         # test TransparentLSTMPolicy
         'transparent_params': ['ff_policy', 'hid'],
     },
@@ -158,6 +153,17 @@ TRAIN_CONFIGS = [
         'transparent_params': ['ff_policy'],
     },
 ]
+try:
+    from stable_baselines import GAIL
+    del GAIL
+    TRAIN_CONFIGS.append({
+        'rl_algo': 'gail',
+        'num_env': 1,
+        'expert_dataset_path': os.path.join(BASE_DIR, 'SumoAnts_traj/agent_0.npz'),
+    })
+except ImportError:
+    # skip GAIL test if algorithm not available
+    pass
 TRAIN_CONFIGS += [{'rl_algo': algo, 'num_env': 1 if algo in NO_VECENV else 8}
                   for algo in RL_ALGOS.keys() if algo != 'gail']
 
