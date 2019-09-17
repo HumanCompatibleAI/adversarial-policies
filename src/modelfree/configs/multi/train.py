@@ -250,12 +250,7 @@ def make_configs(multi_train_ex):
         train['checkpoint_interval'] = 2 ** 19
         train['total_timesteps'] = int(3e6)
         train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-        train['victim_path'] = "data/aws-public/multi_train/paper/20190429_011349/train_" \
-                               "rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=" \
-                               "['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=" \
-                               "1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-" \
-                               "default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=" \
-                               "1-seed=0-victim_index=1/final_model"
+        train['victim_path'] = "data/aws-public/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model"  # noqa E501
         train['victim_type'] = 'ppo2'
         train['load_policy'] = {
                         'path': '1',
