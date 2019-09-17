@@ -11,9 +11,8 @@ from gym.spaces import Box
 import numpy as np
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import GAIL, PPO1, PPO2, SAC
+from stable_baselines import PPO2
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
-from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -144,6 +143,12 @@ def _get_mpi_num_proc():
     return num_proc
 
 
+class ExpertDataset(object):
+    def __init__(self):
+        x = 1
+        del x
+
+
 class ExpertDatasetFromOurFormat(ExpertDataset):
     """GAIL Expert Dataset. Loads in our format, rather than the GAIL default.
 
@@ -175,38 +180,9 @@ class ExpertDatasetFromOurFormat(ExpertDataset):
 
 
 @train_ex.capture
-def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
-    num_proc = _get_mpi_num_proc()
-    if expert_dataset_path is None:
-        raise ValueError("Must set expert_dataset_path to use GAIL.")
-    expert_dataset = ExpertDatasetFromOurFormat(expert_dataset_path)
-    kwargs['d_stepsize'] = learning_rate(1)
-    kwargs['vf_stepsize'] = learning_rate(1)
-    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
-                   callback_key='timesteps_so_far', callback_mul=1,
-                   timesteps_per_batch=batch_size // num_proc, **kwargs)
-
-
-@train_ex.capture
-def ppo1(batch_size, learning_rate, **kwargs):
-    num_proc = _get_mpi_num_proc()
-    pylog.warning('Assuming constant learning rate schedule for PPO1')
-    optim_stepsize = learning_rate(1)  # PPO1 does not support a callable learning_rate
-    return _stable(PPO1, our_type='ppo1', callback_key='timesteps_so_far',
-                   callback_mul=batch_size, timesteps_per_actorbatch=batch_size // num_proc,
-                   optim_stepsize=optim_stepsize, schedule='constant', **kwargs)
-
-
-@train_ex.capture
 def ppo2(batch_size, num_env, learning_rate, **kwargs):
     return _stable(PPO2, our_type='ppo2', callback_key='update', callback_mul=batch_size,
                    n_steps=batch_size // num_env, learning_rate=learning_rate, **kwargs)
-
-
-@train_ex.capture
-def sac(batch_size, learning_rate, **kwargs):
-    return _stable(SAC, our_type='sac', callback_key='step', callback_mul=1,
-                   batch_size=batch_size, learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.config
@@ -445,11 +421,8 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observ
 
 
 RL_ALGOS = {
-    'gail': gail,
-    'ppo1': ppo1,
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
-    'sac': sac,
 }
 
 

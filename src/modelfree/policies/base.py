@@ -35,6 +35,9 @@ class DummyModel(BaseRLModel):
     def load(self):
         raise NotImplementedError()
 
+    def get_parameter_list(self):
+        raise NotImplementedError()
+
     def _get_pretrain_placeholders(self):
         raise NotImplementedError()
 
@@ -70,6 +73,9 @@ class PolicyToModel(DummyModel):
                                           deterministic=deterministic)
         actions, _val, states, _neglogp, data = policy_out
         return actions, states, data
+
+    def get_parameter_list(self):
+        raise NotImplementedError()
 
 
 class OpenAIToStablePolicy(BasePolicy):

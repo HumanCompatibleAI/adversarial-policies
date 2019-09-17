@@ -5,7 +5,7 @@ import os
 import pickle
 import sys
 
-from stable_baselines import PPO1, PPO2, SAC
+from stable_baselines import PPO2
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
@@ -30,6 +30,9 @@ class NormalizeModel(DummyModel):
         """Returns same values as predict, as well as a dictionary with transparent data."""
         norm_obs = self.vec_normalize._normalize_observation(observation)
         return self.policy.predict_transparent(norm_obs, state, mask, deterministic)
+
+    def get_parameter_list(self):
+        raise NotImplementedError()
 
 
 def load_stable_baselines(cls):
@@ -111,9 +114,7 @@ def load_random(path, env, env_name, index, transparent_params):
 
 AGENT_LOADERS = {
     'zoo': load_zoo_agent,
-    'ppo1': load_stable_baselines(PPO1),
     'ppo2': load_stable_baselines(PPO2),
-    'sac': load_stable_baselines(SAC),
     'old_ppo2': load_old_ppo2,
     'zero': load_zero,
     'random': load_random,
