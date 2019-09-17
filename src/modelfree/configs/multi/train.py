@@ -78,6 +78,55 @@ def _finetune_spec(envs=None):
 
 
 def make_configs(multi_train_ex):
+
+    @multi_train_ex.named_config
+    def hyper_after_finetuning(train):
+        """A random search to find good hyperparameters in Bansal et al's environments."""
+        train = dict(train)
+        _sparse_reward(train)
+        # Checkpoints take up a lot of disk space, only save every ~500k steps
+        train['checkpoint_interval'] = 2 ** 19
+        train['total_timesteps'] = int(3e6)
+        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+        train['victim_path'] = 1
+        spec = {
+            'config': {
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
+                # Dec 2018 experiments used 2^11 = 2048 batch size.
+                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
+                'batch_size': tune.sample_from(
+                    lambda spec: 2 ** np.random.randint(11, 16)
+                ),
+                'rl_args': {
+                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
+                    'ent_coef': tune.sample_from(
+                        lambda spec: np.random.uniform(low=0.00, high=0.02)
+                    ),
+                    # nminibatches must be a factor of batch size; OK provided power of two
+                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
+                    'nminibatches': tune.sample_from(
+                        lambda spec: 2 ** (np.random.randint(0, 7))
+                    ),
+                    # PPO2 default is 4; run_humanoid.py is 10
+                    'noptepochs': tune.sample_from(
+                        lambda spec: np.random.randint(1, 11),
+                    ),
+                },
+                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
+                # Bansal et al use 1e-2 (but with huge batch size).
+                # Sample log-uniform between 1e-2 and 1e-5.
+                'learning_rate': tune.sample_from(
+                    lambda spec: 10 ** (-2 + -3 * np.random.random())
+                ),
+            },
+            'num_samples': 100,
+        }
+        exp_name = 'hyper_after_finetuning'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
     # From-scratch sparse reward training
     @multi_train_ex.named_config
     def hyper(train):
@@ -95,6 +144,126 @@ def make_configs(multi_train_ex):
                 'victim_path': tune.sample_from(
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
+                # Dec 2018 experiments used 2^11 = 2048 batch size.
+                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
+                'batch_size': tune.sample_from(
+                    lambda spec: 2 ** np.random.randint(11, 16)
+                ),
+                'rl_args': {
+                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
+                    'ent_coef': tune.sample_from(
+                        lambda spec: np.random.uniform(low=0.00, high=0.02)
+                    ),
+                    # nminibatches must be a factor of batch size; OK provided power of two
+                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
+                    'nminibatches': tune.sample_from(
+                        lambda spec: 2 ** (np.random.randint(0, 7))
+                    ),
+                    # PPO2 default is 4; run_humanoid.py is 10
+                    'noptepochs': tune.sample_from(
+                        lambda spec: np.random.randint(1, 11),
+                    ),
+                },
+                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
+                # Bansal et al use 1e-2 (but with huge batch size).
+                # Sample log-uniform between 1e-2 and 1e-5.
+                'learning_rate': tune.sample_from(
+                    lambda spec: 10 ** (-2 + -3 * np.random.random())
+                ),
+            },
+            'num_samples': 100,
+        }
+        exp_name = 'hyper'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def hyper_finetune_dual_defense(train):
+        """A random search to find good hyperparameters in Bansal et al's environments."""
+        train = dict(train)
+        _sparse_reward(train)
+        # Checkpoints take up a lot of disk space, only save every ~500k steps
+        train['checkpoint_interval'] = 2 ** 19
+        train['total_timesteps'] = int(3e6)
+        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+        train['victim_type'] = ["ppo2", "zoo"]
+        train['victim_path'] = ["data/aws-public/multi_train/paper/20190429_011349/"
+                                "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:"
+                                "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,"
+                                "victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines"
+                                "/20190429_011353-default-env_name=multicomp"
+                                "_YouShallNotPassHumans-v0-victim_path=1-seed=0-"
+                                "victim_index=1/final_model",
+                                "1"]
+        train['multi_victim'] = True
+        train['load_policy'] = {
+            'path': '1',
+            'type': 'zoo',
+        }
+        spec = {
+            'config': {
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
+                # Dec 2018 experiments used 2^11 = 2048 batch size.
+                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
+                'batch_size': tune.sample_from(
+                    lambda spec: 2 ** np.random.randint(11, 16)
+                ),
+                'rl_args': {
+                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
+                    'ent_coef': tune.sample_from(
+                        lambda spec: np.random.uniform(low=0.00, high=0.02)
+                    ),
+                    # nminibatches must be a factor of batch size; OK provided power of two
+                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
+                    'nminibatches': tune.sample_from(
+                        lambda spec: 2 ** (np.random.randint(0, 7))
+                    ),
+                    # PPO2 default is 4; run_humanoid.py is 10
+                    'noptepochs': tune.sample_from(
+                        lambda spec: np.random.randint(1, 11),
+                    ),
+                },
+                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
+                # Bansal et al use 1e-2 (but with huge batch size).
+                # Sample log-uniform between 1e-2 and 1e-5.
+                'learning_rate': tune.sample_from(
+                    lambda spec: 10 ** (-2 + -3 * np.random.random())
+                ),
+            },
+            'num_samples': 100,
+        }
+        exp_name = 'hyper'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def hyper_finetune_defense(train):
+        """A random search to find good hyperparameters in Bansal et al's environments."""
+        train = dict(train)
+        _sparse_reward(train)
+        # Checkpoints take up a lot of disk space, only save every ~500k steps
+        train['checkpoint_interval'] = 2 ** 19
+        train['total_timesteps'] = int(3e6)
+        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+        train['victim_path'] = "data/aws-public/multi_train/paper/20190429_011349/train_" \
+                               "rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=" \
+                               "['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=" \
+                               "1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-" \
+                               "default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=" \
+                               "1-seed=0-victim_index=1/final_model"
+        train['victim_type'] = 'ppo2'
+        train['load_policy'] = {
+                        'path': '1',
+                        'type': 'zoo',
+                    }
+        spec = {
+            'config': {
+
                 'seed': tune.sample_from(
                     lambda spec: np.random.randint(1000)
                 ),
