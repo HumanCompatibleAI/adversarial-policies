@@ -256,6 +256,7 @@ def make_configs(multi_train_ex):
                         'path': '1',
                         'type': 'zoo',
                     }
+        train['normalize_observations'] = False
         spec = {
             'config': {
 
