@@ -237,7 +237,7 @@ def make_configs(multi_train_ex):
             },
             'num_samples': 100,
         }
-        exp_name = 'hyper'
+        exp_name = 'hyper_finetune_dual_defense'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -292,7 +292,7 @@ def make_configs(multi_train_ex):
             },
             'num_samples': 100,
         }
-        exp_name = 'hyper'
+        exp_name = 'hyper_finetune_defense'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 

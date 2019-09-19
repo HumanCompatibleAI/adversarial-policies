@@ -1,7 +1,7 @@
 cluster_name: aprl-cody
 min_workers: 0
-max_workers: 10
-initial_workers: 0
+max_workers: 20
+initial_workers: 15
 target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
@@ -15,6 +15,7 @@ docker:
     - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
+    - "-v /home/ubuntu/aws_private:/home/ubuntu/aws_private"
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
 
@@ -30,7 +31,7 @@ auth:
 
 head_node:
   InstanceType: c5.2xlarge
-  ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
+  ImageId: ami-03af6b12f8fe02fee  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
@@ -40,7 +41,7 @@ head_node:
 
 worker_nodes:
   InstanceType: c5.18xlarge
-  ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
+  ImageId: ami-03af6b12f8fe02fee  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
@@ -53,7 +54,10 @@ worker_nodes:
     Name: EC2AccessS3
 
 # List of shell commands to run to set up nodes.
-initialization_commands: []  # before entering Docker
+initialization_commands: # before entering Docker
+  - sudo apt-get install s3fs
+  - sudo mkdir /home/ubuntu/aws_private
+  - sudo s3fs -o allow_other,umask=0002,iam_role=auto adversarial-policies /home/ubuntu/aws_private
 setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco
