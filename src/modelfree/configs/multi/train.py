@@ -199,6 +199,7 @@ def make_configs(multi_train_ex):
                                 "victim_index=1/final_model",
                                 "1"]
         train['multi_victim'] = True
+        train['normalize'] = False
         train['load_policy'] = {
             'path': '1',
             'type': 'zoo',
