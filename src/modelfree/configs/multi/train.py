@@ -190,7 +190,7 @@ def make_configs(multi_train_ex):
         train['total_timesteps'] = int(3e6)
         train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
         train['victim_type'] = ["ppo2", "zoo"]
-        train['victim_path'] = ["data/aws-public/multi_train/paper/20190429_011349/"
+        train['victim_path'] = ["/home/ubuntu/aws_private/multi_train/paper/20190429_011349/"
                                 "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:"
                                 "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,"
                                 "victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines"

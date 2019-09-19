@@ -1,4 +1,4 @@
-cluster_name: aprl-finetuning-defense-hyper
+cluster_name: aprl-ftd-h
 min_workers: 0
 max_workers: 20
 initial_workers: 15
