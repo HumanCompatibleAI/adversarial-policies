@@ -17,7 +17,7 @@ def finetuning_defense():
         'path': '1',
         'type': 'zoo',
     }
-    normalize = False
+    normalize_observations = False
     total_timesteps = int(10e6)
     batch_size = 32768
     learning_rate = 1e-4
@@ -174,6 +174,6 @@ if __name__ == "__main__":
     # score_ex.run(named_configs=["test_adversary_trained_model"])
     observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
     train_ex.observers.append(observer)
-    train_ex.run(named_configs=["test_adversary_zoo_mixed_training"])
+    # train_ex.run(named_configs=["test_adversary_zoo_mixed_training"])
     # train_ex.run(named_configs=["test_retraining_adversary"])
-    # train_ex.run(named_configs=["finetuning_defense"])
+    train_ex.run(named_configs=["finetuning_defense"])

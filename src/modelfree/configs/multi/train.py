@@ -199,7 +199,7 @@ def make_configs(multi_train_ex):
                                 "victim_index=1/final_model",
                                 "1"]
         train['multi_victim'] = True
-        train['normalize'] = False
+        train['normalize_observations'] = False
         train['load_policy'] = {
             'path': '1',
             'type': 'zoo',
@@ -257,7 +257,7 @@ def make_configs(multi_train_ex):
                         'path': '1',
                         'type': 'zoo',
                     }
-        train['normalize'] = False
+        train['normalize_observations'] = False
         spec = {
             'config': {
 

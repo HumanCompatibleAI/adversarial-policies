@@ -409,9 +409,9 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observ
             normalized_venv = VecNormalize(single_venv)
 
         else:
-            normalized_venv = VecNormalize(single_venv, ob=False)
+            normalized_venv = VecNormalize(single_venv, norm_obs=False)
 
-        if load_policy['path'] is not None:
+        if load_policy['path'] is not None and load_policy['type'] != 'zoo':
             normalized_venv.load_running_average(load_policy['path'])
 
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
