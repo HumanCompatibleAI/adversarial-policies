@@ -1,4 +1,4 @@
-cluster_name: aprl-afad
+cluster_name: aprl-afad-hyper
 min_workers: 0
 max_workers: 20
 initial_workers: 15
