@@ -181,6 +181,84 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
+    def hyper_against_adv_finetuned_from_scratch(train):
+        """A random search to find good hyperparameters in Bansal et al's environments."""
+        train = dict(train)
+        _sparse_reward(train)
+        # Checkpoints take up a lot of disk space, only save every ~500k steps
+        train['checkpoint_interval'] = 2 ** 19
+        train['total_timesteps'] = int(3e6)
+        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+        train['victim_type'] = "ppo2"
+        train['victim_path'] = "/home/ubuntu/aws_private/hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,learning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef': 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/final_model"  # noqa E501
+        train['normalize_observations'] = False
+        train['load_policy'] = {
+            'path': None,
+            'type': "ppo2"
+        }
+        spec = {
+            'config': {
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
+                # Dec 2018 experiments used 2^11 = 2048 batch size.
+                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
+                'batch_size': tune.sample_from(
+                    lambda spec: 2 ** np.random.randint(11, 16)
+                ),
+                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
+                # Bansal et al use 1e-2 (but with huge batch size).
+                # Sample log-uniform between 1e-2 and 1e-5.
+                'learning_rate': tune.sample_from(
+                    lambda spec: 10 ** (-2 + -3 * np.random.random())
+                ),
+            },
+            'num_samples': 100,
+        }
+        exp_name = 'hyper_against_adv_finetuned_from_scratch'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def hyper_against_dual_finetuned_from_scratch(train):
+        """A random search to find good hyperparameters in Bansal et al's environments."""
+        train = dict(train)
+        _sparse_reward(train)
+        # Checkpoints take up a lot of disk space, only save every ~500k steps
+        train['checkpoint_interval'] = 2 ** 19
+        train['total_timesteps'] = int(3e6)
+        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+        train['victim_type'] = "ppo2"
+        train['victim_path'] = "/home/ubuntu/aws_private/hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,noptepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-default-batch_size=8192-learning_rate=0.00019520504186694475-rl_args={'ent_coef': 0.001261805277214847, 'nminibatches': 32, 'noptepochs': 1}-seed=601/final_model"  # noqa E501
+        train['normalize_observations'] = False
+        train['load_policy'] = {
+            'path': None,
+            'type': "ppo2"
+        }
+        spec = {
+            'config': {
+                'seed': tune.sample_from(
+                    lambda spec: np.random.randint(1000)
+                ),
+                # Dec 2018 experiments used 2^11 = 2048 batch size.
+                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
+                'batch_size': tune.sample_from(
+                    lambda spec: 2 ** np.random.randint(11, 16)
+                ),
+                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
+                # Bansal et al use 1e-2 (but with huge batch size).
+                # Sample log-uniform between 1e-2 and 1e-5.
+                'learning_rate': tune.sample_from(
+                    lambda spec: 10 ** (-2 + -3 * np.random.random())
+                ),
+            },
+            'num_samples': 100,
+        }
+        exp_name = 'hyper_against_dual_finetuned_from_scratch'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
     def hyper_finetune_dual_defense(train):
         """A random search to find good hyperparameters in Bansal et al's environments."""
         train = dict(train)
