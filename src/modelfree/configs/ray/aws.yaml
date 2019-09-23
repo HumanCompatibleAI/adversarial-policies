@@ -1,7 +1,7 @@
-cluster_name: aprl-afad-hyper
+cluster_name: adv_ret_20
 min_workers: 0
 max_workers: 20
-initial_workers: 15
+initial_workers: 5
 target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
