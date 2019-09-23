@@ -419,6 +419,51 @@ def make_configs(multi_train_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
+    @multi_train_ex.named_config
+    def ysnp_finetune_20_generic(train):
+        """ *** Needs to be run alongside one of ysnp_finetune_20_dual or ysnp_finetune_20_adv """
+        train = dict(train)
+        _sparse_reward(train)
+        # Checkpoints take up a lot of disk space, only save every ~500k steps
+        train['checkpoint_interval'] = 2 ** 19
+        train['total_timesteps'] = int(20e6)
+        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+        # "Victim" here is the adversary
+        train['victim_index'] = 0
+        train['normalize_observations'] = False
+        train['load_policy'] = {
+            'path': '1',
+            'type': 'zoo',
+        }
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def ysnp_finetune_20_dual(train):
+        train = dict(train)
+        train['victim_type'] = ["ppo2", "zoo"]
+        train['multi_victim'] = True
+        train['victim_path'] = ["/home/ubuntu/aws_private/multi_train/paper/20190429_011349/"
+                                "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:"
+                                "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,"
+                                "victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines"
+                                "/20190429_011353-default-env_name=multicomp"
+                                "_YouShallNotPassHumans-v0-victim_path=1-seed=0-"
+                                "victim_index=1/final_model",
+                                "1"]
+        exp_name = "ysnp_finetune_20_dual"
+        _ = locals()
+        del _
+
+    @multi_train_ex.named_config
+    def ysnp_finetune_20_adv(train):
+        train = dict(train)
+        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model"  # noqa E501
+        train['victim_type'] = 'ppo2'
+        exp_name = "ysnp_finetune_20_dual"
+        _ = locals()
+        del _
+
     ###############################################################################################
     # END CONFIGS FOR DEFENSE EXPERIMENTS
     ###############################################################################################
