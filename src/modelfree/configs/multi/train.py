@@ -435,6 +435,11 @@ def make_configs(multi_train_ex):
             'path': '1',
             'type': 'zoo',
         }
+        spec = {
+            "config": {
+                "seed": tune.grid_search([0, 1, 2, 3, 4])
+            }
+        }
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
