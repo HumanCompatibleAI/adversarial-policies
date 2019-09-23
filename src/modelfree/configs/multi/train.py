@@ -443,6 +443,8 @@ def make_configs(multi_train_ex):
         train = dict(train)
         train['victim_type'] = ["ppo2", "zoo"]
         train['multi_victim'] = True
+        train['learning_rate'] = .000025
+        train['batch_size'] = 4096
         train['victim_path'] = ["/home/ubuntu/aws_private/multi_train/paper/20190429_011349/"
                                 "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:"
                                 "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,"
@@ -458,6 +460,8 @@ def make_configs(multi_train_ex):
     @multi_train_ex.named_config
     def ysnp_finetune_20_adv(train):
         train = dict(train)
+        train['learning_rate'] = .00005
+        train['batch_size'] = 2048
         train['victim_path'] = "/home/ubuntu/aws_private/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model"  # noqa E501
         train['victim_type'] = 'ppo2'
         exp_name = "ysnp_finetune_20_dual"
