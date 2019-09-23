@@ -133,6 +133,43 @@ def test_adversary_trained_model_adversary():
     del _
 
 
+@score_ex.named_config
+def test_dual_trained_model_adversary():
+
+    env_name = 'multicomp/YouShallNotPassHumans-v0'
+    # Agent 0/A is the adversary
+    agent_a_type = "ppo2"
+    agent_a_path = "data/aws-public/multi_train/paper/20190429_011349/" \
+                   "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:" \
+                   "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0," \
+                   "victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines" \
+                   "/20190429_011353-default-env_name=multicomp" \
+                   "_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model"
+    # Agent 1/B is the finetuned victim
+    agent_b_type = "ppo2"
+    agent_b_path = "data/new_aws/hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,noptepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-default-batch_size=8192-learning_rate=0.00019520504186694475-rl_args={'ent_coef': 0.001261805277214847, 'nminibatches': 32, 'noptepochs': 1}-seed=601/final_model"   # noqa E501
+    episodes = 200
+    render = False
+    _ = locals()
+    del _
+
+
+@score_ex.named_config
+def test_dual_trained_model_zoo():
+
+    env_name = 'multicomp/YouShallNotPassHumans-v0'
+    # Agent 0/A is the zoo agent
+    agent_a_type = "zoo"
+    agent_a_path = "1"
+    # Agent 1/B is the finetuned victim
+    agent_b_type = "ppo2"
+    agent_b_path = "data/new_aws/hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,noptepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-default-batch_size=8192-learning_rate=0.00019520504186694475-rl_args={'ent_coef': 0.001261805277214847, 'nminibatches': 32, 'noptepochs': 1}-seed=601/final_model"   # noqa E501
+    episodes = 200
+    render = False
+    _ = locals()
+    del _
+
+
 @train_ex.named_config
 def test_adversary_zoo_mixed_training():
     # After 10e6, win rate of adversary down to 7%
@@ -169,11 +206,11 @@ def test_adversary_zoo_mixed_training():
 
 
 if __name__ == "__main__":
-    # observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score_agent'))
-    # score_ex.observers.append(observer)
-    # score_ex.run(named_configs=["test_adversary_trained_model"])
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
-    train_ex.observers.append(observer)
+    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score_agent'))
+    score_ex.observers.append(observer)
+    score_ex.run(named_configs=["test_dual_trained_model_zoo"])
+    # observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
+    # train_ex.observers.append(observer)
     # train_ex.run(named_configs=["test_adversary_zoo_mixed_training"])
     # train_ex.run(named_configs=["test_retraining_adversary"])
-    train_ex.run(named_configs=["finetuning_defense"])
+    # train_ex.run(named_configs=["finetuning_defense"])
