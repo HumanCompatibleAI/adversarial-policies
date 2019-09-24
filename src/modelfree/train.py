@@ -196,8 +196,9 @@ def train_config():
     # Victim Config
     victim_type = "zoo"             # type supported by modelfree.policies.loader
     victim_path = "1"               # path or other unique identifier
-    victim_index = 0                # which agent the victim is (we default to other agent)
-    multi_victim = False            # Are we training against multiple fixed policies?
+    victim_index = 0
+    victim_types = None             # which agent the victim is (we default to other agent)
+    victim_paths = None
 
     mask_victim = False             # should victim observations be limited
     mask_victim_kwargs = {          # control how victim observations are limited
@@ -334,8 +335,8 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 @train_ex.capture
 def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
-                       victim_path, victim_index, victim_noise, victim_noise_params, multi_victim,
-                       adv_noise_params, transparent_params, lookback_params):
+                       victim_path, victim_types, victim_paths, victim_index, victim_noise,
+                       victim_noise_params, adv_noise_params, transparent_params, lookback_params):
     if victim_type != 'none':
         deterministic = lookback_params is not None
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
@@ -343,18 +344,14 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
                                              deterministic=deterministic)
         victims = []
-        if multi_victim:
-            # If we're loading multiple victims
+        if victim_types is None and victim_paths is None:
+            victim_types = [victim_type]
+            victim_paths = [victim_path]
 
-            for i, individual_victim_path in enumerate(victim_path):
-                victims.append(load_policy(policy_path=individual_victim_path,
-                                           policy_type=victim_type[i], env=multi_venv,
-                                           env_name=env_name, index=victim_index,
-                                           transparent_params=transparent_params))
-        else:
-            # Load the victim and then wrap it if appropriate.
-            victims.append(load_policy(policy_path=victim_path, policy_type=victim_type,
-                                       env=multi_venv,
+            # If we're loading multiple victims
+        for i, individual_victim_path in enumerate(victim_paths):
+            victims.append(load_policy(policy_path=individual_victim_path,
+                                       policy_type=victim_types[i], env=multi_venv,
                                        env_name=env_name, index=victim_index,
                                        transparent_params=transparent_params))
 
@@ -368,9 +365,9 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
 
         # Curry the victim
         transparent = transparent_params is not None
-        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victims,
+        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victims=victims,
                                         victim_index=victim_index, transparent=transparent,
-                                        deterministic=deterministic, multi_victim=multi_victim)
+                                        deterministic=deterministic)
 
     return multi_venv
 

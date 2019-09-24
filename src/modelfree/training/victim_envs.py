@@ -5,22 +5,23 @@ from aprl.envs.multi_agent import VecMultiWrapper, _tuple_pop, _tuple_space_filt
 
 class EmbedVictimWrapper(VecMultiWrapper):
     """Embeds victim in a (Transparent)CurryVecEnv. Also takes care of closing victim's session"""
-    def __init__(self, multi_env, victim, victim_index, transparent, deterministic,
-                 multi_victim):
-        self.multi_victim = multi_victim
-        self.victim = victim
-        if multi_victim:
-            # currently don't have transparent and multi-victim combo,
-            # so multi-victim is prioritized
-            cls = MultiCurryVecEnv
-        elif transparent:
-            cls = TransparentCurryVecEnv
-            self.victim = self.victim[0]
-        else:
-            cls = CurryVecEnv
-            self.victim = self.victim[0]
+    def __init__(self, multi_env, victims, victim_index, transparent, deterministic):
+        multi_victim = len(victims) > 0
+        self.victims = victims
 
-        curried_env = cls(multi_env, self.victim, agent_idx=victim_index,
+        if multi_victim and not transparent:
+            cls = MultiCurryVecEnv
+            victim_arg = self.victims
+        elif multi_victim and transparent:
+            raise NotImplementedError("VecEnvs cannot be transparent with multiple victims")
+        elif transparent:
+            victim_arg = self.victims[0]
+            cls = TransparentCurryVecEnv
+        else:
+            victim_arg = self.victims[0]
+            cls = CurryVecEnv
+
+        curried_env = cls(multi_env, victim_arg, agent_idx=victim_index,
                           deterministic=deterministic)
         super().__init__(curried_env)
 
@@ -34,11 +35,9 @@ class EmbedVictimWrapper(VecMultiWrapper):
         return self.venv.step_wait()
 
     def close(self):
-        if self.multi_victim:
-            for individual_victim in self.victim:
-                individual_victim.sess.close()
-        else:
-            self.victim.sess.close()
+        for individual_victim in self.victims:
+            individual_victim.sess.close()
+
         super().close()
 
 
@@ -119,7 +118,6 @@ class MultiCurryVecEnv(CurryVecEnv):
         :param venv(VecMultiEnv): the environments.
         :param policies(iterable of Policy): the policies to use for the agent at agent_idx.
         :param agent_idx(int): the index of the agent that should be fixed.
-        :param policy_selector(func): A function that takes in
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
                  with all actions at index agent_idx set to those sampled from one policy
                  within policies"""
@@ -134,6 +132,7 @@ class MultiCurryVecEnv(CurryVecEnv):
 
     def step_async(self, actions):
         policy_actions = []
+        new_state_array = []
         for i in range(len(self._obs)):
             policy = self.current_policies[i]
             observations = np.array([self._obs[i]]*self.num_envs)
@@ -144,8 +143,9 @@ class MultiCurryVecEnv(CurryVecEnv):
                                                mask=mask,
                                                deterministic=self.deterministic)
             policy_actions.append(action[0])
-            self.state_array.append(new_state)
+            new_state_array.append(new_state)
         policy_actions_array = np.array(policy_actions)
+        self.state_array = np.array(new_state_array)
         actions.insert(self._agent_to_fix, policy_actions_array)
         self.venv.step_async(actions)
 

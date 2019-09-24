@@ -161,8 +161,6 @@ def _finetune_spec(envs=None):
     }
     return spec
 
-# TODO maybe refactor these
-
 
 def _ysnp_hyper_finetune_defense(train):
     _sparse_reward(train)
