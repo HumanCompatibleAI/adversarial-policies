@@ -142,14 +142,17 @@ def make_sacred(ex, worker_name, worker_fn):
         # Compute a hash based on the config to make sure it has a unique name!
         # (Could probably do this with a RNG too, but I want to avoid that as we often set
         # seeds to ensure reproducibility...)
-        cfg = {'base_config': base_config, 'exp_name': exp_name}
+        cfg = {
+            # ReadOnlyDict's aren't serializable: see sacred issue #499
+            'base_config': utils.sacred_copy(base_config),
+            'exp_name': exp_name
+        }
         cfg_str = json.dumps(cfg)
         hasher = hashlib.md5()  # we are not worried about security here
         hasher.update(cfg_str.encode('utf8'))
         cfg_hash = hasher.hexdigest()
 
         trainable_name = f'{worker_name}-{cfg_hash}'
-        # ReadOnlyDict's aren't picklable: see sacred issue #499
         base_config = utils.sacred_copy(base_config)
         trainable_fn = functools.partial(worker_fn, base_config)
         tune.register_trainable(trainable_name, trainable_fn)

@@ -5,7 +5,7 @@ import os
 import pickle
 import sys
 
-from stable_baselines import PPO2
+import stable_baselines
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
@@ -112,13 +112,22 @@ def load_random(path, env, env_name, index, transparent_params):
     return PolicyToModel(policy)
 
 
+# Lazy import for PPO1 and SAC, which have optional mpi dependency
 AGENT_LOADERS = {
     'zoo': load_zoo_agent,
-    'ppo2': load_stable_baselines(PPO2),
+    'ppo2': load_stable_baselines(stable_baselines.PPO2),
     'old_ppo2': load_old_ppo2,
     'zero': load_zero,
     'random': load_random,
 }
+
+try:
+    # MPI algorithms -- only visible if mpi4py installed
+    from stable_baselines import PPO1, SAC
+    AGENT_LOADERS['ppo1'] = load_stable_baselines(PPO1)
+    AGENT_LOADERS['sac'] = load_stable_baselines(SAC)
+except ImportError:
+    pass
 
 
 def load_policy(policy_type, policy_path, env, env_name, index, transparent_params=None):

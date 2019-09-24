@@ -19,3 +19,7 @@ source ${venv}/bin/activate && \
 pip install -r requirements-build.txt && \
 pip install -r requirements.txt && \
 pip install -r requirements-${env}.txt
+
+if [[ $USE_MPI == "True" ]]; then
+  pip install mpi4py
+fi

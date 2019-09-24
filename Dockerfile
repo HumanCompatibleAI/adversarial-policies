@@ -2,6 +2,7 @@
 
 FROM nvidia/cuda:10.0-runtime-ubuntu18.04
 ARG DEBIAN_FRONTEND=noninteractive
+ARG USE_MPI=True
 
 RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections \
     && apt-get update -q \
@@ -33,6 +34,12 @@ RUN add-apt-repository --yes ppa:deadsnakes/ppa \
 
 RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
     && chmod +x /usr/local/bin/patchelf
+
+RUN if [ $USE_MPI = "True" ]; then \
+    add-apt-repository --yes ppa:marmistrz/openmpi \
+    && apt-get update -q \
+    && apt-get install -y libopenmpi3 libopenmpi-dev; \
+    fi
 
 ENV LANG C.UTF-8
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
