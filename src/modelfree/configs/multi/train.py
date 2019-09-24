@@ -249,7 +249,7 @@ def make_configs(multi_train_ex):
                                 "_YouShallNotPassHumans-v0-victim_path=1-seed=0-"
                                 "victim_index=1/final_model",
                                 "1"]
-        exp_name = 'hyper_finetune_defense'
+        exp_name = 'hyper_finetune_dual_defense'
         _ = locals()
         del _
 
@@ -341,6 +341,35 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
+    def hyper_against_adv_finetuned_from_scratch_v1(train):
+        """ HP search for training adversary from scratch against
+        best policy from hyper_finetune_defense as of 10:52pm 9/23"""
+        train = dict(train)
+        train[
+            'victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222110-bfd8c5be86334254aff81681a1aabfd2/train_rl-d28a8df8c1c8116007a96f0a1324e4d5_62_batch_size=2048,learning_rate=6.1888e-05,ent_coef=0.0079898,nminibatches=1,noptepochs_2019-09-23_22-21-12atw_xvi3/data/baselines/20190923_222140-default-batch_size=2048-learning_rate=6.188842944950313e-05-rl_args={'ent_coef': 0.007989770218617331, 'nminibatches': 1, 'noptepochs': 6}-seed=261/final_model"  # noqa E501
+        train['load_policy'] = {
+            'path': None,
+            'type': "ppo2"
+        }
+        exp_name = 'hyper_against_adv_finetuned_from_scratch_v1'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def hyper_against_dual_finetuned_from_scratch_v1(train):
+        """HP search for training adversary from scratch against best policy from
+        hyper_finetune_defense as of 10:52pm 9/23 """
+        train = dict(train)
+        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222140-cc0e22f56cad42a9bfef263edb1b9747/train_rl-fb0cc754cf65767d85e5d39aa31552e8_78_batch_size=4096,learning_rate=3.1928e-05,ent_coef=0.0058516,nminibatches=32,noptepoch_2019-09-23_22-21-42mquddv27/data/baselines/20190923_222201-default-batch_size=4096-learning_rate=3.192828794681526e-05-rl_args={'ent_coef': 0.00585162756249535, 'nminibatches': 32, 'noptepochs': 2}-seed=444/final_model"  # noqa E501
+        train['load_policy'] = {
+            'path': None,
+            'type': "ppo2"
+        }
+        exp_name = 'hyper_against_dual_finetuned_from_scratch_v1'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
     def hyper_against_adv_finetuned_from_existing(train):
         """ HP search for finetuning adversary from existing adversary against
         best policy from hyper_finetune_defense"""
@@ -416,6 +445,35 @@ def make_configs(multi_train_ex):
             'victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,learning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef': 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/final_model"  # noqa E501
 
         exp_name = 'ysnp_adversary_retraining_adv_v0'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def ysnp_adversary_retraining_dual_v1(train):
+        """ As of 10:52pm 9/23, running a long adversary retraining run against the current best
+         dual-hardened victim, from scratch, with current best hyperparameters.
+         ALWAYS RUN WITH ysnp_long_retraining_run"""
+        train = dict(train)
+        train['learning_rate'] = 2.2e-4
+        train['batch_size'] = 2048
+        train['victim_type'] = "ppo2"
+        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222140-cc0e22f56cad42a9bfef263edb1b9747/train_rl-fb0cc754cf65767d85e5d39aa31552e8_78_batch_size=4096,learning_rate=3.1928e-05,ent_coef=0.0058516,nminibatches=32,noptepoch_2019-09-23_22-21-42mquddv27/data/baselines/20190923_222201-default-batch_size=4096-learning_rate=3.192828794681526e-05-rl_args={'ent_coef': 0.00585162756249535, 'nminibatches': 32, 'noptepochs': 2}-seed=444/final_model"  # noqa E501
+        exp_name = "ysnp_adversary_retraining_dual_v1"
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def ysnp_adversary_retraining_adv_v1(train):
+        """ As of 10:52pm 9/23, running a long adversary retraining run against the current best
+         adv-hardened victim, from scratch, with current best hyperparameters.
+         ALWAYS RUN WITH ysnp_long_retraining_run """
+        train = dict(train)
+        train['learning_rate'] = 8e-4
+        train['batch_size'] = 2048
+        train['victim_type'] = "ppo2"
+        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222110-bfd8c5be86334254aff81681a1aabfd2/train_rl-d28a8df8c1c8116007a96f0a1324e4d5_62_batch_size=2048,learning_rate=6.1888e-05,ent_coef=0.0079898,nminibatches=1,noptepochs_2019-09-23_22-21-12atw_xvi3/data/baselines/20190923_222140-default-batch_size=2048-learning_rate=6.188842944950313e-05-rl_args={'ent_coef': 0.007989770218617331, 'nminibatches': 1, 'noptepochs': 6}-seed=261/final_model"  # noqa E501
+
+        exp_name = 'ysnp_adversary_retraining_adv_v1'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
