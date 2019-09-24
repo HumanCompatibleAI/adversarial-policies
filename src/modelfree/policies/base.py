@@ -74,9 +74,6 @@ class PolicyToModel(DummyModel):
         actions, _val, states, _neglogp, data = policy_out
         return actions, states, data
 
-    def get_parameter_list(self):
-        raise NotImplementedError()
-
 
 class OpenAIToStablePolicy(BasePolicy):
     """Converts an OpenAI Baselines Policy to a Stable Baselines policy."""
