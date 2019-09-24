@@ -2,6 +2,7 @@
 
 import collections
 import itertools
+import os.path as osp
 
 import numpy as np
 from ray import tune
@@ -14,6 +15,90 @@ LSTM_ENVS = [env for env in BANSAL_ENVS if gym_compete.is_stateful(env)]
 
 TARGET_VICTIM = collections.defaultdict(lambda: 1)
 TARGET_VICTIM['multicomp/KickAndDefend-v0'] = 2
+
+HYPERPARAM_SEARCH_VALUES = {
+    'seed': tune.sample_from(
+        lambda spec: np.random.randint(1000)),
+
+    # Dec 2018 experiments used 2^11 = 2048 batch size.
+    # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
+    'batch_size': tune.sample_from(
+        lambda spec: 2 ** np.random.randint(11, 16)),
+
+    'rl_args': {
+                # PPO2 default is 0.01. run_humanoid.py uses 0.00.
+                'ent_coef': tune.sample_from(
+                    lambda spec: np.random.uniform(low=0.00, high=0.02)),
+
+                # nminibatches must be a factor of batch size; OK provided power of two
+                # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
+                'nminibatches': tune.sample_from(
+                    lambda spec: 2 ** (np.random.randint(0, 7))),
+
+                # PPO2 default is 4; run_humanoid.py is 10
+                'noptepochs': tune.sample_from(
+                    lambda spec: np.random.randint(1, 11)),
+                },
+    # PPO2 default is 3e-4; run_humanoid uses 1e-4;
+    # Bansal et al use 1e-2 (but with huge batch size).
+    # Sample log-uniform between 1e-2 and 1e-5.
+    'learning_rate': tune.sample_from(
+        lambda spec: 10 ** (-2 + -3 * np.random.random())),
+}
+
+MULTI_TRAIN_LOCATION = "/home/ubuntu/aws_private/multi_train"
+
+# TODO Will move this into a JSON at some point, keeping here for easier debugging for the moment
+YSNP_DEFENSE_POLICIES_LOOKUP = {
+    "adversary_train": {
+        "best_hyper_3e6": "hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3"
+                          "a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,lea"
+                          "rning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_"
+                          "2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-"
+                          "batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef'"
+                          ": 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/"
+                          "final_model",
+        "best_hyper_10e6": "hyper_finetune_defense/20190923_222110-bfd8c5be86334254aff81681a1aab"
+                           "fd2/train_rl-d28a8df8c1c8116007a96f0a1324e4d5_62_batch_size=2048,learn"
+                           "ing_rate=6.1888e-05,ent_coef=0.0079898,nminibatches=1,noptepochs_"
+                           "2019-09-23_22-21-12atw_xvi3/data/baselines/20190923_222140-default"
+                           "-batch_size=2048-learning_rate=6.188842944950313e-05-rl_args="
+                           "{'ent_coef': 0.007989770218617331, 'nminibatches': 1, 'noptepochs': 6}"
+                           "-seed=261/final_model",
+        "best_seed_20e6_3e6params": "ysnp_finetune_20_dual/20190923_225840-bcfe315e866548418648a2"
+                                    "9ec51d7f91/train_rl-148c15a21ac330cec3747094c5ac5972_4_seed="
+                                    "4_2019-09-23_22-58-40469tpn1v/data/baselines/20190923_225913-"
+                                    "default-seed=4/final_model"
+    },
+    "dual_train":
+        {
+            "best_hyper_3e6": "hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a"
+                              "8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8"
+                              "192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,nop"
+                              "tepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-d"
+                              "efault-batch_size=8192-learning_rate=0.00019520504186694475-rl_args"
+                              "={'ent_coef': 0.001261805277214847, 'nminibatches': 32,"
+                              " 'noptepochs': 1}-seed=601/final_model",
+            "best_hyper_10e6": "hyper_finetune_defense/20190923_222140-cc0e22f56cad42a9bfef263edb1"
+                               "b9747/train_rl-fb0cc754cf65767d85e5d39aa31552e8_78_batch_size=4096"
+                               ",learning_rate=3.1928e-05,ent_coef=0.0058516,nminibatches=32,nopt"
+                               "epoch_2019-09-23_22-21-42mquddv27/data/baselines/20190923_222201"
+                               "-default-batch_size=4096-learning_rate=3.192828794681526e-05-rl_"
+                               "args={'ent_coef': 0.00585162756249535, 'nminibatches': 32, "
+                               "'noptepochs': 2}-seed=444/final_model",
+            "best_seed_20e6_3e6params": "ysnp_finetune_20_dual/20190923_225942-dc84f4936b8147a0af6"
+                                        "6fcc4bc80ae2a/train_rl-8fd3be16c7723c9dceaec25a74aac1a8_1"
+                                        "_seed=1_2019-09-23_22-59-42yxnox92y/data/baselines/201909"
+                                        "23_230005-default-seed=1/final_model"
+
+        }
+}
+
+YSNP_ADVERSARY = "paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:" \
+                 "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=" \
+                 "1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=" \
+                 "multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/" \
+                 "final_model"
 
 
 def _env_victim(envs=None):
@@ -76,56 +161,87 @@ def _finetune_spec(envs=None):
     }
     return spec
 
+# TODO maybe refactor these
+
+
+def _ysnp_hyper_finetune_defense(train):
+    _sparse_reward(train)
+    # Checkpoints take up a lot of disk space, only save every ~500k steps
+    train['checkpoint_interval'] = 2 ** 19
+    train['total_timesteps'] = int(10e6)
+    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+    # "Victim" here is the adversary
+    train['victim_index'] = 0
+    train['normalize_observations'] = False
+    train['load_policy'] = {
+        'path': '1',
+        'type': 'zoo',
+    }
+    spec = {
+        'config': HYPERPARAM_SEARCH_VALUES,
+        'num_samples': 100,
+    }
+    return spec
+
+
+def _ysnp_hyper_against_finetune_defense(train):
+    _sparse_reward(train)
+    train['checkpoint_interval'] = 2 ** 19
+    train['total_timesteps'] = int(10e6)
+    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+    # Victim is back to being the finetuned victim again
+    train['victim_index'] = 1
+    train['victim_type'] = "ppo2"
+    # Best victim from hyper_finetune_defense, according to win rate
+    train['normalize'] = True
+    spec = {
+        'config': HYPERPARAM_SEARCH_VALUES,
+        'num_samples': 100,
+    }
+    return spec
+
+
+def _ysnp_finetune_zoo_20e6(train):
+    _sparse_reward(train)
+    # Checkpoints take up a lot of disk space, only save every ~500k steps
+    train['checkpoint_interval'] = 2 ** 19
+    train['total_timesteps'] = int(20e6)
+    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+    # "Victim" here is the adversary
+    train['victim_index'] = 0
+    train['normalize_observations'] = False
+    train['load_policy'] = {
+        'path': '1',
+        'type': 'zoo',
+    }
+    spec = {
+        "config": {
+            "seed": tune.grid_search([0, 1, 2, 3, 4])
+        }
+    }
+    return spec
+
+
+def _ysnp_adversary_retraining_20e6(train):
+    _sparse_reward(train)
+    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
+    train['victim_index'] = 1
+    train['normalize'] = True
+    # Train from scratch
+    train['load_policy'] = {
+        'path': None,
+        'type': "ppo2"
+    }
+    train['total_timesteps'] = int(20e6)
+    spec = {
+        "config": {
+            "seed": tune.grid_search([0, 1, 2, 3, 4])
+        }
+    }
+    return spec
+
 
 def make_configs(multi_train_ex):
-
-    @multi_train_ex.named_config
-    def hyper_after_finetuning(train):
-        """A random search to find good hyperparameters in Bansal et al's environments."""
-        train = dict(train)
-        _sparse_reward(train)
-        # Checkpoints take up a lot of disk space, only save every ~500k steps
-        train['checkpoint_interval'] = 2 ** 19
-        train['total_timesteps'] = int(3e6)
-        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-        train['victim_path'] = 1
-        spec = {
-            'config': {
-                'seed': tune.sample_from(
-                    lambda spec: np.random.randint(1000)
-                ),
-                # Dec 2018 experiments used 2^11 = 2048 batch size.
-                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
-                'batch_size': tune.sample_from(
-                    lambda spec: 2 ** np.random.randint(11, 16)
-                ),
-                'rl_args': {
-                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
-                    'ent_coef': tune.sample_from(
-                        lambda spec: np.random.uniform(low=0.00, high=0.02)
-                    ),
-                    # nminibatches must be a factor of batch size; OK provided power of two
-                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-                    'nminibatches': tune.sample_from(
-                        lambda spec: 2 ** (np.random.randint(0, 7))
-                    ),
-                    # PPO2 default is 4; run_humanoid.py is 10
-                    'noptepochs': tune.sample_from(
-                        lambda spec: np.random.randint(1, 11),
-                    ),
-                },
-                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
-                # Bansal et al use 1e-2 (but with huge batch size).
-                # Sample log-uniform between 1e-2 and 1e-5.
-                'learning_rate': tune.sample_from(
-                    lambda spec: 10 ** (-2 + -3 * np.random.random())
-                ),
-            },
-            'num_samples': 100,
-        }
-        exp_name = 'hyper_after_finetuning'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
 
     # From-scratch sparse reward training
     @multi_train_ex.named_config
@@ -144,38 +260,10 @@ def make_configs(multi_train_ex):
                 'victim_path': tune.sample_from(
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
-                'seed': tune.sample_from(
-                    lambda spec: np.random.randint(1000)
-                ),
-                # Dec 2018 experiments used 2^11 = 2048 batch size.
-                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
-                'batch_size': tune.sample_from(
-                    lambda spec: 2 ** np.random.randint(11, 16)
-                ),
-                'rl_args': {
-                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
-                    'ent_coef': tune.sample_from(
-                        lambda spec: np.random.uniform(low=0.00, high=0.02)
-                    ),
-                    # nminibatches must be a factor of batch size; OK provided power of two
-                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-                    'nminibatches': tune.sample_from(
-                        lambda spec: 2 ** (np.random.randint(0, 7))
-                    ),
-                    # PPO2 default is 4; run_humanoid.py is 10
-                    'noptepochs': tune.sample_from(
-                        lambda spec: np.random.randint(1, 11),
-                    ),
-                },
-                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
-                # Bansal et al use 1e-2 (but with huge batch size).
-                # Sample log-uniform between 1e-2 and 1e-5.
-                'learning_rate': tune.sample_from(
-                    lambda spec: 10 ** (-2 + -3 * np.random.random())
-                ),
             },
             'num_samples': 100,
         }
+        spec['config'].update(HYPERPARAM_SEARCH_VALUES)
         exp_name = 'hyper'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -183,71 +271,16 @@ def make_configs(multi_train_ex):
     ###############################################################################################
     # BEGIN CONFIGS FOR DEFENSE EXPERIMENTS
     ###############################################################################################
-    @multi_train_ex.named_config
-    def hyper_finetune_generic(train):
-        """ *** Needs to be run alongside one of hyper_finetune_defense or dual_defense """
-        train = dict(train)
-        _sparse_reward(train)
-        # Checkpoints take up a lot of disk space, only save every ~500k steps
-        train['checkpoint_interval'] = 2 ** 19
-        train['total_timesteps'] = int(10e6)
-        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-        # "Victim" here is the adversary
-        train['victim_index'] = 0
-        train['normalize_observations'] = False
-        train['load_policy'] = {
-            'path': '1',
-            'type': 'zoo',
-        }
-        spec = {
-            'config': {
-                'seed': tune.sample_from(
-                    lambda spec: np.random.randint(1000)
-                ),
-                # Dec 2018 experiments used 2^11 = 2048 batch size.
-                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
-                'batch_size': tune.sample_from(
-                    lambda spec: 2 ** np.random.randint(11, 16)
-                ),
-                'rl_args': {
-                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
-                    'ent_coef': tune.sample_from(
-                        lambda spec: np.random.uniform(low=0.00, high=0.02)
-                    ),
-                    # nminibatches must be a factor of batch size; OK provided power of two
-                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-                    'nminibatches': tune.sample_from(
-                        lambda spec: 2 ** (np.random.randint(0, 7))
-                    ),
-                    # PPO2 default is 4; run_humanoid.py is 10
-                    'noptepochs': tune.sample_from(
-                        lambda spec: np.random.randint(1, 11),
-                    ),
-                },
-                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
-                # Bansal et al use 1e-2 (but with huge batch size).
-                # Sample log-uniform between 1e-2 and 1e-5.
-                'learning_rate': tune.sample_from(
-                    lambda spec: 10 ** (-2 + -3 * np.random.random())
-                ),
-            },
-            'num_samples': 100,
-        }
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
+
+    # HYPERPARAMETER TUNING: FINETUNE ZOO
 
     @multi_train_ex.named_config
     def hyper_finetune_dual_defense(train):
         train = dict(train)
+        spec = _ysnp_hyper_finetune_defense(train)
         train['victim_type'] = ["ppo2", "zoo"]
         train['multi_victim'] = True
-        train['victim_path'] = ["/home/ubuntu/aws_private/multi_train/paper/20190429_011349/"
-                                "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:"
-                                "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,"
-                                "victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines"
-                                "/20190429_011353-default-env_name=multicomp"
-                                "_YouShallNotPassHumans-v0-victim_path=1-seed=0-"
-                                "victim_index=1/final_model",
+        train['victim_path'] = [osp.join(MULTI_TRAIN_LOCATION, "multi_train", YSNP_ADVERSARY),
                                 "1"]
         exp_name = 'hyper_finetune_dual_defense'
         _ = locals()
@@ -257,67 +290,25 @@ def make_configs(multi_train_ex):
     def hyper_finetune_defense(train):
         """HP search for defense regime using only adversary in training"""
         train = dict(train)
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model"  # noqa E501
+        spec = _ysnp_hyper_finetune_defense(train)
+        train['victim_path'] = osp.join(MULTI_TRAIN_LOCATION, "multi_train", YSNP_ADVERSARY)
         train['victim_type'] = 'ppo2'
         exp_name = 'hyper_finetune_defense'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    @multi_train_ex.named_config
-    def hyper_against_finetune_generic(train):
-        train = dict(train)
-        _sparse_reward(train)
-        train['checkpoint_interval'] = 2 ** 19
-        train['total_timesteps'] = int(3e6)
-        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-        # Victim is back to being the finetuned victim again
-        train['victim_index'] = 1
-        train['victim_type'] = "ppo2"
-        # Best victim from hyper_finetune_defense, according to win rate
-        train['normalize'] = True
-        spec = {
-            'config': {
-                'seed': tune.sample_from(
-                    lambda spec: np.random.randint(1000)
-                ),
-                # Dec 2018 experiments used 2^11 = 2048 batch size.
-                # Aurick Zhou used 2^14 = 16384; Bansal et al use 409600 ~= 2^19.
-                'batch_size': tune.sample_from(
-                    lambda spec: 2 ** np.random.randint(11, 16)
-                ),
-                'rl_args': {
-                    # PPO2 default is 0.01. run_humanoid.py uses 0.00.
-                    'ent_coef': tune.sample_from(
-                        lambda spec: np.random.uniform(low=0.00, high=0.02)
-                    ),
-                    # nminibatches must be a factor of batch size; OK provided power of two
-                    # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-                    'nminibatches': tune.sample_from(
-                        lambda spec: 2 ** (np.random.randint(0, 7))
-                    ),
-                    # PPO2 default is 4; run_humanoid.py is 10
-                    'noptepochs': tune.sample_from(
-                        lambda spec: np.random.randint(1, 11),
-                    ),
-                },
-                # PPO2 default is 3e-4; run_humanoid uses 1e-4;
-                # Bansal et al use 1e-2 (but with huge batch size).
-                # Sample log-uniform between 1e-2 and 1e-5.
-                'learning_rate': tune.sample_from(
-                    lambda spec: 10 ** (-2 + -3 * np.random.random())
-                ),
-            },
-            'num_samples': 100,
-        }
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
+    # HYPERPARAMETER TUNING: RETRAIN ADVERSARY
 
     @multi_train_ex.named_config
     def hyper_against_adv_finetuned_from_scratch(train):
         """ HP search for training adversary from scratch against
         best policy from hyper_finetune_defense"""
         train = dict(train)
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,learning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef': 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/final_model"  # noqa E501
+        spec = _ysnp_hyper_against_finetune_defense(train)
+        train['victim_path'] = osp.join(
+                                MULTI_TRAIN_LOCATION,
+                                YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_3e6'])
+
         train['load_policy'] = {
             'path': None,
             'type': "ppo2"
@@ -331,7 +322,10 @@ def make_configs(multi_train_ex):
         """HP search for training adversary from scratch against best policy from
         hyper_finetune_dual_defense """
         train = dict(train)
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,noptepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-default-batch_size=8192-learning_rate=0.00019520504186694475-rl_args={'ent_coef': 0.001261805277214847, 'nminibatches': 32, 'noptepochs': 1}-seed=601/final_model"  # noqa E501
+        spec = _ysnp_hyper_against_finetune_defense(train)
+        train['victim_path'] = osp.join(
+                                MULTI_TRAIN_LOCATION,
+                                YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_3e6'])
         train['load_policy'] = {
             'path': None,
             'type': "ppo2"
@@ -341,42 +335,17 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
-    def hyper_against_adv_finetuned_from_scratch_v1(train):
-        """ HP search for training adversary from scratch against
-        best policy from hyper_finetune_defense as of 10:52pm 9/23"""
-        train = dict(train)
-        train[
-            'victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222110-bfd8c5be86334254aff81681a1aabfd2/train_rl-d28a8df8c1c8116007a96f0a1324e4d5_62_batch_size=2048,learning_rate=6.1888e-05,ent_coef=0.0079898,nminibatches=1,noptepochs_2019-09-23_22-21-12atw_xvi3/data/baselines/20190923_222140-default-batch_size=2048-learning_rate=6.188842944950313e-05-rl_args={'ent_coef': 0.007989770218617331, 'nminibatches': 1, 'noptepochs': 6}-seed=261/final_model"  # noqa E501
-        train['load_policy'] = {
-            'path': None,
-            'type': "ppo2"
-        }
-        exp_name = 'hyper_against_adv_finetuned_from_scratch_v1'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_against_dual_finetuned_from_scratch_v1(train):
-        """HP search for training adversary from scratch against best policy from
-        hyper_finetune_defense as of 10:52pm 9/23 """
-        train = dict(train)
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222140-cc0e22f56cad42a9bfef263edb1b9747/train_rl-fb0cc754cf65767d85e5d39aa31552e8_78_batch_size=4096,learning_rate=3.1928e-05,ent_coef=0.0058516,nminibatches=32,noptepoch_2019-09-23_22-21-42mquddv27/data/baselines/20190923_222201-default-batch_size=4096-learning_rate=3.192828794681526e-05-rl_args={'ent_coef': 0.00585162756249535, 'nminibatches': 32, 'noptepochs': 2}-seed=444/final_model"  # noqa E501
-        train['load_policy'] = {
-            'path': None,
-            'type': "ppo2"
-        }
-        exp_name = 'hyper_against_dual_finetuned_from_scratch_v1'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
     def hyper_against_adv_finetuned_from_existing(train):
         """ HP search for finetuning adversary from existing adversary against
         best policy from hyper_finetune_defense"""
         train = dict(train)
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,learning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef': 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/final_model"  # noqa E501
+        spec = _ysnp_hyper_against_finetune_defense(train)
+        train['victim_path'] = osp.join(
+            MULTI_TRAIN_LOCATION,
+            YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_3e6'])
+
         train['load_policy'] = {
-            'path': "/home/ubuntu/aws_private/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model",  # noqa E501
+            'path': osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),
             'type': "ppo2"
         }
         exp_name = 'hyper_against_adv_finetuned_from_existing'
@@ -388,63 +357,68 @@ def make_configs(multi_train_ex):
         """ HP search for finetuning adversary from existing adversary against
                 best policy from hyper_finetune_dual_defense"""
         train = dict(train)
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,noptepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-default-batch_size=8192-learning_rate=0.00019520504186694475-rl_args={'ent_coef': 0.001261805277214847, 'nminibatches': 32, 'noptepochs': 1}-seed=601/final_model"  # noqa E501
+        spec = _ysnp_hyper_against_finetune_defense(train)
+        train['victim_path'] = osp.join(
+            MULTI_TRAIN_LOCATION,
+            YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_3e6'])
+
         train['load_policy'] = {
-            'path': "/home/ubuntu/aws_private/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model",  # noqa E501
+            'path': osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),
             'type': "ppo2"
         }
         exp_name = 'hyper_against_dual_finetuned_from_existing'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
+    # BEST-HYPERPARAM LONG RUN: RETRAIN ADVERSARY
+
     @multi_train_ex.named_config
-    def ysnp_long_retraining_run(train):
+    def ysnp_adversary_retraining_adv_v0(train):
+        """ As of 12:33pm 9/23, running a long adversary retraining run against the current best
+         adv-hardened victim, from scratch, with current best hyperparameters. """
         train = dict(train)
-        _sparse_reward(train)
-        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-        train['victim_index'] = 1
-        train['normalize'] = True
-        train['load_policy'] = {
-            'path': None,
-            'type': "ppo2"
-        }
-        train['total_timesteps'] = int(20e6)
-        spec = {
-            "config": {
-                "seed": tune.grid_search([0, 1, 2, 3, 4])
-            }
-        }
-        _ = locals()
+        spec = _ysnp_adversary_retraining_20e6(train)
+        train['learning_rate'] = 8e-4
+        train['batch_size'] = 2048
+        train['victim_type'] = "ppo2"
+        train['victim_path'] = osp.join(
+            MULTI_TRAIN_LOCATION,
+            YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_3e6'])
+
+        exp_name = 'ysnp_adversary_retraining_adv_v0'
+        _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.named_config
     def ysnp_adversary_retraining_dual_v0(train):
         """ As of 12:33pm 9/23, running a long adversary retraining run against the current best
-         dual-hardened victim, from scratch, with current best hyperparameters.
-         ALWAYS RUN WITH ysnp_long_retraining_run"""
+         dual-hardened victim, from scratch, with current best hyperparameters. """
         train = dict(train)
+        spec = _ysnp_adversary_retraining_20e6(train)
         train['learning_rate'] = 2.2e-4
         train['batch_size'] = 2048
         train['victim_type'] = "ppo2"
-        train[
-            'victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,noptepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-default-batch_size=8192-learning_rate=0.00019520504186694475-rl_args={'ent_coef': 0.001261805277214847, 'nminibatches': 32, 'noptepochs': 1}-seed=601/final_model"  # noqa E501
+        train['victim_path'] = osp.join(
+            MULTI_TRAIN_LOCATION,
+            YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_3e6'])
+
         exp_name = 'ysnp_adversary_retraining_dual_v0'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.named_config
-    def ysnp_adversary_retraining_adv_v0(train):
-        """ As of 12:33pm 9/23, running a long adversary retraining run against the current best
-         adv-hardened victim, from scratch, with current best hyperparameters.
-         ALWAYS RUN WITH ysnp_long_retraining_run """
+    def ysnp_adversary_retraining_adv_v1(train):
+        """ As of 10:52pm 9/23, running a long adversary retraining run against the current best
+         adv-hardened victim, from scratch, with current best hyperparameters."""
         train = dict(train)
         train['learning_rate'] = 8e-4
         train['batch_size'] = 2048
         train['victim_type'] = "ppo2"
-        train[
-            'victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,learning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef': 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/final_model"  # noqa E501
+        train['victim_path'] = osp.join(
+            MULTI_TRAIN_LOCATION,
+            YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_10e6'])
 
-        exp_name = 'ysnp_adversary_retraining_adv_v0'
+        exp_name = 'ysnp_adversary_retraining_adv_v1'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -457,64 +431,23 @@ def make_configs(multi_train_ex):
         train['learning_rate'] = 2.2e-4
         train['batch_size'] = 2048
         train['victim_type'] = "ppo2"
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222140-cc0e22f56cad42a9bfef263edb1b9747/train_rl-fb0cc754cf65767d85e5d39aa31552e8_78_batch_size=4096,learning_rate=3.1928e-05,ent_coef=0.0058516,nminibatches=32,noptepoch_2019-09-23_22-21-42mquddv27/data/baselines/20190923_222201-default-batch_size=4096-learning_rate=3.192828794681526e-05-rl_args={'ent_coef': 0.00585162756249535, 'nminibatches': 32, 'noptepochs': 2}-seed=444/final_model"  # noqa E501
+        train['victim_path'] = osp.join(
+            MULTI_TRAIN_LOCATION,
+            YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_10e6'])
         exp_name = "ysnp_adversary_retraining_dual_v1"
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    @multi_train_ex.named_config
-    def ysnp_adversary_retraining_adv_v1(train):
-        """ As of 10:52pm 9/23, running a long adversary retraining run against the current best
-         adv-hardened victim, from scratch, with current best hyperparameters.
-         ALWAYS RUN WITH ysnp_long_retraining_run """
-        train = dict(train)
-        train['learning_rate'] = 8e-4
-        train['batch_size'] = 2048
-        train['victim_type'] = "ppo2"
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/hyper_finetune_defense/20190923_222110-bfd8c5be86334254aff81681a1aabfd2/train_rl-d28a8df8c1c8116007a96f0a1324e4d5_62_batch_size=2048,learning_rate=6.1888e-05,ent_coef=0.0079898,nminibatches=1,noptepochs_2019-09-23_22-21-12atw_xvi3/data/baselines/20190923_222140-default-batch_size=2048-learning_rate=6.188842944950313e-05-rl_args={'ent_coef': 0.007989770218617331, 'nminibatches': 1, 'noptepochs': 6}-seed=261/final_model"  # noqa E501
-
-        exp_name = 'ysnp_adversary_retraining_adv_v1'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def ysnp_finetune_20_generic(train):
-        """ *** Needs to be run alongside one of ysnp_finetune_20_dual or ysnp_finetune_20_adv """
-        train = dict(train)
-        _sparse_reward(train)
-        # Checkpoints take up a lot of disk space, only save every ~500k steps
-        train['checkpoint_interval'] = 2 ** 19
-        train['total_timesteps'] = int(20e6)
-        train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-        # "Victim" here is the adversary
-        train['victim_index'] = 0
-        train['normalize_observations'] = False
-        train['load_policy'] = {
-            'path': '1',
-            'type': 'zoo',
-        }
-        spec = {
-            "config": {
-                "seed": tune.grid_search([0, 1, 2, 3, 4])
-            }
-        }
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
+    # BEST-HYPERPARAM LONG RUN: FINETUNE
     @multi_train_ex.named_config
     def ysnp_finetune_20_dual(train):
         train = dict(train)
+        spec = _ysnp_finetune_zoo_20e6(train)
         train['victim_type'] = ["ppo2", "zoo"]
         train['multi_victim'] = True
         train['learning_rate'] = .000025
         train['batch_size'] = 4096
-        train['victim_path'] = ["/home/ubuntu/aws_private/multi_train/paper/20190429_011349/"
-                                "train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:"
-                                "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,"
-                                "victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines"
-                                "/20190429_011353-default-env_name=multicomp"
-                                "_YouShallNotPassHumans-v0-victim_path=1-seed=0-"
-                                "victim_index=1/final_model",
+        train['victim_path'] = [osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),
                                 "1"]
         exp_name = "ysnp_finetune_20_dual"
         _ = locals()
@@ -523,9 +456,10 @@ def make_configs(multi_train_ex):
     @multi_train_ex.named_config
     def ysnp_finetune_20_adv(train):
         train = dict(train)
+        spec = _ysnp_finetune_zoo_20e6(train)
         train['learning_rate'] = .00005
         train['batch_size'] = 2048
-        train['victim_path'] = "/home/ubuntu/aws_private/multi_train/paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/final_model"  # noqa E501
+        train['victim_path'] = osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY)
         train['victim_type'] = 'ppo2'
         exp_name = "ysnp_finetune_20_dual"
         _ = locals()

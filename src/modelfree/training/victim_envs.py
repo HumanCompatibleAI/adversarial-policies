@@ -170,7 +170,7 @@ class MultiCurryVecEnv(CurryVecEnv):
 
 
 class TransparentCurryVecEnv(CurryVecEnv):
-    """CurryVecEnv that provides stransparency data about its policy by updating infos dicts."""
+    """CurryVecEnv that provides transparency data about its policy by updating infos dicts."""
     def __init__(self, venv, policy, agent_idx=0, deterministic=False):
         """
         :param venv (VecMultiEnv): the environments
