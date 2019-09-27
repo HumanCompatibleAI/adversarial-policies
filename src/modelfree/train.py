@@ -21,7 +21,8 @@ from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
 import modelfree.envs.wrappers
-from modelfree.policies.loader import load_backward_compatible_model, load_policy
+from modelfree.policies.loader import (load_backward_compatible_model, load_policy,
+                                       mpi_unavailable_error)
 from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
@@ -400,19 +401,18 @@ RL_ALGOS = {
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
 }
+MPI_RL_ALGOS = {
+    'gail': gail,
+    'ppo1': ppo1,
+    'sac': sac,
+}
 
 try:
     from mpi4py import MPI
     del MPI
-    RL_ALGOS.update({
-        'gail': gail,
-        'ppo1': ppo1,
-        'sac': sac,
-    })
+    RL_ALGOS.update(MPI_RL_ALGOS)
 except ImportError:
-    # Skip MPI-only algorithms
-    pass
-
+    RL_ALGOS.update({k: mpi_unavailable_error for k in MPI_RL_ALGOS})
 
 # True for Stable Baselines as of 2019-03
 NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
