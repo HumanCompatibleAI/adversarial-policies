@@ -196,8 +196,8 @@ def train_config():
     # Victim Config
     victim_type = "zoo"             # type supported by modelfree.policies.loader
     victim_path = "1"               # path or other unique identifier
-    victim_index = 0
-    victim_types = None             # which agent the victim is (we default to other agent)
+    victim_index = 0                # which agent the victim is (we default to other agent)
+    victim_types = None
     victim_paths = None
 
     mask_victim = False             # should victim observations be limited
@@ -210,8 +210,8 @@ def train_config():
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
-    normalize = True                # normalize environment observations and reward
-    normalize_observations = True   #
+    normalize = True                # normalize environment reward
+    normalize_observations = True   # if normalize, then normalize environments observations too
     rl_args = dict()                # algorithm-specific arguments
 
     # RL Algorithm Policies/Demonstrations
