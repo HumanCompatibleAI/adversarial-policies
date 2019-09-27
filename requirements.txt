@@ -7,8 +7,8 @@ Theano>=1.0
 sacred>=0.7.5
 pymongo>=3.8.0
 GitPython>=2.1
-git+git://github.com/HumanCompatibleAI/baselines.git@8978e3#egg=baselines
-git+git://github.com/HumanCompatibleAI/baselines.git@906d83#egg=stable-baselines
+git+git://github.com/HumanCompatibleAI/baselines.git@229a77#egg=baselines
+git+git://github.com/HumanCompatibleAI/baselines.git@153ce7#egg=stable-baselines
 ray[debug]>=0.7.0,<=0.7.2
 boto3>=1.9
 awscli>=1.16

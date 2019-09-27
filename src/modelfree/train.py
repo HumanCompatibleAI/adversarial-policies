@@ -8,12 +8,10 @@ import os.path as osp
 import pkgutil
 
 from gym.spaces import Box
-import numpy as np
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from stable_baselines import GAIL, PPO1, PPO2, SAC
+import stable_baselines
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
-from stable_baselines.gail.dataset.dataset import ExpertDataset
 import tensorflow as tf
 
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
@@ -23,7 +21,8 @@ from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
 import modelfree.envs.wrappers
-from modelfree.policies.loader import load_backward_compatible_model, load_policy
+from modelfree.policies.loader import (load_backward_compatible_model, load_policy,
+                                       mpi_unavailable_error)
 from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
@@ -144,45 +143,17 @@ def _get_mpi_num_proc():
     return num_proc
 
 
-class ExpertDatasetFromOurFormat(ExpertDataset):
-    """GAIL Expert Dataset. Loads in our format, rather than the GAIL default.
-
-    In particular, GAIL expects a dict of flattened arrays, with episodes concatenated together.
-    The episode start is delineated by an `episode_starts` array. See `ExpertDataset` base class
-    for more information.
-
-    By contrast, our format consists of a list of NumPy arrays, one for each episode."""
-    def __init__(self, expert_path, **kwargs):
-        traj_data = np.load(expert_path, allow_pickle=True)
-
-        # Add in episode starts
-        episode_starts = []
-        for reward_dict in traj_data['rewards']:
-            ep_len = len(reward_dict)
-            # used to index episodes since they are flattened in GAIL format.
-            ep_starts = [True] + [False] * (ep_len - 1)
-            episode_starts.append(np.array(ep_starts))
-
-        # Flatten arrays
-        traj_data = {k: np.concatenate(v) for k, v in traj_data.items()}
-        traj_data['episode_starts'] = np.concatenate(episode_starts)
-
-        # Rename observations->obs
-        traj_data['obs'] = traj_data['observations']
-        del traj_data['observations']
-
-        super().__init__(traj_data=traj_data, **kwargs)
-
-
 @train_ex.capture
 def gail(batch_size, learning_rate, expert_dataset_path, **kwargs):
+    from modelfree.training.gail_dataset import ExpertDatasetFromOurFormat
     num_proc = _get_mpi_num_proc()
     if expert_dataset_path is None:
         raise ValueError("Must set expert_dataset_path to use GAIL.")
     expert_dataset = ExpertDatasetFromOurFormat(expert_dataset_path)
     kwargs['d_stepsize'] = learning_rate(1)
     kwargs['vf_stepsize'] = learning_rate(1)
-    return _stable(GAIL, our_type='gail', expert_dataset=expert_dataset,
+    return _stable(stable_baselines.GAIL, our_type='gail',
+                   expert_dataset=expert_dataset,
                    callback_key='timesteps_so_far', callback_mul=1,
                    timesteps_per_batch=batch_size // num_proc, **kwargs)
 
@@ -192,21 +163,24 @@ def ppo1(batch_size, learning_rate, **kwargs):
     num_proc = _get_mpi_num_proc()
     pylog.warning('Assuming constant learning rate schedule for PPO1')
     optim_stepsize = learning_rate(1)  # PPO1 does not support a callable learning_rate
-    return _stable(PPO1, our_type='ppo1', callback_key='timesteps_so_far',
-                   callback_mul=batch_size, timesteps_per_actorbatch=batch_size // num_proc,
+    return _stable(stable_baselines.PPO1, our_type='ppo1',
+                   callback_key='timesteps_so_far', callback_mul=batch_size,
+                   timesteps_per_actorbatch=batch_size // num_proc,
                    optim_stepsize=optim_stepsize, schedule='constant', **kwargs)
 
 
 @train_ex.capture
 def ppo2(batch_size, num_env, learning_rate, **kwargs):
-    return _stable(PPO2, our_type='ppo2', callback_key='update', callback_mul=batch_size,
+    return _stable(stable_baselines.PPO2, our_type='ppo2',
+                   callback_key='update', callback_mul=batch_size,
                    n_steps=batch_size // num_env, learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.capture
 def sac(batch_size, learning_rate, **kwargs):
-    return _stable(SAC, our_type='sac', callback_key='step', callback_mul=1,
-                   batch_size=batch_size, learning_rate=learning_rate, **kwargs)
+    return _stable(stable_baselines.SAC, our_type='sac', callback_key='step',
+                   callback_mul=1, batch_size=batch_size,
+                   learning_rate=learning_rate, **kwargs)
 
 
 @train_ex.config
@@ -424,13 +398,21 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
 
 
 RL_ALGOS = {
-    'gail': gail,
-    'ppo1': ppo1,
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
+}
+MPI_RL_ALGOS = {
+    'gail': gail,
+    'ppo1': ppo1,
     'sac': sac,
 }
 
+try:
+    from mpi4py import MPI
+    del MPI
+    RL_ALGOS.update(MPI_RL_ALGOS)
+except ImportError:
+    RL_ALGOS.update({k: mpi_unavailable_error for k in MPI_RL_ALGOS})
 
 # True for Stable Baselines as of 2019-03
 NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
