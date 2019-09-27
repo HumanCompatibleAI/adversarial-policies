@@ -35,10 +35,10 @@ class DummyModel(BaseRLModel):
     def load(self):
         raise NotImplementedError()
 
-    def get_parameter_list(self):
+    def _get_pretrain_placeholders(self):
         raise NotImplementedError()
 
-    def _get_pretrain_placeholders(self):
+    def get_parameter_list(self):
         raise NotImplementedError()
 
 
