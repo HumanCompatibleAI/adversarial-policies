@@ -4,7 +4,7 @@ from aprl.envs.multi_agent import VecMultiWrapper, _tuple_pop, _tuple_space_filt
 class EmbedVictimWrapper(VecMultiWrapper):
     """Embeds victim in a (Transparent)CurryVecEnv. Also takes care of closing victim's session"""
     def __init__(self, multi_env, victim, victim_index, transparent, deterministic):
-
+        self.victim = victim
         if transparent:
             cls = TransparentCurryVecEnv
         else:
@@ -23,9 +23,7 @@ class EmbedVictimWrapper(VecMultiWrapper):
         return self.venv.step_wait()
 
     def close(self):
-        for individual_victim in self.victims:
-            individual_victim.sess.close()
-
+        self.victim.sess.close()
         super().close()
 
 
