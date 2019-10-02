@@ -26,18 +26,18 @@ HYPERPARAM_SEARCH_VALUES = {
         lambda spec: 2 ** np.random.randint(11, 16)),
 
     'rl_args': {
-                # PPO2 default is 0.01. run_humanoid.py uses 0.00.
-                'ent_coef': tune.sample_from(
-                    lambda spec: np.random.uniform(low=0.00, high=0.02)),
+        # PPO2 default is 0.01. run_humanoid.py uses 0.00.
+        'ent_coef': tune.sample_from(
+            lambda spec: np.random.uniform(low=0.00, high=0.02)),
 
-                # nminibatches must be a factor of batch size; OK provided power of two
-                # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-                'nminibatches': tune.sample_from(
-                    lambda spec: 2 ** (np.random.randint(0, 7))),
+        # nminibatches must be a factor of batch size; OK provided power of two
+        # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
+        'nminibatches': tune.sample_from(
+            lambda spec: 2 ** (np.random.randint(0, 7))),
 
-                # PPO2 default is 4; run_humanoid.py is 10
-                'noptepochs': tune.sample_from(
-                    lambda spec: np.random.randint(1, 11)),
+        # PPO2 default is 4; run_humanoid.py is 10
+        'noptepochs': tune.sample_from(
+            lambda spec: np.random.randint(1, 11)),
                 },
     # PPO2 default is 3e-4; run_humanoid uses 1e-4;
     # Bansal et al use 1e-2 (but with huge batch size).
@@ -163,6 +163,10 @@ def _finetune_spec(envs=None):
 
 
 def _ysnp_hyper_finetune_defense(train):
+    """
+    Adds generic parameters for doing a hyperparameter search over a finetuning-based
+    defense against an adversary, agnostic to what combination of agents you're training against.
+    """
     _sparse_reward(train)
     # Checkpoints take up a lot of disk space, only save every ~500k steps
     train['checkpoint_interval'] = 2 ** 19
@@ -183,6 +187,11 @@ def _ysnp_hyper_finetune_defense(train):
 
 
 def _ysnp_hyper_against_finetune_defense(train):
+    """
+    Adds generic parameters for doing a hyperparameter search of retraining a new adversary
+    against a policy that has been defensively finetuned, agnostic to which specific finetuned
+    policy we're using.
+    """
     _sparse_reward(train)
     train['checkpoint_interval'] = 2 ** 19
     train['total_timesteps'] = int(10e6)
@@ -200,9 +209,11 @@ def _ysnp_hyper_against_finetune_defense(train):
 
 
 def _ysnp_finetune_zoo_20e6(train):
+    """
+    Adds generic parameters for conducting a multi-seed long finetuning run against
+    either an adversary or an (adversary, zoo) combined environment
+    """
     _sparse_reward(train)
-    # Checkpoints take up a lot of disk space, only save every ~500k steps
-    train['checkpoint_interval'] = 2 ** 19
     train['total_timesteps'] = int(20e6)
     train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
     # "Victim" here is the adversary
@@ -221,6 +232,10 @@ def _ysnp_finetune_zoo_20e6(train):
 
 
 def _ysnp_adversary_retraining_20e6(train):
+    """
+    Adds generic parameters for conducting a multi-seed long run of training a new adversary
+    against a defensively finetuned policy
+    """
     _sparse_reward(train)
     train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
     train['victim_index'] = 1
