@@ -291,10 +291,9 @@ def make_configs(multi_train_ex):
     def hyper_finetune_dual_defense(train):
         train = dict(train)
         spec = _ysnp_hyper_finetune_defense(train)
-        train['victim_type'] = ["ppo2", "zoo"]
-        train['multi_victim'] = True
-        train['victim_path'] = [osp.join(MULTI_TRAIN_LOCATION, "multi_train", YSNP_ADVERSARY),
-                                "1"]
+        train['victim_types'] = ["ppo2", "zoo"]
+        train['victim_paths'] = [osp.join(MULTI_TRAIN_LOCATION, "multi_train", YSNP_ADVERSARY),
+                                 "1"]
         exp_name = 'hyper_finetune_dual_defense'
         _ = locals()
         del _
@@ -457,7 +456,6 @@ def make_configs(multi_train_ex):
         train = dict(train)
         spec = _ysnp_finetune_zoo_20e6(train)
         train['victim_type'] = ["ppo2", "zoo"]
-        train['multi_victim'] = True
         train['learning_rate'] = .000025
         train['batch_size'] = 4096
         train['victim_path'] = [osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),

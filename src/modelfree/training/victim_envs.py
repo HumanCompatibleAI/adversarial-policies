@@ -1,28 +1,16 @@
-import numpy as np
-
 from aprl.envs.multi_agent import VecMultiWrapper, _tuple_pop, _tuple_space_filter
 
 
 class EmbedVictimWrapper(VecMultiWrapper):
     """Embeds victim in a (Transparent)CurryVecEnv. Also takes care of closing victim's session"""
-    def __init__(self, multi_env, victims, victim_index, transparent, deterministic):
-        multi_victim = len(victims) > 0
-        self.victims = victims
+    def __init__(self, multi_env, victim, victim_index, transparent, deterministic):
 
-        if multi_victim and not transparent:
-            cls = MultiCurryVecEnv
-            victim_arg = self.victims
-        elif multi_victim and transparent:
-            raise NotImplementedError("VecEnvs cannot be transparent with multiple victims")
-        elif transparent:
-            victim_arg = self.victims[0]
+        if transparent:
             cls = TransparentCurryVecEnv
         else:
-            victim_arg = self.victims[0]
             cls = CurryVecEnv
 
-        curried_env = cls(multi_env, victim_arg, agent_idx=victim_index,
-                          deterministic=deterministic)
+        curried_env = cls(multi_env, victim, agent_idx=victim_index, deterministic=deterministic)
         super().__init__(curried_env)
 
     def get_policy(self):
@@ -109,64 +97,6 @@ class CurryVecEnv(VecMultiWrapper):
             return self._obs
         else:
             return self._obs[env_idx]
-
-
-class MultiCurryVecEnv(CurryVecEnv):
-    def __init__(self, venv, policies, agent_idx=0, deterministic=False):
-        """Fixes one of the players in a VecMultiEnv, but alternates between policies
-        used to perform response action.
-        :param venv(VecMultiEnv): the environments.
-        :param policies(iterable of Policy): the policies to use for the agent at agent_idx.
-        :param agent_idx(int): the index of the agent that should be fixed.
-        :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
-                 with all actions at index agent_idx set to those sampled from one policy
-                 within policies"""
-        super().__init__(venv, policies, agent_idx, deterministic)
-
-        self.policies = policies
-        self.num_envs = venv.num_envs
-        self.state_array = [None]*self.num_envs
-        self.current_policy_idx = [None]*self.num_envs
-        self.current_policies = [None]*self.num_envs
-        self.switch_policy()
-
-    def step_async(self, actions):
-        policy_actions = []
-        new_state_array = []
-        for i in range(len(self._obs)):
-            policy = self.current_policies[i]
-            observations = np.array([self._obs[i]]*self.num_envs)
-            state = np.array([self.state_array[i]]*self.num_envs)
-            mask = np.array([self._dones[i]]*self.num_envs)
-            action, new_state = policy.predict(observations,
-                                               state=state,
-                                               mask=mask,
-                                               deterministic=self.deterministic)
-            policy_actions.append(action[0])
-            new_state_array.append(new_state)
-        policy_actions_array = np.array(policy_actions)
-        self.state_array = np.array(new_state_array)
-        actions.insert(self._agent_to_fix, policy_actions_array)
-        self.venv.step_async(actions)
-
-    def get_policy(self):
-        return self.current_policies[0]
-
-    def step_wait(self):
-        obs, rew, dones, info = super().step_wait()
-        done_environments = np.where(dones)[0]
-        if len(done_environments) > 0:
-            self.switch_policy(done_environments)
-        return obs, rew, dones, info
-
-    def switch_policy(self, indicies_to_change=None):
-        if indicies_to_change is None:
-            indicies_to_change = range(self.num_envs)
-
-        for i in indicies_to_change:
-            policy_ind = np.random.choice(range(len(self.policies)))
-            self.current_policy_idx[i] = policy_ind
-            self.current_policies[i] = self.policies[self.current_policy_idx[i]]
 
 
 class TransparentCurryVecEnv(CurryVecEnv):

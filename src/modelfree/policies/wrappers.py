@@ -36,3 +36,44 @@ class NoisyAgentWrapper(DummyModel):
         noise = self.noise_generator(noise_param, action_shape)
         noisy_actions = original_actions * (1 + noise)
         return noisy_actions, states
+
+
+class MultiPolicyWrapper(DummyModel):
+    def __init__(self, policies, num_envs):
+        # TODO how do we do this properly, since DummyModel requires a single policy and sess?
+        super().__init__(policies, policies[0].sess)
+        self.policies = policies
+        # Can't currently easily read n_env off policies because they differ in n_env vs n_envs
+        self.num_envs = num_envs
+        self.action_space_shape = self.policies[0].policy.action_space.shape
+        for p in self.policies:
+            assert p.policy.action_space.shape == self.action_space_shape, "All policies must " \
+                                                                           "have the same" \
+                                                                           " action space"
+
+        self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
+
+    def predict(self, observation, state=None, mask=None, deterministic=False):
+        self.reset_current_policies(mask)
+        policy_actions = np.empty(shape=(self.num_envs,) + self.action_space_shape)
+        new_state_array = np.empty(shape=(self.num_envs,) + self.action_space_shape)
+        for policy in self.policies:
+            env_mask = [el == policy for el in self.current_env_policies]
+            predicted_actions, new_states = policy.predict(observation,
+                                                           state=state,
+                                                           mask=mask,
+                                                           deterministic=deterministic)
+
+            policy_actions[env_mask] = predicted_actions[env_mask]
+            if new_states is not None:
+                new_state_array[env_mask] = new_states[env_mask]
+        return policy_actions, new_state_array
+
+    def reset_current_policies(self, mask):
+        for ind, done in enumerate(mask):
+            if done:
+                self.current_env_policies[ind] = np.random.choice(self.policies)
+
+    def close(self):
+        for policy in self.policies:
+            policy.sess.close()

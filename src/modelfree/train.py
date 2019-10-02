@@ -22,6 +22,7 @@ from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
 import modelfree.envs.wrappers
 from modelfree.policies.loader import load_backward_compatible_model, load_policy
+from modelfree.policies.wrappers import MultiPolicyWrapper
 from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
@@ -363,9 +364,15 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
                 log_callbacks.append(lambda logger, locals, globals:
                                      victims[i].log_callback(logger))
 
+        # Apparently PPO.policy has `n_envs` and TransparentMLPPolicyValue has n_env
+        if len(victims) > 1:
+            victim = MultiPolicyWrapper(victims, num_envs=multi_venv.num_envs)
+        else:
+            victim = victims[0]
+
         # Curry the victim
         transparent = transparent_params is not None
-        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victims=victims,
+        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
                                         victim_index=victim_index, transparent=transparent,
                                         deterministic=deterministic)
 
