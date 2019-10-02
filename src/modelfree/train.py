@@ -21,7 +21,8 @@ from modelfree.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
                                         get_policy_type_for_zoo_agent, load_zoo_agent_params)
 from modelfree.envs.observation_masking import make_mask_agent_wrappers
 import modelfree.envs.wrappers
-from modelfree.policies.loader import load_backward_compatible_model, load_policy
+from modelfree.policies.loader import (load_backward_compatible_model, load_policy,
+                                       mpi_unavailable_error)
 from modelfree.policies.wrappers import MultiPolicyWrapper
 from modelfree.training.logger import setup_logger
 from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
@@ -197,8 +198,8 @@ def train_config():
     # Victim Config
     victim_type = "zoo"             # type supported by modelfree.policies.loader
     victim_path = "1"               # path or other unique identifier
-    victim_index = 0
-    victim_types = None             # which agent the victim is (we default to other agent)
+    victim_index = 0                # which agent the victim is (we default to other agent)
+    victim_types = None
     victim_paths = None
 
     mask_victim = False             # should victim observations be limited
@@ -211,8 +212,8 @@ def train_config():
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
-    normalize = True                # normalize environment observations and reward
-    normalize_observations = True   #
+    normalize = True                # normalize environment reward
+    normalize_observations = True   # if normalize, then normalize environments observations too
     rl_args = dict()                # algorithm-specific arguments
 
     # RL Algorithm Policies/Demonstrations
@@ -425,19 +426,18 @@ RL_ALGOS = {
     'ppo2': ppo2,
     'old_ppo2': old_ppo2,
 }
+MPI_RL_ALGOS = {
+    'gail': gail,
+    'ppo1': ppo1,
+    'sac': sac,
+}
 
 try:
     from mpi4py import MPI
     del MPI
-    RL_ALGOS.update({
-        'gail': gail,
-        'ppo1': ppo1,
-        'sac': sac,
-    })
+    RL_ALGOS.update(MPI_RL_ALGOS)
 except ImportError:
-    # Skip MPI-only algorithms
-    pass
-
+    RL_ALGOS.update({k: mpi_unavailable_error for k in MPI_RL_ALGOS})
 
 # True for Stable Baselines as of 2019-03
 NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']

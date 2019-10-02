@@ -31,9 +31,6 @@ class NormalizeModel(DummyModel):
         norm_obs = self.vec_normalize._normalize_observation(observation)
         return self.policy.predict_transparent(norm_obs, state, mask, deterministic)
 
-    def get_parameter_list(self):
-        raise NotImplementedError()
-
 
 def load_stable_baselines(cls):
     def f(root_dir, env, env_name, index, transparent_params):
@@ -112,6 +109,10 @@ def load_random(path, env, env_name, index, transparent_params):
     return PolicyToModel(policy)
 
 
+def mpi_unavailable_error(*args, **kwargs):
+    raise ImportError("This algorithm requires MPI, which is not available.")
+
+
 # Lazy import for PPO1 and SAC, which have optional mpi dependency
 AGENT_LOADERS = {
     'zoo': load_zoo_agent,
@@ -127,7 +128,8 @@ try:
     AGENT_LOADERS['ppo1'] = load_stable_baselines(PPO1)
     AGENT_LOADERS['sac'] = load_stable_baselines(SAC)
 except ImportError:
-    pass
+    AGENT_LOADERS['ppo1'] = mpi_unavailable_error
+    AGENT_LOADERS['sac'] = mpi_unavailable_error
 
 
 def load_policy(policy_type, policy_path, env, env_name, index, transparent_params=None):
