@@ -365,7 +365,6 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
                 log_callbacks.append(lambda logger, locals, globals:
                                      victims[i].log_callback(logger))
 
-        # Apparently PPO.policy has `n_envs` and TransparentMLPPolicyValue has n_env
         if len(victims) > 1:
             victim = MultiPolicyWrapper(victims, num_envs=multi_venv.num_envs)
         else:

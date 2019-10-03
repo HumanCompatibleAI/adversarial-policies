@@ -43,7 +43,18 @@ class MultiPolicyWrapper(DummyModel):
         # TODO how do we do this properly, since DummyModel requires a single policy and sess?
         super().__init__(policies, policies[0].sess)
         self.policies = policies
-        self.current_env_policies = np.random.choice(self.policies, size=num_envs)
+        # I ended up keeping num_envs as a parameter because you need it to construct
+        # self.current_env_policies which makes sense to do the first time at initialization
+        self.num_envs = num_envs
+        self.action_space_shape = self.policies[0].policy.action_space.shape
+        self.obs_space_shape = self.policies[0].policy.observation_space.shape
+        for p in self.policies:
+            err_txt = "All policies must have the same {} space"
+            assert p.policy.action_space.shape == self.action_space_shape, err_txt.format("action")
+
+            assert p.policy.observation_space.shape == self.obs_space_shape, err_txt.format("obs")
+
+        self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         self.reset_current_policies(mask)
@@ -60,6 +71,7 @@ class MultiPolicyWrapper(DummyModel):
                 policy_actions = np.empty(shape=predicted_actions.shape)
 
             policy_actions[env_mask] = predicted_actions[env_mask]
+            # can we get the state shape from the policy?
             if new_states is not None:
                 if new_state_array is None:
                     new_state_array = np.empty(shape=new_states.shape)
