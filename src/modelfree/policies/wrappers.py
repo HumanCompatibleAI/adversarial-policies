@@ -41,7 +41,7 @@ class NoisyAgentWrapper(DummyModel):
 class MultiPolicyWrapper(DummyModel):
     def __init__(self, policies, num_envs):
         # TODO how do we do this properly, since DummyModel requires a single policy and sess?
-        super().__init__(policies, policies[0].sess)
+        super().__init__(policies[0], policies[0].sess)
         self.policies = policies
         # I ended up keeping num_envs as a parameter because you need it to construct
         # self.current_env_policies which makes sense to do the first time at initialization
