@@ -39,16 +39,11 @@ class NoisyAgentWrapper(DummyModel):
 
 
 class MultiPolicyWrapper(DummyModel):
-    def __init__(self, policies):
+    def __init__(self, policies, num_envs):
         # TODO how do we do this properly, since DummyModel requires a single policy and sess?
         super().__init__(policies, policies[0].sess)
         self.policies = policies
-        for p in self.policies:
-            assert p.policy.action_space.shape == self.action_space_shape, "All policies must " \
-                                                                           "have the same" \
-                                                                           " action space"
-
-        self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
+        self.current_env_policies = np.random.choice(self.policies, size=num_envs)
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         self.reset_current_policies(mask)
