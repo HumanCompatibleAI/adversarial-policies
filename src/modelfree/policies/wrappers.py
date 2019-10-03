@@ -39,13 +39,10 @@ class NoisyAgentWrapper(DummyModel):
 
 
 class MultiPolicyWrapper(DummyModel):
-    def __init__(self, policies, num_envs):
+    def __init__(self, policies):
         # TODO how do we do this properly, since DummyModel requires a single policy and sess?
         super().__init__(policies, policies[0].sess)
         self.policies = policies
-        # Can't currently easily read n_env off policies because they differ in n_env vs n_envs
-        self.num_envs = num_envs
-        self.action_space_shape = self.policies[0].policy.action_space.shape
         for p in self.policies:
             assert p.policy.action_space.shape == self.action_space_shape, "All policies must " \
                                                                            "have the same" \
@@ -55,17 +52,22 @@ class MultiPolicyWrapper(DummyModel):
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         self.reset_current_policies(mask)
-        policy_actions = np.empty(shape=(self.num_envs,) + self.action_space_shape)
-        new_state_array = np.empty(shape=(self.num_envs,) + self.action_space_shape)
+        policy_actions = None
+        new_state_array = None
+
         for policy in self.policies:
             env_mask = [el == policy for el in self.current_env_policies]
             predicted_actions, new_states = policy.predict(observation,
                                                            state=state,
                                                            mask=mask,
                                                            deterministic=deterministic)
+            if policy_actions is None:
+                policy_actions = np.empty(shape=predicted_actions.shape)
 
             policy_actions[env_mask] = predicted_actions[env_mask]
             if new_states is not None:
+                if new_state_array is None:
+                    new_state_array = np.empty(shape=new_states.shape)
                 new_state_array[env_mask] = new_states[env_mask]
         return policy_actions, new_state_array
 
