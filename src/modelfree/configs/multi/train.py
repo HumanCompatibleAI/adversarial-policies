@@ -2,6 +2,7 @@
 
 import collections
 import itertools
+import os
 import os.path as osp
 
 import numpy as np
@@ -46,7 +47,7 @@ HYPERPARAM_SEARCH_VALUES = {
         lambda spec: 10 ** (-2 + -3 * np.random.random())),
 }
 
-MULTI_TRAIN_LOCATION = "/home/ubuntu/aws_private/multi_train"
+MULTI_TRAIN_LOCATION = osp.join(os.environ.get('DATA_LOC', 'data'), "multi_train")
 
 # TODO Will move this into a JSON at some point, keeping here for easier debugging for the moment
 YSNP_DEFENSE_POLICIES_LOOKUP = {
