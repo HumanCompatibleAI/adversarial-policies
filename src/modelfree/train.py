@@ -196,11 +196,11 @@ def train_config():
     total_timesteps = 4096          # total number of timesteps to training for
 
     # Victim Config
-    victim_type = "zoo"             # type supported by modelfree.policies.loader
-    victim_path = "1"               # path or other unique identifier
     victim_index = 0                # which agent the victim is (we default to other agent)
-    victim_types = None
-    victim_paths = None
+    victim_type = None              # any type supported by modelfree.policies.loader
+    victim_path = None              # path or other unique identifier
+    victim_types = None             # list of victim types
+    victim_paths = None             # list of victim paths
 
     mask_victim = False             # should victim observations be limited
     mask_victim_kwargs = {          # control how victim observations are limited
@@ -216,7 +216,33 @@ def train_config():
     normalize_observations = True   # if normalize, then normalize environments observations too
     rl_args = dict()                # algorithm-specific arguments
 
-    # RL Algorithm Policies/Demonstrations
+    # General
+    checkpoint_interval = 131072    # save weights to disk after this many timesteps
+    log_interval = 2048             # log statistics to disk after this many timesteps
+    log_output_formats = None       # custom output formats for logging
+    debug = False                   # debug mode; may run more slowly
+    seed = 0                        # random seed
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@train_ex.config
+def victim_config(victim_type, victim_path, victim_types, victim_paths):
+    if victim_type is None:
+        victim_type = "zoo"
+    if victim_path is None:
+        victim_path = "1"
+
+    if victim_types is None and victim_paths is None:
+        victim_types = [victim_type]
+        victim_paths = [victim_path]
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@train_ex.config
+def adversary_policy_config(rl_algo, victim_type, victim_path):
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by modelfree.policies.loader
@@ -235,12 +261,6 @@ def train_config():
         'lb_type': rl_algo,         # type of lookback base policy
     }
 
-    # General
-    checkpoint_interval = 131072    # save weights to disk after this many timesteps
-    log_interval = 2048             # log statistics to disk after this many timesteps
-    log_output_formats = None       # custom output formats for logging
-    debug = False                   # debug mode; may run more slowly
-    seed = 0                        # random seed
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -262,6 +282,18 @@ def wrappers_config(env_name):
 
     victim_noise = False  # enable adding noise to victim
     victim_noise_params = load_default(env_name, 'noise')  # parameters for victim noise
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@train_ex.named_config
+def no_victim():
+    """Does not load and embed a victim. Useful for debugging, allowing training in a
+       single-agent environment.
+    """
+    victim_types = []
+    victim_paths = []
 
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -336,24 +368,21 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 
 @train_ex.capture
-def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
-                       victim_path, victim_types, victim_paths, victim_index, victim_noise,
+def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name,
+                       victim_types, victim_paths, victim_index, victim_noise,
                        victim_noise_params, adv_noise_params, transparent_params, lookback_params):
-    if victim_type != 'none':
+    if victim_types:
         deterministic = lookback_params is not None
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params['noise_val'] is not None:
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
                                              deterministic=deterministic)
         victims = []
-        if victim_types is None and victim_paths is None:
-            victim_types = [victim_type]
-            victim_paths = [victim_path]
 
-            # If we're loading multiple victims
-        for i, individual_victim_path in enumerate(victim_paths):
-            victims.append(load_policy(policy_path=individual_victim_path,
-                                       policy_type=victim_types[i], env=multi_venv,
+        # If we're loading multiple victims
+        for victim_type, victim_path in zip(victim_types, victim_paths):
+            victims.append(load_policy(policy_path=victim_path,
+                                       policy_type=victim_type, env=multi_venv,
                                        env_name=env_name, index=victim_index,
                                        transparent_params=transparent_params))
 
