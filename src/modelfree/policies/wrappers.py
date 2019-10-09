@@ -42,7 +42,7 @@ class MultiPolicyWrapper(DummyModel):
     def __init__(self, policies, num_envs):
         super().__init__(policies[0], policies[0].sess)
         self.policies = policies
-        # Num_envs is kept as a parameter because you need it to construct
+        # num_envs is kept as a parameter because you need it to construct
         # self.current_env_policies which makes sense to do the first time at initialization
         self.num_envs = num_envs
         self.action_space_shape = self.policies[0].policy.action_space.shape
@@ -50,16 +50,15 @@ class MultiPolicyWrapper(DummyModel):
         for p in self.policies:
             err_txt = "All policies must have the same {} space"
             assert p.policy.action_space.shape == self.action_space_shape, err_txt.format("action")
-
             assert p.policy.observation_space.shape == self.obs_space_shape, err_txt.format("obs")
 
         self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
-        self.inferred_state_shapes = [None]*len(policies)
+        self.inferred_state_shapes = [None] * len(policies)
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         self._reset_current_policies(mask)
-        policy_actions = [None]*self.num_envs
-        new_state_array = [None]*self.num_envs
+        policy_actions = [None] * self.num_envs
+        new_state_array = [None] * self.num_envs
 
         for i, policy in enumerate(self.policies):
             env_mask = [el == policy for el in self.current_env_policies]
@@ -97,10 +96,9 @@ class MultiPolicyWrapper(DummyModel):
         return policy_actions, new_state_array
 
     def _standardize_state(self, state_arr, env_mask, inferred_state_shape):
-        """
-        Solves the problem of different policies taking in different types of state vector:
+        """Solves the problem of different policies taking in different types of state vector:
         either different shapes of array, or None in the case of a MLP policy. Takes all the
-        entries of state_arr that are true in env_mask
+        entries of state_arr that are true in env_mask.
         """
         env_mask = env_mask.copy()
         if inferred_state_shape is None:
@@ -124,12 +122,10 @@ class MultiPolicyWrapper(DummyModel):
 
     @staticmethod
     def _array_mask_assign(arr, mask, vals):
-        """
-        A helper method for basically doing Numpy-style mask assignment on a Python array.
+        """A helper method for basically doing Numpy-style mask assignment on a Python array.
         The `mask` variable contains boolean True values at all locations within `vals` that we
-        want to copy over to `arr`. If `vals` is not the same first-dimension as mask,
-        it will be broadcast to all locations
-        locations that `mask` specifies.
+        want to copy over to `arr`. If `vals` is not the same first-dimension as mask, it will
+        be broadcast to all locations that `mask` specifies.
         :return:
         """
         arr_copy = arr.copy()
