@@ -489,7 +489,7 @@ def make_configs(multi_train_ex):
         _best_guess_train(train)
         train['total_timesteps'] = int(20e6)
         spec = _best_guess_spec()
-        spec['config']['seed'] = tune.grid_search([0, 1, 2, 3, 4])
+        spec['config']['seed'] = tune.grid_search(range(5))
         exp_name = 'paper'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -502,7 +502,7 @@ def make_configs(multi_train_ex):
         _best_guess_train(train)
         train['total_timesteps'] = int(20e6)
         spec = _best_guess_spec(envs=['multicomp/SumoHumans-v0'])
-        spec['config']['seed'] = tune.grid_search([0, 1, 2, 3, 4])
+        spec['config']['seed'] = tune.grid_search(range(5))
         exp_name = 'paper'
         _ = locals()  # quieten flake8 unused variable warning
         del _
