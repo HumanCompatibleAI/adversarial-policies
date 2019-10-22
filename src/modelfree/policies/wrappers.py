@@ -92,19 +92,35 @@ def _array_mask_assign(arr, mask, vals):
     return arr_copy
 
 
+def waterfall_get(obj, possible_attributes):
+    ret_val = None
+    for attribute in possible_attributes:
+        ret_val = obj.__dict__.get(attribute, None)
+        if ret_val is not None:
+            break
+    return ret_val
+
+
 class MultiPolicyWrapper(DummyModel):
-    def __init__(self, policies, num_envs):
+    def __init__(self, policies, num_envs, debug=False):
         super().__init__(policies[0], policies[0].sess)
         self.policies = policies
         # num_envs is kept as a parameter because you need it to construct
         # self.current_env_policies which makes sense to do the first time at initialization
         self.num_envs = num_envs
-        self.action_space_shape = self.policies[0].policy.action_space.shape
-        self.obs_space_shape = self.policies[0].policy.observation_space.shape
+        self.debug = debug
+        reference_action_space = waterfall_get(self.policies[0].policy,  ['ac_space',
+                                                                          'action_space'])
+        reference_observation_space = waterfall_get(self.policies[0].policy, ['ob_space',
+                                                                              'observation_space'])
+        self.action_space_shape = reference_action_space.shape
+        self.obs_space_shape = reference_observation_space.shape
         for p in self.policies:
             err_txt = "All policies must have the same {} space"
-            assert p.policy.action_space.shape == self.action_space_shape, err_txt.format("action")
-            assert p.policy.observation_space.shape == self.obs_space_shape, err_txt.format("obs")
+            action_space = waterfall_get(p.policy, ['ac_space', 'action_space']).shape
+            assert action_space == self.action_space_shape, err_txt.format("action")
+            observation_space = waterfall_get(p.policy, ['ob_space', 'observation_space']).shape
+            assert observation_space == self.obs_space_shape, err_txt.format("obs")
 
         self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
         self.inferred_state_shapes = [None] * len(policies)
@@ -129,8 +145,8 @@ class MultiPolicyWrapper(DummyModel):
                 # with the shape that the policy expects. Inferred state shapes will be set
                 # for stateful policies as soon as they return a state vector, i.e. after the
                 # first prediction step
-                standardized_state = self._standardize_state(state, env_mask,
-                                                             self.inferred_state_shapes[i])
+                standardized_state = _standardize_state(state, env_mask,
+                                                        self.inferred_state_shapes[i])
 
             predicted_actions, new_states = policy.predict(observation,
                                                            state=standardized_state,
@@ -144,8 +160,8 @@ class MultiPolicyWrapper(DummyModel):
             # This is basically numpy mask value assignment, but created to work with python
             # arrays to accommodate the fact that different policies won't have state
             # values of the same shape/type
-            policy_actions = self._array_mask_assign(policy_actions, env_mask, predicted_actions)
-            new_state_array = self._array_mask_assign(new_state_array, env_mask, new_states)
+            policy_actions = _array_mask_assign(policy_actions, env_mask, predicted_actions)
+            new_state_array = _array_mask_assign(new_state_array, env_mask, new_states)
 
         return policy_actions, new_state_array
 
@@ -153,6 +169,8 @@ class MultiPolicyWrapper(DummyModel):
         for ind, done in enumerate(mask):
             if done:
                 new_policy = np.random.choice(self.policies)
+                if self.debug:
+                    print(f"Resetting policy {ind}  to {new_policy}")
                 self.current_env_policies[ind] = new_policy
 
     def close(self):
