@@ -2,6 +2,7 @@
 
 import collections
 import itertools
+import json
 import os
 import os.path as osp
 
@@ -9,6 +10,7 @@ import numpy as np
 from ray import tune
 
 from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS
+from modelfree.configs.multi.score import _get_adversary_paths
 from modelfree.envs import VICTIM_INDEX, gym_compete
 
 MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
@@ -33,8 +35,9 @@ HYPERPARAM_SEARCH_VALUES = {
 
         # nminibatches must be a factor of batch size; OK provided power of two
         # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-        'nminibatches': tune.sample_from(
-            lambda spec: 2 ** (np.random.randint(0, 7))),
+        # Removing this
+        # 'nminibatches': tune.sample_from(
+        #     lambda spec: 2 ** (np.random.randint(0, 7))),
 
         # PPO2 default is 4; run_humanoid.py is 10
         'noptepochs': tune.sample_from(
@@ -48,58 +51,6 @@ HYPERPARAM_SEARCH_VALUES = {
 }
 
 MULTI_TRAIN_LOCATION = osp.join(os.environ.get('DATA_LOC', 'data'), "multi_train")
-
-# TODO Will move this into a JSON at some point, keeping here for easier debugging for the moment
-YSNP_DEFENSE_POLICIES_LOOKUP = {
-    "adversary_train": {
-        "best_hyper_3e6": "hyper_finetune_defense/20190919_223925-a4de857b66404d0bbba5e22589c3"
-                          "a2e8/train_rl-daabfba8b641bb0282dd57da9a4b064b_81_batch_size=2048,lea"
-                          "rning_rate=5.3169e-05,ent_coef=0.0071619,nminibatches=2,noptepochs_"
-                          "2019-09-19_22-39-28trtokeeh/data/baselines/20190919_223954-default-"
-                          "batch_size=2048-learning_rate=5.316931307169661e-05-rl_args={'ent_coef'"
-                          ": 0.007161860504358302, 'nminibatches': 2, 'noptepochs': 7}-seed=822/"
-                          "final_model",
-        "best_hyper_10e6": "hyper_finetune_defense/20190923_222110-bfd8c5be86334254aff81681a1aab"
-                           "fd2/train_rl-d28a8df8c1c8116007a96f0a1324e4d5_62_batch_size=2048,learn"
-                           "ing_rate=6.1888e-05,ent_coef=0.0079898,nminibatches=1,noptepochs_"
-                           "2019-09-23_22-21-12atw_xvi3/data/baselines/20190923_222140-default"
-                           "-batch_size=2048-learning_rate=6.188842944950313e-05-rl_args="
-                           "{'ent_coef': 0.007989770218617331, 'nminibatches': 1, 'noptepochs': 6}"
-                           "-seed=261/final_model",
-        "best_seed_20e6_3e6params": "ysnp_finetune_20_dual/20190923_225840-bcfe315e866548418648a2"
-                                    "9ec51d7f91/train_rl-148c15a21ac330cec3747094c5ac5972_4_seed="
-                                    "4_2019-09-23_22-58-40469tpn1v/data/baselines/20190923_225913-"
-                                    "default-seed=4/final_model"
-    },
-    "dual_train":
-        {
-            "best_hyper_3e6": "hyper_finetune_dual_defense/20190919_230454-2a21dcece0bb420783b083a"
-                              "8c9bca393/train_rl-a01b394e1af3e513adbc965f57f28105_38_batch_size=8"
-                              "192,learning_rate=0.00019521,ent_coef=0.0012618,nminibatches=32,nop"
-                              "tepoch_2019-09-19_23-04-5585r1bib4/data/baselines/20190919_230522-d"
-                              "efault-batch_size=8192-learning_rate=0.00019520504186694475-rl_args"
-                              "={'ent_coef': 0.001261805277214847, 'nminibatches': 32,"
-                              " 'noptepochs': 1}-seed=601/final_model",
-            "best_hyper_10e6": "hyper_finetune_defense/20190923_222140-cc0e22f56cad42a9bfef263edb1"
-                               "b9747/train_rl-fb0cc754cf65767d85e5d39aa31552e8_78_batch_size=4096"
-                               ",learning_rate=3.1928e-05,ent_coef=0.0058516,nminibatches=32,nopt"
-                               "epoch_2019-09-23_22-21-42mquddv27/data/baselines/20190923_222201"
-                               "-default-batch_size=4096-learning_rate=3.192828794681526e-05-rl_"
-                               "args={'ent_coef': 0.00585162756249535, 'nminibatches': 32, "
-                               "'noptepochs': 2}-seed=444/final_model",
-            "best_seed_20e6_3e6params": "ysnp_finetune_20_dual/20190923_225942-dc84f4936b8147a0af6"
-                                        "6fcc4bc80ae2a/train_rl-8fd3be16c7723c9dceaec25a74aac1a8_1"
-                                        "_seed=1_2019-09-23_22-59-42yxnox92y/data/baselines/201909"
-                                        "23_230005-default-seed=1/final_model"
-
-        }
-}
-
-YSNP_ADVERSARY = "paper/20190429_011349/train_rl-7086bd7945d8a380b53e797f3932c739_10_env_name:" \
-                 "victim_path=['multicomp_YouShallNotPassHumans-v0', 1],seed=0,victim_index=" \
-                 "1_2019-04-29_01-13-49dzng78qx/data/baselines/20190429_011353-default-env_name=" \
-                 "multicomp_YouShallNotPassHumans-v0-victim_path=1-seed=0-victim_index=1/" \
-                 "final_model"
 
 
 def _env_victim(envs=None):
@@ -163,94 +114,158 @@ def _finetune_spec(envs=None):
     return spec
 
 
-def _ysnp_hyper_finetune_defense(train):
-    """
-    Adds generic parameters for doing a hyperparameter search over a finetuning-based
-    defense against an adversary, agnostic to what combination of agents you're training against.
-    """
+def _get_path_from_exp_name(exp_name, json_file_path=None):
+    # Sacred named_configs execute before configs, so we can't make this a Sacred config param.
+    if json_file_path is None:
+        json_file_path = "highest_win_policies_and_rates.json"
+    full_json_path = os.path.join(MULTI_TRAIN_LOCATION, exp_name, json_file_path)
+    with open(full_json_path, 'r') as f:
+        return json.load(f)['policies']
+
+# ### FINETUNING AGAINST ADVERSARY OR ADVERSARY + DUAL ### #
+
+
+def _finetune_configs(envs=None, dual_defense=False):
+    if envs is None:
+        envs = BANSAL_GOOD_ENVS
+        envs.remove("multicomp/SumoHumans-v0")
+    configs = []
+    adversary_paths = _get_adversary_paths()
+    for env in envs:
+        original_victim_index = VICTIM_INDEX[env]
+        num_zoo = gym_compete.num_zoo_policies(env)
+        for original_victim in range(1, num_zoo+1):
+            original_victim = str(original_victim)
+            load_policy = {'type': 'zoo', 'path': original_victim}
+
+            adversary = adversary_paths.get(env,
+                                            {}).get(str(original_victim_index),
+                                                    {}).get(original_victim)
+            adversary = os.path.abspath(adversary)
+
+            if dual_defense:
+                for finetuning_zoo in range(1, num_zoo+1):
+                    finetuning_zoo = str(finetuning_zoo)
+                    victim_paths = [adversary, finetuning_zoo]
+                    victim_types = ["ppo2", "zoo"]
+                    configs.append((env, victim_paths, victim_types,
+                                    1-original_victim_index, load_policy))
+            else:
+                configs.append((env, adversary, "ppo2", 1-original_victim_index, load_policy))
+    return configs
+
+
+FINETUNE_PATHS_TYPES = "env_name:victim_path:victim_type:victim_index:load_policy"
+FINETUNE_PATHS_TYPES_DUAL = "env_name:victim_paths:victim_types:victim_index:load_policy"
+
+
+def _finetuning_defense(train, dual_defense=False):
     _sparse_reward(train)
-    # Checkpoints take up a lot of disk space, only save every ~500k steps
-    train['checkpoint_interval'] = 2 ** 19
-    train['total_timesteps'] = int(10e6)
-    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-    # "Victim" here is the adversary
-    train['victim_index'] = 0
+    # A hack to make it so  you can in theory fine tune LSTMs
+    train['num_env'] = 16
     train['normalize_observations'] = False
-    train['load_policy'] = {
-        'path': '1',
-        'type': 'zoo',
-    }
+    ray_config = {}
+    paths_and_types = tune.grid_search(_finetune_configs(dual_defense=dual_defense))
+    if dual_defense:
+        ray_config[FINETUNE_PATHS_TYPES_DUAL] = paths_and_types
+    else:
+        ray_config[FINETUNE_PATHS_TYPES] = paths_and_types
+
+    return ray_config
+
+
+def _hyper_finetune_defense(train, dual_defense=False):
+    ray_config = _finetuning_defense(train, dual_defense)
+    train['total_timesteps'] = int(10e6)
+
+    ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
-        'config': HYPERPARAM_SEARCH_VALUES,
-        'num_samples': 100,
+        'config': ray_config,
+        'num_samples': 20,
     }
     return spec
 
 
-def _ysnp_hyper_against_finetune_defense(train):
+def _finetune_defense_long(train, dual_defense=False):
+    """
+    Adds generic parameters for conducting a multi-seed long finetuning run against
+    either an adversary or an (adversary, zoo) combined environment
+    """
+    ray_config = _finetuning_defense(train, dual_defense)
+    train['total_timesteps'] = int(20e6)
+    # "Victim" here is the adversary
+    ray_config['seed'] = tune.grid_search([0, 1, 2, 3, 4])
+    spec = {
+        "config": ray_config
+    }
+    return spec
+
+
+# ### RETRAINING ADVERSARY AGAINST ADVERSARIALLY-FINETUNED VICTIM ### #
+
+def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True):
+    if envs is None:
+        envs = BANSAL_GOOD_ENVS
+    configs = []
+    finetuned_paths = _get_path_from_exp_name(finetune_run)
+    adversary_paths = _get_adversary_paths()
+    for env in envs:
+        victim_index = VICTIM_INDEX[env]
+        num_zoo = gym_compete.num_zoo_policies(env)
+        for original_victim in range(1, num_zoo + 1):
+            finetuned_victim = finetuned_paths.get(env,
+                                                   {}).get(victim_index,
+                                                           {}).get(original_victim, {})
+            if from_scratch:
+                load_policy = {'type': 'ppo2', 'path': None}
+
+            else:
+                adversary = adversary_paths.get(env,
+                                                {}).get(victim_index,
+                                                        {}).get(original_victim, {})
+                load_policy = {'type': 'ppo2', 'path': adversary}
+
+            configs.append((env, finetuned_victim, victim_index, load_policy))
+    return configs
+
+
+TRAIN_AGAINST_FINETUNED_PATHS = "env_name:victim_path:victim_index:load_policy"
+
+
+def _train_against_finetuned(train, finetune_run, from_scratch=True):
+    _sparse_reward(train)
+    ray_config = {TRAIN_AGAINST_FINETUNED_PATHS:
+                  tune.grid_search(
+                                _train_against_finetuned_configs(finetune_run=finetune_run,
+                                                                 from_scratch=from_scratch))}
+    train['victim_type'] = "ppo2"
+    train['normalize'] = True
+    return ray_config
+
+
+def _hyper_train_adversary_against_finetuned(train, finetune_run, from_scratch=True):
     """
     Adds generic parameters for doing a hyperparameter search of retraining a new adversary
     against a policy that has been defensively finetuned, agnostic to which specific finetuned
     policy we're using.
     """
-    _sparse_reward(train)
-    train['checkpoint_interval'] = 2 ** 19
+    ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(10e6)
-    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
     # Victim is back to being the finetuned victim again
-    train['victim_index'] = 1
-    train['victim_type'] = "ppo2"
-    # Best victim from hyper_finetune_defense, according to win rate
-    train['normalize'] = True
+    ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
-        'config': HYPERPARAM_SEARCH_VALUES,
+        'config': ray_config,
         'num_samples': 100,
     }
     return spec
 
 
-def _ysnp_finetune_zoo_20e6(train):
-    """
-    Adds generic parameters for conducting a multi-seed long finetuning run against
-    either an adversary or an (adversary, zoo) combined environment
-    """
-    _sparse_reward(train)
+def _train_adversary_against_finetuned_long(train, finetune_run, from_scratch=True):
+    ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(20e6)
-    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-    # "Victim" here is the adversary
-    train['victim_index'] = 0
-    train['normalize_observations'] = False
-    train['load_policy'] = {
-        'path': '1',
-        'type': 'zoo',
-    }
+    ray_config['seed'] = tune.grid_search([0, 1, 2, 3, 4])
     spec = {
-        "config": {
-            "seed": tune.grid_search([0, 1, 2, 3, 4])
-        }
-    }
-    return spec
-
-
-def _ysnp_adversary_retraining_20e6(train):
-    """
-    Adds generic parameters for conducting a multi-seed long run of training a new adversary
-    against a defensively finetuned policy
-    """
-    _sparse_reward(train)
-    train['env_name'] = 'multicomp/YouShallNotPassHumans-v0'
-    train['victim_index'] = 1
-    train['normalize'] = True
-    # Train from scratch
-    train['load_policy'] = {
-        'path': None,
-        'type': "ppo2"
-    }
-    train['total_timesteps'] = int(20e6)
-    spec = {
-        "config": {
-            "seed": tune.grid_search([0, 1, 2, 3, 4])
-        }
+        'config': ray_config,
     }
     return spec
 
@@ -289,24 +304,20 @@ def make_configs(multi_train_ex):
     # HYPERPARAMETER TUNING: FINETUNE ZOO
 
     @multi_train_ex.named_config
-    def hyper_finetune_dual_defense(train):
+    def hyper_finetune_defense(train):
+        """HP search for finetuning defense against only the adversary"""
         train = dict(train)
-        spec = _ysnp_hyper_finetune_defense(train)
-        train['victim_types'] = ["ppo2", "zoo"]
-        train['victim_paths'] = [osp.join(MULTI_TRAIN_LOCATION, "multi_train", YSNP_ADVERSARY),
-                                 "1"]
-        exp_name = 'hyper_finetune_dual_defense'
-        _ = locals()
+        spec = _hyper_finetune_defense(train, dual_defense=False)
+        exp_name = 'hyper_finetune_defense'
+        _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.named_config
-    def hyper_finetune_defense(train):
-        """HP search for defense regime using only adversary in training"""
+    def hyper_finetune_dual_defense(train):
+        """HP search for finetuning defense against the adversary and a zoo agent"""
         train = dict(train)
-        spec = _ysnp_hyper_finetune_defense(train)
-        train['victim_path'] = osp.join(MULTI_TRAIN_LOCATION, "multi_train", YSNP_ADVERSARY)
-        train['victim_type'] = 'ppo2'
-        exp_name = 'hyper_finetune_defense'
+        spec = _hyper_finetune_defense(train, dual_defense=True)
+        exp_name = 'hyper_finetune_dual_defense'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -317,15 +328,9 @@ def make_configs(multi_train_ex):
         """ HP search for training adversary from scratch against
         best policy from hyper_finetune_defense"""
         train = dict(train)
-        spec = _ysnp_hyper_against_finetune_defense(train)
-        train['victim_path'] = osp.join(
-                                MULTI_TRAIN_LOCATION,
-                                YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_3e6'])
-
-        train['load_policy'] = {
-            'path': None,
-            'type': "ppo2"
-        }
+        spec = _hyper_train_adversary_against_finetuned(train,
+                                                        finetune_run="hyper_finetune_defense",
+                                                        from_scratch=True)
         exp_name = 'hyper_against_adv_finetuned_from_scratch'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -335,14 +340,9 @@ def make_configs(multi_train_ex):
         """HP search for training adversary from scratch against best policy from
         hyper_finetune_dual_defense """
         train = dict(train)
-        spec = _ysnp_hyper_against_finetune_defense(train)
-        train['victim_path'] = osp.join(
-                                MULTI_TRAIN_LOCATION,
-                                YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_3e6'])
-        train['load_policy'] = {
-            'path': None,
-            'type': "ppo2"
-        }
+        spec = _hyper_train_adversary_against_finetuned(train,
+                                                        finetune_run="hyper_finetune_dual_defense",
+                                                        from_scratch=True)
         exp_name = 'hyper_against_dual_finetuned_from_scratch'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -352,15 +352,9 @@ def make_configs(multi_train_ex):
         """ HP search for finetuning adversary from existing adversary against
         best policy from hyper_finetune_defense"""
         train = dict(train)
-        spec = _ysnp_hyper_against_finetune_defense(train)
-        train['victim_path'] = osp.join(
-            MULTI_TRAIN_LOCATION,
-            YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_3e6'])
-
-        train['load_policy'] = {
-            'path': osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),
-            'type': "ppo2"
-        }
+        spec = _hyper_train_adversary_against_finetuned(train,
+                                                        finetune_run="hyper_finetune_defense",
+                                                        from_scratch=False)
         exp_name = 'hyper_against_adv_finetuned_from_existing'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -370,111 +364,64 @@ def make_configs(multi_train_ex):
         """ HP search for finetuning adversary from existing adversary against
                 best policy from hyper_finetune_dual_defense"""
         train = dict(train)
-        spec = _ysnp_hyper_against_finetune_defense(train)
-        train['victim_path'] = osp.join(
-            MULTI_TRAIN_LOCATION,
-            YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_3e6'])
-
-        train['load_policy'] = {
-            'path': osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),
-            'type': "ppo2"
-        }
+        spec = _hyper_train_adversary_against_finetuned(train,
+                                                        finetune_run="hyper_finetune_dual_defense",
+                                                        from_scratch=False)
         exp_name = 'hyper_against_dual_finetuned_from_existing'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
+    # BEST-HYPERPARAM LONG RUN: FINETUNE
+    @multi_train_ex.named_config
+    def finetune_dual_defense_long_run(train):
+        train = dict(train)
+        spec = _finetune_defense_long(train, dual_defense=True)
+        train['learning_rate'] = .000025
+        train['batch_size'] = 4096
+        exp_name = "finetune_dual_defense_long_run"
+        _ = locals()
+        del _
+
+    @multi_train_ex.named_config
+    def finetune_adv_defense_long_run(train):
+        train = dict(train)
+        spec = _finetune_defense_long(train, dual_defense=False)
+        train['learning_rate'] = .00005
+        train['batch_size'] = 2048
+        exp_name = "finetune_adv_defense_long_run"
+        _ = locals()
+        del _
+
     # BEST-HYPERPARAM LONG RUN: RETRAIN ADVERSARY
-
     @multi_train_ex.named_config
-    def ysnp_adversary_retraining_adv_v0(train):
-        """ As of 12:33pm 9/23, running a long adversary retraining run against the current best
-         adv-hardened victim, from scratch, with current best hyperparameters. """
-        train = dict(train)
-        spec = _ysnp_adversary_retraining_20e6(train)
-        train['learning_rate'] = 8e-4
-        train['batch_size'] = 2048
-        train['victim_type'] = "ppo2"
-        train['victim_path'] = osp.join(
-            MULTI_TRAIN_LOCATION,
-            YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_3e6'])
-
-        exp_name = 'ysnp_adversary_retraining_adv_v0'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def ysnp_adversary_retraining_dual_v0(train):
-        """ As of 12:33pm 9/23, running a long adversary retraining run against the current best
-         dual-hardened victim, from scratch, with current best hyperparameters. """
-        train = dict(train)
-        spec = _ysnp_adversary_retraining_20e6(train)
-        train['learning_rate'] = 2.2e-4
-        train['batch_size'] = 2048
-        train['victim_type'] = "ppo2"
-        train['victim_path'] = osp.join(
-            MULTI_TRAIN_LOCATION,
-            YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_3e6'])
-
-        exp_name = 'ysnp_adversary_retraining_dual_v0'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def ysnp_adversary_retraining_adv_v1(train):
+    def train_against_finetuned_adv(train):
         """ As of 10:52pm 9/23, running a long adversary retraining run against the current best
          adv-hardened victim, from scratch, with current best hyperparameters."""
         train = dict(train)
         train['learning_rate'] = 8e-4
         train['batch_size'] = 2048
-        train['victim_type'] = "ppo2"
-        train['victim_path'] = osp.join(
-            MULTI_TRAIN_LOCATION,
-            YSNP_DEFENSE_POLICIES_LOOKUP['adversary_train']['best_hyper_10e6'])
-
-        exp_name = 'ysnp_adversary_retraining_adv_v1'
+        spec = _train_adversary_against_finetuned_long(train,
+                                                       finetune_run="finetune_adv_"
+                                                                    "defense_long_run",
+                                                       from_scratch=True)
+        exp_name = 'train_against_finetuned_adv'
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.named_config
-    def ysnp_adversary_retraining_dual_v1(train):
+    def train_against_finetuned_dual(train):
         """ As of 10:52pm 9/23, running a long adversary retraining run against the current best
          dual-hardened victim, from scratch, with current best hyperparameters.
          ALWAYS RUN WITH ysnp_long_retraining_run"""
         train = dict(train)
         train['learning_rate'] = 2.2e-4
         train['batch_size'] = 2048
-        train['victim_type'] = "ppo2"
-        train['victim_path'] = osp.join(
-            MULTI_TRAIN_LOCATION,
-            YSNP_DEFENSE_POLICIES_LOOKUP['dual_train']['best_hyper_10e6'])
-        exp_name = "ysnp_adversary_retraining_dual_v1"
+        spec = _train_adversary_against_finetuned_long(train,
+                                                       finetune_run="finetune_dual_"
+                                                                    "defense_long_run",
+                                                       from_scratch=True)
+        exp_name = "train_against_finetuned_adv"
         _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    # BEST-HYPERPARAM LONG RUN: FINETUNE
-    @multi_train_ex.named_config
-    def ysnp_finetune_20_dual(train):
-        train = dict(train)
-        spec = _ysnp_finetune_zoo_20e6(train)
-        train['victim_type'] = ["ppo2", "zoo"]
-        train['learning_rate'] = .000025
-        train['batch_size'] = 4096
-        train['victim_path'] = [osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY),
-                                "1"]
-        exp_name = "ysnp_finetune_20_dual"
-        _ = locals()
-        del _
-
-    @multi_train_ex.named_config
-    def ysnp_finetune_20_adv(train):
-        train = dict(train)
-        spec = _ysnp_finetune_zoo_20e6(train)
-        train['learning_rate'] = .00005
-        train['batch_size'] = 2048
-        train['victim_path'] = osp.join(MULTI_TRAIN_LOCATION, YSNP_ADVERSARY)
-        train['victim_type'] = 'ppo2'
-        exp_name = "ysnp_finetune_20_dual"
-        _ = locals()
         del _
 
     ###############################################################################################

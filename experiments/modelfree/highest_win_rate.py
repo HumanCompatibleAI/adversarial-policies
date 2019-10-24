@@ -39,6 +39,8 @@ def get_stats(event_path, episode_window):
 
 def _strip_up_to(path, dirname):
     path_components = path.split(os.path.sep)
+    if path_components[0] == '':
+        path_components[0] = os.path.sep
     try:
         path_index = len(path_components) - 1 - path_components[::-1].index(dirname)
     except ValueError as e:
@@ -70,6 +72,7 @@ def unstack(d):
 def find_best(logdirs, episode_window):
     # keys: (env_name, opp_index, opp_path)
     # value: path to policy evaluated on env_name against opponent opp_path playing opp_index
+
     best_policy = {}
     best_winrate = collections.defaultdict(float)
 
@@ -81,11 +84,16 @@ def find_best(logdirs, episode_window):
             opp_index = int(config['victim_index'])
             opp_type = str(config['victim_type'])
             # multi_score is not set up to handle multiple victim types
-            assert opp_type == 'zoo'
-            opp_path = str(config['victim_path'])
-
+            # import pdb; pdb.set_trace()
+            if opp_type != 'zoo' and config['load_policy']['type'] == 'zoo':
+                # Assuming that this case corresponds to a situation where we're finetuning a
+                # zoo policy, and that we still want the resulting dictionary indexed by the
+                # integer zoo policy we finetuned, rather than the full path of its adversary
+                zoo_path = str(config['load_policy']['path'])
+            else:
+                zoo_path = str(config['victim_path'])
             our_index = 1 - opp_index
-            key = (env_name, opp_index, opp_path)
+            key = (env_name, opp_index, zoo_path)
             our_winrate = stats[f'game_win{our_index}']
 
             if our_winrate > best_winrate[key]:
@@ -108,18 +116,22 @@ def directory_type(path):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--logdir', nargs='*', type=directory_type)
+    parser.add_argument('logdir', nargs="*", type=directory_type)
     parser.add_argument('--episode-window', type=int, default=50)
-    parser.add_argument('output_path')
+    parser.add_argument('--output_path')
     return parser.parse_args()
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    args = get_args()
-
-    with open(args.output_path, 'w') as f:  # fail fast if output_path inaccessible
-        result = find_best(args.logdir, args.episode_window)
+    parsed_args = get_args()
+    output_path = parsed_args.output_path
+    if output_path is None:
+        output_path = os.path.join(parsed_args.logdir[0], 'highest_win_policies_and_rates.json')
+    print(f"Output path: {output_path}")
+    print(f"Log dir: {parsed_args.logdir}")
+    with open(output_path, 'w') as f:  # fail fast if output_path inaccessible
+        result = find_best(parsed_args.logdir, parsed_args.episode_window)
         json.dump(result, f)
 
 
