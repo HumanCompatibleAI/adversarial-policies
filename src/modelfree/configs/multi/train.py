@@ -268,7 +268,6 @@ def _train_against_finetuned(train, finetune_run, from_scratch=True):
                                                                  from_scratch=from_scratch))}
     # All victims are new-style policies because we finetuned them
     train['victim_type'] = "ppo2"
-    train['normalize'] = True
     return ray_config
 
 
