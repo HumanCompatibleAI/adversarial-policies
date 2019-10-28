@@ -141,7 +141,7 @@ def _finetune_configs(envs=None, dual_defense=False):
             adversary = adversary_paths.get(env,
                                             {}).get(str(original_victim_index),
                                                     {}).get(original_victim)
-            adversary = os.path.abspath(adversary)
+            adversary = os.path.join(MULTI_TRAIN_LOCATION, adversary)
 
             if dual_defense:
                 for finetuning_zoo in range(1, num_zoo+1):
@@ -177,7 +177,6 @@ def _finetuning_defense(train, dual_defense=False):
 def _hyper_finetune_defense(train, dual_defense=False):
     ray_config = _finetuning_defense(train, dual_defense)
     train['total_timesteps'] = int(10e6)
-
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
