@@ -9,8 +9,7 @@ import os.path as osp
 import numpy as np
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS
-from modelfree.configs.multi.score import _get_adversary_paths
+from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, _get_adversary_paths
 from modelfree.envs import VICTIM_INDEX, gym_compete
 
 MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
