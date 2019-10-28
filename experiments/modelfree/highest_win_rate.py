@@ -72,7 +72,6 @@ def unstack(d):
 def find_best(logdirs, episode_window):
     # keys: (env_name, opp_index, opp_path)
     # value: path to policy evaluated on env_name against opponent opp_path playing opp_index
-
     best_policy = {}
     best_winrate = collections.defaultdict(float)
 
@@ -84,7 +83,6 @@ def find_best(logdirs, episode_window):
             opp_index = int(config['victim_index'])
             opp_type = str(config['victim_type'])
             # multi_score is not set up to handle multiple victim types
-            # import pdb; pdb.set_trace()
             if opp_type != 'zoo' and config['load_policy']['type'] == 'zoo':
                 # Assuming that this case corresponds to a situation where we're finetuning a
                 # zoo policy, and that we still want the resulting dictionary indexed by the
@@ -126,6 +124,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
     parsed_args = get_args()
     output_path = parsed_args.output_path
+    # If no output path is given, default to saving it in the first logdir under a fixed name
     if output_path is None:
         output_path = os.path.join(parsed_args.logdir[0], 'highest_win_policies_and_rates.json')
     print(f"Output path: {output_path}")

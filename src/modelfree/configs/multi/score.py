@@ -1,13 +1,12 @@
 """Named configs for modelfree.multi.score."""
 
-import json
 import logging
 import os.path
 
 import numpy as np
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_GOOD_ENVS
+from modelfree.configs.multi.common import BANSAL_GOOD_ENVS, _get_adversary_paths
 from modelfree.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('modelfree.configs.multi.score')
@@ -98,17 +97,6 @@ def _adversary_vs_victims(adversary_type, adversary_paths, no_transfer=False, **
 
 
 PATHS_AND_TYPES = 'env_name:agent_a_type:agent_a_path:agent_b_type:agent_b_path'
-
-
-def _get_adversary_paths():
-    # Sacred named_configs execute before configs, so we can't make this a Sacred config param.
-    path = os.getenv('ADVERSARY_PATHS')
-    if path is None:
-        raise ValueError("Specify path to JSON file containing adversaries in ADVERSARY_PATHS "
-                         "environment variable. (Run 'experiments/modelfree/highest_win_rate.py'"
-                         "to generate this.)")
-    with open(path, 'r') as f:
-        return json.load(f)['policies']
 
 
 def _summary_paths():
