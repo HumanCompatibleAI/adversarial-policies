@@ -32,12 +32,6 @@ HYPERPARAM_SEARCH_VALUES = {
         'ent_coef': tune.sample_from(
             lambda spec: np.random.uniform(low=0.00, high=0.02)),
 
-        # nminibatches must be a factor of batch size; OK provided power of two
-        # PPO2 default is 2^2 = 4; run_humanoid.py is 2^5 = 32
-        # Removing this
-        # 'nminibatches': tune.sample_from(
-        #     lambda spec: 2 ** (np.random.randint(0, 7))),
-
         # PPO2 default is 4; run_humanoid.py is 10
         'noptepochs': tune.sample_from(
             lambda spec: np.random.randint(1, 11)),
@@ -114,15 +108,20 @@ def _finetune_spec(envs=None):
 
 
 def _get_path_from_exp_name(exp_name, json_file_path=None):
-    # Sacred named_configs execute before configs, so we can't make this a Sacred config param.
+    # Takes in an experiment name and finds the
+    # path containing
     if json_file_path is None:
         json_file_path = "highest_win_policies_and_rates.json"
     full_json_path = os.path.join(MULTI_TRAIN_LOCATION, exp_name, json_file_path)
-    with open(full_json_path, 'r') as f:
-        return json.load(f)['policies']
+    try:
+        with open(full_json_path, 'r') as f:
+            return json.load(f)['policies']
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Please run highest_win_rate.py for experiment {exp_name} before"
+                                " trying to use it ")
+
 
 # ### FINETUNING AGAINST ADVERSARY OR ADVERSARY + DUAL ### #
-
 
 def _finetune_configs(envs=None, dual_defense=False):
     if envs is None:
@@ -291,6 +290,11 @@ def make_configs(multi_train_ex):
             'num_samples': 100,
         }
         spec['config'].update(HYPERPARAM_SEARCH_VALUES)
+        # This isn't present in default HYPERPARAM_SEARCH_VALUES because trying to vary it for LSTM
+        # models causes problems
+        spec['config']['rl_args']['minibatches'] = tune.sample_from(
+            lambda spec: 2 ** (np.random.randint(0, 7)))
+
         exp_name = 'hyper'
         _ = locals()  # quieten flake8 unused variable warning
         del _
