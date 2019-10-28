@@ -19,6 +19,7 @@ docker:
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
     - "--env DATA_LOC=/home/ubuntu/aws_private"
+    - "--env ADVERSARY_PATHS=/home/ubuntu/aws_private/multi_train/paper/highest_win_policies_and_rates.json"
 
 provider:
   type: aws

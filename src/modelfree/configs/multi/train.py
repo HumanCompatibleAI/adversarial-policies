@@ -209,7 +209,7 @@ def _finetune_defense_long(train, dual_defense=False):
     ray_config = _finetuning_defense(train, dual_defense)
     train['total_timesteps'] = int(20e6)
     # "Victim" here is the adversary
-    ray_config['seed'] = tune.grid_search([0, 1, 2, 3, 4])
+    ray_config['seed'] = tune.grid_search(range(5))
     spec = {
         "config": ray_config
     }
@@ -294,7 +294,7 @@ def _train_adversary_against_finetuned_long(train, finetune_run, from_scratch=Tr
         """
     ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(20e6)
-    ray_config['seed'] = tune.grid_search([0, 1, 2, 3, 4])
+    ray_config['seed'] = tune.grid_search(range(5))
     spec = {
         'config': ray_config,
     }
