@@ -171,13 +171,13 @@ FINETUNE_PATHS_TYPES = "env_name:victim_path:victim_type:victim_index:load_polic
 FINETUNE_PATHS_TYPES_DUAL = "env_name:victim_paths:victim_types:victim_index:load_policy"
 
 
-def _finetuning_defense(train, dual_defense=False):
+def _finetuning_defense(train, dual_defense=False, envs=None):
     _sparse_reward(train)
     # A hack to make it so  you can in theory fine tune LSTMs
     train['num_env'] = 16
     train['normalize_observations'] = False
     ray_config = {}
-    paths_and_types = tune.grid_search(_finetune_configs(dual_defense=dual_defense))
+    paths_and_types = tune.grid_search(_finetune_configs(envs=envs, dual_defense=dual_defense))
     if dual_defense:
         ray_config[FINETUNE_PATHS_TYPES_DUAL] = paths_and_types
     else:
@@ -186,17 +186,17 @@ def _finetuning_defense(train, dual_defense=False):
     return ray_config
 
 
-def _hyper_finetune_defense(train, dual_defense=False):
+def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20):
     """
        Creates a spec for conducting a hyperparameter search for
        finetuning a zoo agent against an adversary
        """
-    ray_config = _finetuning_defense(train, dual_defense)
+    ray_config = _finetuning_defense(train, dual_defense, envs)
     train['total_timesteps'] = int(10e6)
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
-        'num_samples': 20,
+        'num_samples': num_samples,
     }
     return spec
 
@@ -239,21 +239,24 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
     adversary_paths = _get_adversary_paths()
     for env in envs:
         victim_index = VICTIM_INDEX[env]
+        finetuned_victim_index = 1 - victim_index
         num_zoo = gym_compete.num_zoo_policies(env)
         for original_victim in range(1, num_zoo + 1):
+            original_victim = str(original_victim)
             finetuned_victim = finetuned_paths.get(env,
-                                                   {}).get(victim_index,
+                                                   {}).get(str(finetuned_victim_index),
                                                            {}).get(original_victim, {})
             if from_scratch:
                 load_policy = {'type': 'ppo2', 'path': None}
 
             else:
                 adversary = adversary_paths.get(env,
-                                                {}).get(victim_index,
+                                                {}).get(str(victim_index),
                                                         {}).get(original_victim, {})
                 load_policy = {'type': 'ppo2', 'path': adversary}
 
             configs.append((env, finetuned_victim, victim_index, load_policy))
+
     return configs
 
 
@@ -282,7 +285,7 @@ def _hyper_train_adversary_against_finetuned(train, finetune_run, from_scratch=T
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
-        'num_samples': 100,
+        'num_samples': 2,
     }
     return spec
 

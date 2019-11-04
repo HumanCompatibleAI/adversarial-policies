@@ -16,7 +16,7 @@ logger = logging.getLogger('scripts.highest_win_rate')
 
 def event_files(path):
     for root, dirs, files in os.walk(path, followlinks=True):
-        if root.endswith('tb'):  # looking for paths of form */data/baselines/*/rl/tb
+        if root.endswith('rl/tb'):  # looking for paths of form */data/baselines/*/rl/tb
             for name in files:
                 if 'tfevents' in name:
                     yield os.path.join(root, name)
