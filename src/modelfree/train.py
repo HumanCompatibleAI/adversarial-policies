@@ -357,13 +357,15 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
                        victim_path, victim_types, victim_paths, victim_index, victim_noise,
                        victim_noise_params, adv_noise_params, transparent_params, lookback_params):
 
+    # Resolve victim_type[s] and victim_path[s] here because doing so in config function lead to
+    # it being called too early
+
     if victim_type is None:
         victim_type = "zoo"
     if victim_path is None:
         victim_path = "1"
 
     if victim_types is None and victim_paths is None:
-        pylog.info("We made it inside this if statement!")
         resolved_victim_types = [victim_type]
         resolved_victim_paths = [victim_path]
     else:
