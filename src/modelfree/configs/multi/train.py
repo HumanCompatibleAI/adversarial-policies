@@ -343,6 +343,15 @@ def make_configs(multi_train_ex):
     # HYPERPARAMETER TUNING: FINETUNE ZOO
 
     @multi_train_ex.named_config
+    def hyper_finetune_defense_mlp(train):
+        """Hyperparameter search for finetuning defense against only the adversary"""
+        train = dict(train)
+        spec = _hyper_finetune_defense(train, dual_defense=False, envs=MLP_ENVS, num_samples=100)
+        exp_name = 'hyper_finetune_defense_mlp'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
     def hyper_finetune_defense(train):
         """Hyperparameter search for finetuning defense against only the adversary"""
         train = dict(train)
