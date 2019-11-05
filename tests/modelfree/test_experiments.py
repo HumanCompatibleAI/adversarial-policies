@@ -120,7 +120,8 @@ TRAIN_CONFIGS = [
     },
     {
         'env_name': 'Humanoid-v1',
-        'victim_type': 'none',
+        'victim_types': [],
+        'victim_paths': []
     },
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',

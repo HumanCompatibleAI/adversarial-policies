@@ -464,12 +464,13 @@ NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
           log_output_formats, lookback_params, victim_path, victim_type,
           victim_paths, victim_types, adv_noise_params):
+    resolved_adv_noise_params = dict(adv_noise_params)
     if victim_type is None:
         victim_type = "zoo"
-        adv_noise_params['base_type'] = victim_type
+        resolved_adv_noise_params['base_type'] = victim_type
     if victim_path is None:
         victim_path = "1"
-        adv_noise_params['base_path'] = victim_path
+        resolved_adv_noise_params['base_path'] = victim_path
     if victim_types is None and victim_paths is None:
         resolved_victim_types = [victim_type]
         resolved_victim_paths = [victim_path]
@@ -489,7 +490,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
     multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks,
                                     victim_types=resolved_victim_types,
                                     victim_paths=resolved_victim_paths,
-                                    adv_noise_params=adv_noise_params)
+                                    adv_noise_params=resolved_adv_noise_params)
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks=log_callbacks,
                                   save_callbacks=save_callbacks,
