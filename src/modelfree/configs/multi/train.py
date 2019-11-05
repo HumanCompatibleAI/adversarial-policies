@@ -368,7 +368,10 @@ def make_configs(multi_train_ex):
         """Hyperparameter search for finetuning defense against the adversary and a zoo agent
         MLP (YSNP) only """
         train = dict(train)
-        spec = _hyper_finetune_defense(train, dual_defense=True)
+        spec = _hyper_finetune_defense(train, dual_defense=True,
+                                       envs=['multicomp/YouShallNotPassHumans-v0'],
+                                       num_samples=100
+                                       )
         exp_name = 'hyper_finetune_dual_defense_mlp'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -377,10 +380,7 @@ def make_configs(multi_train_ex):
     def hyper_finetune_dual_defense(train):
         """Hyperparameter search for finetuning defense against the adversary and a zoo agent"""
         train = dict(train)
-        spec = _hyper_finetune_defense(train, dual_defense=True,
-                                       envs=['multicomp/YouShallNotPassHumans-v0'],
-                                       num_samples=100
-                                       )
+        spec = _hyper_finetune_defense(train, dual_defense=True)
         exp_name = 'hyper_finetune_dual_defense'
         _ = locals()  # quieten flake8 unused variable warning
         del _
