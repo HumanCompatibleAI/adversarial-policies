@@ -285,7 +285,7 @@ def no_victim():
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
+def build_env(out_dir, _seed, env_name, num_env, victim_types, victim_index,
               mask_victim, mask_victim_kwargs, lookback_params, debug):
     pre_wrappers = []
     if env_name.startswith('multicomp/'):
@@ -297,7 +297,7 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
     if mask_victim:
         agent_wrappers = make_mask_agent_wrappers(env_name, victim_index, **mask_victim_kwargs)
 
-    if victim_type == 'none':
+    if len(victim_types) == 0:
         our_idx = 0
     else:
         our_idx = 1 - victim_index
@@ -315,7 +315,7 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
     if debug and lookback_params['lb_num'] > 0:
         multi_venv = DebugVenv(multi_venv)
 
-    if victim_type == 'none':
+    if len(victim_types) == 0:
         assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
     else:
         assert multi_venv.num_agents == 2, "Need two-agent environment when victim"
@@ -335,8 +335,7 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 
 
 @train_ex.capture
-def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type,
-                        deterministic):
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, deterministic):
     adv_noise_agent_val = adv_noise_params['noise_val']
     base_policy_path = adv_noise_params['base_path']
     base_policy_type = adv_noise_params['base_type']
@@ -353,64 +352,49 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 
 @train_ex.capture
-def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
-                       victim_path, victim_types, victim_paths, victim_index, victim_noise,
-                       victim_noise_params, adv_noise_params, transparent_params, lookback_params):
+def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_types,
+                       victim_paths, victim_index, victim_noise, victim_noise_params,
+                       adv_noise_params, transparent_params, lookback_params):
+    if len(victim_types) > 0:
+        deterministic = lookback_params is not None
+        # If we are actually training an epsilon-ball noise agent on top of a zoo agent
+        if adv_noise_params['noise_val'] is not None:
 
-    # Resolve victim_type[s] and victim_path[s] here because doing so in config function lead to
-    # it being called too early
+            multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
+                                             adv_noise_params=adv_noise_params,
+                                             deterministic=deterministic)
+        victims = []
+        # If we're loading multiple victims
+        for victim_type, victim_path in zip(victim_types, victim_paths):
+            victims.append(load_policy(policy_path=victim_path,
+                                       policy_type=victim_type, env=multi_venv,
+                                       env_name=env_name, index=victim_index,
+                                       transparent_params=transparent_params))
 
-    if victim_type is None:
-        victim_type = "zoo"
-    if victim_path is None:
-        victim_path = "1"
+        if victim_noise:
+            for i in range(len(victims)):
+                victims[i] = apply_victim_wrapper(victim=victims[i],
+                                                  noise_params=victim_noise_params,
+                                                  scheduler=scheduler)
+                log_callbacks.append(lambda logger, locals, globals:
+                                     victims[i].log_callback(logger))
 
-    if victim_types is None and victim_paths is None:
-        resolved_victim_types = [victim_type]
-        resolved_victim_paths = [victim_path]
-    else:
-        resolved_victim_types = victim_types
-        resolved_victim_paths = victim_paths
+        if len(victims) > 1:
+            victim = MultiPolicyWrapper(victims, num_envs=multi_venv.num_envs)
+        else:
+            victim = victims[0]
 
-    deterministic = lookback_params is not None
-    # If we are actually training an epsilon-ball noise agent on top of a zoo agent
-    if adv_noise_params['noise_val'] is not None:
-        multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
-                                         deterministic=deterministic)
-    victims = []
-
-    # If we're loading multiple victims
-    for victim_type, victim_path in zip(resolved_victim_types, resolved_victim_paths):
-        victims.append(load_policy(policy_path=victim_path,
-                                   policy_type=victim_type, env=multi_venv,
-                                   env_name=env_name, index=victim_index,
-                                   transparent_params=transparent_params))
-
-    if victim_noise:
-        for i in range(len(victims)):
-            victims[i] = apply_victim_wrapper(victim=victims[i],
-                                              noise_params=victim_noise_params,
-                                              scheduler=scheduler)
-            log_callbacks.append(lambda logger, locals, globals:
-                                 victims[i].log_callback(logger))
-
-    if len(victims) > 1:
-        victim = MultiPolicyWrapper(victims, num_envs=multi_venv.num_envs)
-    else:
-        victim = victims[0]
-
-    # Curry the victim
-    transparent = transparent_params is not None
-    multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                    victim_index=victim_index, transparent=transparent,
-                                    deterministic=deterministic)
-
+        # Curry the victim
+        transparent = transparent_params is not None
+        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
+                                        victim_index=victim_index, transparent=transparent,
+                                        deterministic=deterministic)
     return multi_venv
 
 
 @train_ex.capture
 def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observations,
-                    rew_shape, rew_shape_params, victim_index, victim_path, victim_type,
+                    rew_shape, rew_shape_params, victim_index, victim_paths, victim_types,
                     debug, env_name, load_policy, lookback_params, transparent_params,
                     log_callbacks, save_callbacks):
     if rew_shape:
@@ -424,6 +408,11 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observ
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
     if lookback_params['lb_num'] > 0:
+        if len(victim_types) > 1:
+            raise ValueError("Lookback functionality is not supported with multiple embedded"
+                             "victims")
+        victim_path = victim_paths[0]
+        victim_type = victim_types[0]
         lookback_venv = LookbackRewardVecWrapper(single_venv, env_name, debug,
                                                  victim_index, victim_path, victim_type,
                                                  transparent_params, **lookback_params)
@@ -474,7 +463,20 @@ NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 @train_ex.main
 def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
           log_output_formats, lookback_params, victim_path, victim_type,
-          victim_paths, victim_types):
+          victim_paths, victim_types, adv_noise_params):
+    if victim_type is None:
+        victim_type = "zoo"
+        adv_noise_params['base_type'] = victim_type
+    if victim_path is None:
+        victim_path = "1"
+        adv_noise_params['base_path'] = victim_path
+    if victim_types is None and victim_paths is None:
+        resolved_victim_types = [victim_type]
+        resolved_victim_paths = [victim_path]
+    else:
+        resolved_victim_types = victim_types
+        resolved_victim_paths = victim_paths
+
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
@@ -482,13 +484,17 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    multi_venv, our_idx = build_env(out_dir)
+    multi_venv, our_idx = build_env(out_dir, victim_types=resolved_victim_types)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
-
+    multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks,
+                                    victim_types=resolved_victim_types,
+                                    victim_paths=resolved_victim_paths,
+                                    adv_noise_params=adv_noise_params)
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks=log_callbacks,
-                                  save_callbacks=save_callbacks)
+                                  save_callbacks=save_callbacks,
+                                  victim_paths=resolved_victim_paths,
+                                  victim_types=resolved_victim_types)
 
     train_fn = RL_ALGOS[rl_algo]
     res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),

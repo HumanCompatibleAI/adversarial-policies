@@ -80,7 +80,7 @@ def create_simple_policy_wrapper(env_name, num_envs, state_shape=None):
 def create_multi_agent_curried_policy_wrapper(env_name, num_envs, victim_index,
                                               state_shape=None, add_zoo=False, num_zoo=5):
     vec_env, my_idx = build_env(".", _seed=43, env_name=env_name,
-                                num_env=num_envs, victim_type="zoo", victim_index=victim_index,
+                                num_env=num_envs, victim_types=["zoo"], victim_index=victim_index,
                                 mask_victim=False, mask_victim_kwargs=dict(),
                                 lookback_params={'lb_num': 0}, debug=False)
 
