@@ -175,4 +175,5 @@ class MultiPolicyWrapper(DummyModel):
 
     def close(self):
         for policy in self.policies:
-            policy.sess.close()
+            if policy.sess is not None:
+                policy.sess.close()
