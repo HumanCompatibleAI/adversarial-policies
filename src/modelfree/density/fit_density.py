@@ -253,55 +253,56 @@ def fit_model(_run, ray_server, activation_glob, output_root, max_timesteps, dat
     """Fits density models for each environment and victim type in activation_dir,
        saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
        running in parallel via Ray."""
-    ray.init(redis_address=ray_server)
+    try:
+        ray.init(redis_address=ray_server)
 
-    # Find activation paths for each environment & victim-path tuple
-    stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
-    opponent_pattern = re.compile(r'.*_opponent_([^\s]+)+\.npz')
-    # activation_paths is indexed by [env_victim][opponent_type] where env_victim is
-    # e.g. 'SumoHumans-v0_victim_zoo_1' and opponent_type is e.g. 'ppo2_1'.
-    activation_paths = {}
+        # Find activation paths for each environment & victim-path tuple
+        stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
+        opponent_pattern = re.compile(r'.*_opponent_([^\s]+)+\.npz')
+        # activation_paths is indexed by [env_victim][opponent_type] where env_victim is
+        # e.g. 'SumoHumans-v0_victim_zoo_1' and opponent_type is e.g. 'ppo2_1'.
+        activation_paths = {}
 
-    for activation_path in glob.glob(activation_glob):
-        activation_dir = os.path.basename(activation_path)
-        stem_match = stem_pattern.match(activation_dir)
-        if stem_match is None:
-            logger.debug(f"Skipping {activation_path}")
-            continue
-        stem = stem_match.groups()[0]
+        for activation_path in glob.glob(activation_glob):
+            activation_dir = os.path.basename(activation_path)
+            stem_match = stem_pattern.match(activation_dir)
+            if stem_match is None:
+                logger.debug(f"Skipping {activation_path}")
+                continue
+            stem = stem_match.groups()[0]
 
-        opponent_match = opponent_pattern.match(activation_dir)
-        opponent_type = opponent_match.groups()[0]
+            opponent_match = opponent_pattern.match(activation_dir)
+            opponent_type = opponent_match.groups()[0]
 
-        activation_paths.setdefault(stem, {})[opponent_type] = activation_path
+            activation_paths.setdefault(stem, {})[opponent_type] = activation_path
 
-    # Create temporary output directory (if needed)
-    tmp_dir = None
-    if output_root is None:
-        tmp_dir = tempfile.TemporaryDirectory()
-        output_root = tmp_dir.name
-    else:
-        exp_name = gen_exp_name(model_class, model_kwargs)
-        output_root = os.path.join(output_root, exp_name)
+        # Create temporary output directory (if needed)
+        tmp_dir = None
+        if output_root is None:
+            tmp_dir = tempfile.TemporaryDirectory()
+            output_root = tmp_dir.name
+        else:
+            exp_name = gen_exp_name(model_class, model_kwargs)
+            output_root = os.path.join(output_root, exp_name)
 
-    # Fit density model and save weights
-    results = []
-    for stem, paths in activation_paths.items():
-        output_dir = osp.join(output_root, stem)
-        os.makedirs(output_dir)
-        future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
-                                       max_timesteps, data_type, train_opponent,
-                                       train_percentage)
-        results.append(future)
+        # Fit density model and save weights
+        results = []
+        for stem, paths in activation_paths.items():
+            output_dir = osp.join(output_root, stem)
+            os.makedirs(output_dir)
+            future = density_fitter.remote(paths, output_dir, model_class, model_kwargs,
+                                           max_timesteps, data_type, train_opponent,
+                                           train_percentage)
+            results.append(future)
 
-    ray.get(results)  # block until all jobs have finished
-    utils.add_artifacts(_run, output_root, ingredient=fit_model_ex)
+        ray.get(results)  # block until all jobs have finished
+        utils.add_artifacts(_run, output_root, ingredient=fit_model_ex)
+    finally:
+        # Clean up temporary directory (if needed)
+        if tmp_dir is not None:
+            tmp_dir.cleanup()
 
-    # Clean up temporary directory (if needed)
-    if tmp_dir is not None:
-        tmp_dir.cleanup()
-
-    ray.shutdown()
+        ray.shutdown()
 
 
 def main():

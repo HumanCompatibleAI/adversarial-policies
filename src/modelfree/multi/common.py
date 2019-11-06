@@ -160,9 +160,12 @@ def make_sacred(ex, worker_name, worker_fn):
         exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}'
         spec = utils.sacred_copy(spec)
         spec['run'] = trainable_name
-        result = tune.run_experiments({exp_id: spec})
 
-        ray.shutdown()  # run automatically on exit, but needed here to not break tests
+        try:
+            result = tune.run_experiments({exp_id: spec})
+        finally:
+            ray.shutdown()
+
         return result, exp_id
 
     return run

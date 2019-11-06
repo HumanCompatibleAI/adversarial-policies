@@ -194,12 +194,9 @@ def _test_multi(ex):
         },
     }
 
-    try:
-        run = ex.run(config_updates=multi_config, named_configs=('debug_config',))
-        assert run.status == 'COMPLETED'
-        assert ray.state.state.redis_client is None, "ray has not been shutdown"
-    finally:
-        ray.shutdown()  # idempotent, OK to run twice
+    run = ex.run(config_updates=multi_config, named_configs=('debug_config',))
+    assert run.status == 'COMPLETED'
+    assert ray.state.state.redis_client is None, "ray has not been shutdown"
 
     return run
 
