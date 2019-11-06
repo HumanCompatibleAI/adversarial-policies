@@ -8,6 +8,7 @@ import tempfile
 
 import numpy as np
 import pytest
+import ray
 from ray.tune.trial import Trial
 
 from modelfree.density.pipeline import density_ex
@@ -193,8 +194,12 @@ def _test_multi(ex):
         },
     }
 
-    run = ex.run(config_updates=multi_config, named_configs=('debug_config',))
-    assert run.status == 'COMPLETED'
+    try:
+        run = ex.run(config_updates=multi_config, named_configs=('debug_config',))
+        assert run.status == 'COMPLETED'
+        assert ray.state.state.redis_client is None, "ray has not been shutdown"
+    finally:
+        ray.shutdown()  # idempotent, OK to run twice
 
     return run
 
