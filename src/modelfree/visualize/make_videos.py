@@ -117,7 +117,7 @@ def make_videos(root_dir, exp_name):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'make_videos'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'make_videos'))
     make_videos_ex.observers.append(observer)
     make_videos_ex.run_commandline()
     make_videos_logger.info("Sacred run completed, files stored at {}".format(observer.dir))

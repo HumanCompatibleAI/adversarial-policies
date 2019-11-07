@@ -8,7 +8,7 @@ import tempfile
 
 import numpy as np
 import pytest
-from ray.tune.trial import Trial
+from ray import tune
 
 from modelfree.density.pipeline import density_ex
 from modelfree.multi.score import multi_score_ex
@@ -186,9 +186,11 @@ def test_train(config):
 def _test_multi(ex):
     multi_config = {
         'spec': {
-            'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
-            'upload_dir': None,  # do not upload test results anywhere
-            'sync_function': None,  # as above
+            'run_kwargs': {
+                'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
+                'upload_dir': None,  # do not upload test results anywhere
+                'sync_to_cloud': None,  # as above
+            },
         },
     }
 
@@ -208,10 +210,9 @@ def test_multi_score():
 def test_multi_train():
     run = _test_multi(multi_train_ex)
 
-    trials, exp_id = run.result
+    analysis, exp_id = run.result
+    assert isinstance(analysis, tune.analysis.ExperimentAnalysis)
     assert isinstance(exp_id, str)
-    for trial in trials:
-        assert isinstance(trial, Trial)
 
 
 ACTIVATION_EXPERIMENTS = [density_ex, tsne_ex]
@@ -224,10 +225,12 @@ def test_activation_pipeline(ex):
             'generate_activations': {
                 'score_update': {
                     'spec': {
-                        'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
-                        'upload_dir': os.path.join(tmpdir, 'ray'),
-                        'sync_function': ('mkdir -p {remote_dir} && '
-                                          'rsync -rlptv {local_dir}/ {remote_dir}'),
+                        'run_kwargs': {
+                            'resources_per_trial': {'cpu': 2},  # Travis only has 2 cores
+                            'upload_dir': os.path.join(tmpdir, 'ray'),
+                            'sync_to_cloud': ('mkdir -p {target} && '
+                                              'rsync -rlptv {source}/ {target}'),
+                        },
                     },
                 },
                 'ray_upload_dir': os.path.join(tmpdir, 'ray'),

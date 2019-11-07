@@ -151,7 +151,7 @@ def fit_model(_run, ray_server, activation_dir, output_root,
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne_fit'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'tsne_fit'))
     fit_model_ex.observers.append(observer)
     fit_model_ex.run_commandline()
 

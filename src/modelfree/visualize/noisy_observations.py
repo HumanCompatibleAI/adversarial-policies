@@ -149,7 +149,7 @@ def generate_plots(input_run, root_dir, out_dir):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'plot_noisy_observations'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'plot_noisy_observations'))
     plot_noisy_obs_exp.observers.append(observer)
     plot_noisy_obs_exp.run_commandline()
 

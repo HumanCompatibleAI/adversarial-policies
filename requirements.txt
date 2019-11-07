@@ -4,12 +4,12 @@ scikit-learn>=0.20.3
 Pillow>=6.0.0
 matplotlib>=3.0.3
 Theano>=1.0
-sacred>=0.7.5
+sacred>=0.8.0
 pymongo>=3.8.0
 GitPython>=2.1
 git+git://github.com/HumanCompatibleAI/baselines.git@f70377#egg=baselines
 git+git://github.com/HumanCompatibleAI/baselines.git@906d83#egg=stable-baselines
-ray[debug]>=0.7.0,<=0.7.2
+ray[debug]>=0.7.6
 boto3>=1.9
 awscli>=1.16
 pytest>=4.1

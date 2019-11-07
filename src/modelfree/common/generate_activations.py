@@ -52,7 +52,7 @@ def generate_activations(_run, out_dir, score_configs, score_update,
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'generate_activations'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'generate_activations'))
     generate_activations_ex.observers.append(observer)
     generate_activations_ex.run_commandline()
 

@@ -31,7 +31,10 @@ make_configs(multi_score_ex)
 @multi_score_ex.config
 def default_config(score):
     spec = {  # experiment specification
-        'resources_per_trial': {'cpu': math.ceil(score['num_env'] / 2)},
+        'run_kwargs': {
+            'resources_per_trial': {'cpu': math.ceil(score['num_env'] / 2)},
+        },
+        'config': {},
     }
 
     save_path = None      # path to save JSON results. If None, do not save.
@@ -78,7 +81,8 @@ def multi_score(score, save_path):
         if save_path is not None:
             f = open(save_path, 'w')  # open it now so we fail fast if file is unwriteable
 
-        trials, exp_id = run(base_config=score)
+        analysis, exp_id = run(base_config=score)
+        trials = analysis.trials
         additional_index_keys = score.get('index_keys', [])
         results = {}
         for trial in trials:
@@ -130,7 +134,11 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
         experiment_root = osp.join(ray_upload_dir, experiment_dir)
         # video_root contains one directory for each score_agent trial.
         # These directories have names of form score-<hash>_<id_num>_<k=v>...
-        for trial_name in os.listdir(experiment_root):
+        for dir_entry in os.scandir(experiment_root):
+            if not dir_entry.is_dir():
+                continue
+
+            trial_name = dir_entry.name
             # Each trial contains the Sacred output from score_agent.
             # Note Ray Tune is running with a fresh working directory per trial, so Sacred
             # output will always be at score/1.
@@ -180,7 +188,7 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'multi_score'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'multi_score'))
     multi_score_ex.observers.append(observer)
     multi_score_ex.run_commandline()
 

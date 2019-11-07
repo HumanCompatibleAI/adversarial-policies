@@ -427,7 +427,7 @@ def visualize_score(command, styles, tb_dir, transfer_score_path, fig_dir):
 
 
 def main():
-    observer = FileStorageObserver.create(os.path.join('data', 'sacred', 'visualize_training'))
+    observer = FileStorageObserver(os.path.join('data', 'sacred', 'visualize_training'))
     visualize_training_ex.observers.append(observer)
     visualize_training_ex.run_commandline()
 
