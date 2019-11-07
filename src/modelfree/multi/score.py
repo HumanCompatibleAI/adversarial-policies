@@ -32,6 +32,7 @@ make_configs(multi_score_ex)
 def default_config(score):
     spec = {  # experiment specification
         'resources_per_trial': {'cpu': math.ceil(score['num_env'] / 2)},
+        'config': {},
     }
 
     save_path = None      # path to save JSON results. If None, do not save.
@@ -180,7 +181,7 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'multi_score'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'multi_score'))
     multi_score_ex.observers.append(observer)
     multi_score_ex.run_commandline()
 

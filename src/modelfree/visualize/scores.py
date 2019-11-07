@@ -144,7 +144,7 @@ def visualize_score(command, styles, palette, publication, fig_dir,
 
 
 def main():
-    observer = FileStorageObserver.create(os.path.join('data', 'sacred', 'visualize_score'))
+    observer = FileStorageObserver(os.path.join('data', 'sacred', 'visualize_score'))
     visualize_score_ex.observers.append(observer)
     visualize_score_ex.run_commandline()
 

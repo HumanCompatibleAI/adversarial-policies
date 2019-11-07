@@ -52,7 +52,7 @@ def multi_train(train):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'multi_train'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'multi_train'))
     multi_train_ex.observers.append(observer)
     multi_train_ex.run_commandline()
 

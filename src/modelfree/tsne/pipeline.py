@@ -57,7 +57,7 @@ def pipeline(_run, output_root, exp_name):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'tsne'))
     tsne_ex.observers.append(observer)
     tsne_ex.run_commandline()
 
