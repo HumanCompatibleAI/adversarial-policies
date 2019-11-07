@@ -27,6 +27,7 @@ make_configs(multi_train_ex)
 def default_config(train):
     spec = {  # experiment specification
         'resources_per_trial': {'cpu': math.ceil(train['num_env'] / 2)},
+        'config': {},
     }
 
     _ = locals()  # quieten flake8 unused variable warning
