@@ -1,5 +1,7 @@
 import collections
 
+import sacred
+
 
 def flatten_config(config):
     """Take dict with ':'-separated keys and values or tuples of values,
@@ -27,3 +29,9 @@ def update(d, u):
         else:
             d[k] = v
     return d
+
+
+def fix_sacred_capture():
+    """Workaround for Sacred stdout capture issue #195 and Ray issue #5718."""
+    # TODO(adam): remove once Sacred issue #195 is closed
+    sacred.SETTINGS.CAPTURE_MODE = 'sys'

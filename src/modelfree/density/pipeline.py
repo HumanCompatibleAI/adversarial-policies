@@ -64,7 +64,7 @@ def pipeline(_run, output_root, fit_density_model):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'density'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'density'))
     density_ex.observers.append(observer)
     density_ex.run_commandline()
 
