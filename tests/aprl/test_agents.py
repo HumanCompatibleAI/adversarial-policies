@@ -1,5 +1,3 @@
-import multiprocessing
-
 import gym
 from ilqr import iLQR
 import numpy as np
@@ -81,7 +79,7 @@ def check_monte_carlo(kind, score_thresholds, total_horizon,
             mc = MonteCarloSingle(env, planning_horizon, trajectories)
         elif kind == 'parallel':
             env_fns = [lambda: make_mujoco_env(env_name, seed)
-                       for _ in range(multiprocessing.cpu_count())]
+                       for _ in range(2)]
             mc = MonteCarloParallel(env_fns, planning_horizon, trajectories)
         else:
             raise ValueError("Unrecognized kind '{}'".format(kind))
