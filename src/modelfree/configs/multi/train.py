@@ -196,7 +196,9 @@ def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
-        'num_samples': num_samples,
+        'run_kwargs': {
+            'num_samples': num_samples
+        }
     }
     return spec
 
@@ -285,7 +287,7 @@ def _hyper_train_adversary_against_finetuned(train, finetune_run, from_scratch=T
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
-        'num_samples': 2,
+        'run_kwargs': {'num_samples': 2}
     }
     return spec
 
@@ -324,7 +326,7 @@ def make_configs(multi_train_ex):
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
             },
-            'num_samples': 100,
+            'run_kwargs': {'num_samples': 100}
         }
         spec['config'].update(HYPERPARAM_SEARCH_VALUES)
         # This isn't present in default HYPERPARAM_SEARCH_VALUES because trying to vary it for LSTM
@@ -642,7 +644,7 @@ def make_configs(multi_train_ex):
                     lambda spec: np.random.randint(1000)
                 ),
             },
-            'num_samples': 10,
+            'run_kwargs': {'num_samples': 10}
         }
         exp_name = 'dense_env_reward_anneal_search'
         _ = locals()  # quieten flake8 unused variable warning
@@ -835,7 +837,7 @@ def make_configs(multi_train_ex):
                     ),
                 }
             },
-            'num_samples': 10,
+            'run_kwargs': {'num_samples': 10}
         }
         exp_name = 'noise_ball_search'
         _ = locals()  # quieten flake8 unused variable warning
