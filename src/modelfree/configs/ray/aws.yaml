@@ -24,7 +24,7 @@ docker:
 provider:
   type: aws
   region: us-west-2
-  availability_zone: us-west-2a,us-west-2b,us-west-2c
+  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west-2d
 
 # How Ray will authenticate with newly launched nodes.
 auth:
@@ -42,7 +42,7 @@ head_node:
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: c5.18xlarge
+  InstanceType: c5.9xlarge  # half a machine, less likely to get preempted than full c5.18xlarge
   ImageId: ami-03af6b12f8fe02fee  # CHAI Ubuntu 18.04, Updated Mujoco Key
   KeyName: Adversarial Policies
   BlockDeviceMappings:
