@@ -26,7 +26,7 @@ set -e  # exit immediately on any error
 set -o xtrace  # print commands
 
 COV_PACKAGES="aprl modelfree"
-COV_FLAGS=""
+COV_FLAGS="--cov=tests"
 for package in $COV_PACKAGES; do
     COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.7/site-packages/${package}"
 done
