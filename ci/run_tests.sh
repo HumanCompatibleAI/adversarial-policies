@@ -16,7 +16,8 @@ esac
 
 num_cpus=$2
 if [[ ${num_cpus} == "" ]]; then
-  num_cpus="auto"
+  num_cpus=$(nproc --all)
+  num_cpus=$((${num_cpus} / 2))
 fi
 
 set -e  # exit immediately on any error
