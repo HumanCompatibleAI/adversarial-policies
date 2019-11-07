@@ -4,9 +4,9 @@ It's important these are all pickleable."""
 
 import os.path as osp
 
-from sacred.observers import FileStorageObserver
+from sacred import observers
 
-from modelfree.multi.common_worker import flatten_config, update
+from modelfree.multi import common_worker
 
 
 def score_worker(base_config, tune_config, reporter):
@@ -15,18 +15,20 @@ def score_worker(base_config, tune_config, reporter):
     :param base_config: (dict) default config
     :param tune_config: (dict) overrides values in base_config
     :param reporter: (ray.tune.StatusReporter) Ray Tune internal logger."""
+    common_worker.fix_sacred_capture()
+
     # score_ex is not pickleable, so we cannot close on it.
     # Instead, import inside the function.
     from modelfree.score_agent import score_ex
 
     config = dict(base_config)
-    tune_config = flatten_config(tune_config)
-    update(config, tune_config)
+    tune_config = common_worker.flatten_config(tune_config)
+    common_worker.update(config, tune_config)
 
     # We're breaking the Sacred interface by running an experiment from within another experiment.
     # This is the best thing we can do, since we need to run the experiment with varying configs.
     # Just be careful: this could easily break things.
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
+    observer = observers.FileStorageObserver(osp.join('data', 'sacred', 'score'))
     score_ex.observers.append(observer)
     run = score_ex.run(config_updates=config)
     index_keys = config.get("index_keys", [])
