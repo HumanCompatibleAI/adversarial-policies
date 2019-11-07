@@ -18,7 +18,7 @@ def ppo_and_score():
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train_and_score'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'train_and_score'))
     train_and_score.observers.append(observer)
     train_and_score.run_commandline()
 

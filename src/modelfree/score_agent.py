@@ -286,7 +286,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'score'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'score'))
     score_ex.observers.append(observer)
     score_ex.run_commandline()
     score_ex_logger.info("Sacred run completed, files stored at {}".format(observer.dir))

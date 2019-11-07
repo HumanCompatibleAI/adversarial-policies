@@ -306,7 +306,7 @@ def fit_model(_run, ray_server, activation_glob, output_root, max_timesteps, dat
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'density_fit'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'density_fit'))
     fit_model_ex.observers.append(observer)
     fit_model_ex.run_commandline()
 

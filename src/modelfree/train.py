@@ -506,7 +506,7 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'train'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'train'))
     train_ex.observers.append(observer)
     train_ex.run_commandline()
 

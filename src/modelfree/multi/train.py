@@ -26,7 +26,10 @@ make_configs(multi_train_ex)
 @multi_train_ex.config
 def default_config(train):
     spec = {  # experiment specification
-        'resources_per_trial': {'cpu': math.ceil(train['num_env'] / 2)},
+        'run_kwargs': {
+            'resources_per_trial': {'cpu': math.ceil(train['num_env'] / 2)},
+        },
+        'config': {},
     }
 
     _ = locals()  # quieten flake8 unused variable warning
@@ -51,7 +54,7 @@ def multi_train(train):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'multi_train'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'multi_train'))
     multi_train_ex.observers.append(observer)
     multi_train_ex.run_commandline()
 

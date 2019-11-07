@@ -84,7 +84,7 @@ def make_sacred(ex, worker_name, worker_fn):
             if s3_bucket is None:
                 s3_bucket = 'adversarial-policies'
 
-            spec['upload_dir'] = f's3://{s3_bucket}/'
+            spec['run_kwargs'] = {'upload_dir': f's3://{s3_bucket}/'}
             ray_server = 'localhost:6379'
 
         _ = locals()  # quieten flake8 unused variable warning
@@ -110,10 +110,12 @@ def make_sacred(ex, worker_name, worker_fn):
             if 'dir' not in baremetal:
                 baremetal['dir'] = osp.expanduser('~/adversarial-policies/data')
 
-            spec['upload_dir'] = ':'.join([baremetal['host'],
-                                           baremetal['ssh_key'],
-                                           baremetal['dir']])
-            spec['sync_function'] = tune.function(_rsync_func)
+            spec['run_kwargs'] = {
+                'upload_dir': ':'.join([baremetal['host'],
+                                        baremetal['ssh_key'],
+                                        baremetal['dir']]),
+                'sync_to_cloud': tune.function(_rsync_func),
+            }
             ray_server = 'localhost:6379'
 
         _ = locals()  # quieten flake8 unused variable warning
@@ -126,12 +128,13 @@ def make_sacred(ex, worker_name, worker_fn):
             platform = 'local'
 
         if platform == 'local':
-            spec['sync_function'] = ('mkdir -p {remote_dir} && '
-                                     'rsync -rlptv {local_dir}/ {remote_dir}')
-
             if local_dir is None:
                 local_dir = osp.abspath(osp.join(os.getcwd(), 'data'))
-            spec['upload_dir'] = local_dir
+            spec['run_kwargs'] = {
+                'sync_to_cloud': ('mkdir -p {target} && '
+                                  'rsync -rlptv {source}/ {target}'),
+                'upload_dir': local_dir,
+            }
 
     @ex.capture
     def run(base_config, ray_server, exp_name, spec):
@@ -140,8 +143,8 @@ def make_sacred(ex, worker_name, worker_fn):
         # We have to register the function we're going to call with Ray.
         # We partially apply worker_fn, so it's different for each experiment.
         # Compute a hash based on the config to make sure it has a unique name!
-        # (Could probably do this with a RNG too, but I want to avoid that as we often set
-        # seeds to ensure reproducibility...)
+        # Note Ray does let you pass a worker_fn directly without registering, but then
+        # it registers using the function name (which may not be unique).
         cfg = {
             # ReadOnlyDict's aren't serializable: see sacred issue #499
             'base_config': utils.sacred_copy(base_config),
@@ -159,10 +162,12 @@ def make_sacred(ex, worker_name, worker_fn):
 
         exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}'
         spec = utils.sacred_copy(spec)
-        spec['run'] = trainable_name
 
         try:
-            result = tune.run_experiments({exp_id: spec})
+            result = tune.run(trainable_name,
+                              name=exp_id,
+                              config=spec['config'],
+                              **spec['run_kwargs'])
         finally:
             ray.shutdown()
 

@@ -205,7 +205,7 @@ def visualize(_run, model_glob, output_root):
 
 
 def main():
-    observer = FileStorageObserver.create(osp.join('data', 'sacred', 'tsne_visualize'))
+    observer = FileStorageObserver(osp.join('data', 'sacred', 'tsne_visualize'))
     visualize_ex.observers.append(observer)
     visualize_ex.run_commandline()
 
