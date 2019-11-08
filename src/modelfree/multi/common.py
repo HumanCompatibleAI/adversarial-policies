@@ -173,7 +173,7 @@ def make_sacred(ex, worker_name, worker_fn):
                               # that Ray never tries to checkpoint. (Normally >1 should be enough,
                               # but if Ray restarts it that might count as a second iteration,
                               # so just make it a moderately sized number.)
-                              checkpoint_freq=1000,
+                              checkpoint_freq=10000000,
                               **spec['run_kwargs'])
         finally:
             ray.shutdown()
