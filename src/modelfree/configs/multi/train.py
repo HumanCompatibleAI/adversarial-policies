@@ -211,7 +211,7 @@ def _finetune_defense_long(train, dual_defense=False):
     ray_config = _finetuning_defense(train, dual_defense)
     train['total_timesteps'] = int(20e6)
     # "Victim" here is the adversary
-    ray_config['seed'] = tune.grid_search(range(5))
+    ray_config['seed'] = tune.grid_search([x for x in range(5)])
     spec = {
         "config": ray_config
     }
@@ -299,7 +299,7 @@ def _train_adversary_against_finetuned_long(train, finetune_run, from_scratch=Tr
         """
     ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(20e6)
-    ray_config['seed'] = tune.grid_search(range(5))
+    ray_config['seed'] = tune.grid_search([x for x in range(5)])
     spec = {
         'config': ray_config,
     }
@@ -510,7 +510,7 @@ def make_configs(multi_train_ex):
         _best_guess_train(train)
         train['total_timesteps'] = int(20e6)
         spec = _best_guess_spec()
-        spec['config']['seed'] = tune.grid_search(range(5))
+        spec['config']['seed'] = tune.grid_search([x for x in range(5)])
         exp_name = 'paper'
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -523,7 +523,7 @@ def make_configs(multi_train_ex):
         _best_guess_train(train)
         train['total_timesteps'] = int(20e6)
         spec = _best_guess_spec(envs=['multicomp/SumoHumans-v0'])
-        spec['config']['seed'] = tune.grid_search(range(5))
+        spec['config']['seed'] = tune.grid_search([x for x in range(5)])
         exp_name = 'paper'
         _ = locals()  # quieten flake8 unused variable warning
         del _
