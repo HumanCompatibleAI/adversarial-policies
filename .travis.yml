@@ -15,11 +15,11 @@ matrix:
 
   - name: "APRL Unit Tests"
     language: generic
-    env: TEST_SUITE=aprl DOCKER_PUSH=true NUM_CPUS=2
+    env: TEST_SUITE=aprl DOCKER_PUSH=true NUM_CPUS=1
 
   - name: "Model-free Unit Tests"
     language: generic
-    env: TEST_SUITE=modelfree NUM_CPUS=2
+    env: TEST_SUITE=modelfree NUM_CPUS=1
 
 services:
   - docker
