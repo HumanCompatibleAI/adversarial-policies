@@ -21,7 +21,7 @@ docker:
 provider:
   type: aws
   region: us-west-2
-  availability_zone: us-west-2a,us-west-2b,us-west-2c
+  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west2d
 
 # How Ray will authenticate with newly launched nodes.
 auth:
