@@ -24,7 +24,7 @@ docker:
 provider:
   type: aws
   region: us-west-2
-  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west-2d
+  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west2d
 
 # How Ray will authenticate with newly launched nodes.
 auth:
@@ -60,6 +60,8 @@ initialization_commands:  # before entering Docker
   - sudo apt-get install s3fs
   - sudo mkdir /home/ubuntu/aws_private
   - sudo s3fs -o allow_other,umask=0002,iam_role=auto adversarial-policies /home/ubuntu/aws_private
+  # TODO(adam): remove once Ray #6111 merged
+  - docker pull humancompatibleai/adversarial_policies:latest
 setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco

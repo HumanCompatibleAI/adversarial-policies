@@ -29,7 +29,9 @@ head_node: {}
 worker_nodes: {}
 
 # List of shell commands to run to set up nodes.
-initialization_commands: []  # before entering Docker
+initialization_commands:  # before entering Docker
+  # TODO(adam): remove once Ray #6111 merged
+  - docker pull humancompatibleai/adversarial_policies:latest
 setup_commands: []
 head_setup_commands: []
 worker_setup_commands: []
