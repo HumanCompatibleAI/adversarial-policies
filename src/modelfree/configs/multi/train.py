@@ -410,7 +410,7 @@ def make_configs(multi_train_ex):
         train = dict(train)
         spec = _finetune_defense_long(train, dual_defense=True)
         train['learning_rate'] = .000025
-        train['batch_size'] = 4096
+        train['batch_size'] = 16384
         exp_name = "finetune_dual_defense_long_run"
         _ = locals()
         del _
