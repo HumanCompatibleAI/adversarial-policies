@@ -167,13 +167,8 @@ def make_sacred(ex, worker_name, worker_fn):
             result = tune.run(trainable_name,
                               name=exp_id,
                               config=spec['config'],
-                              # We set checkpoint_freq > 0 so that Ray tries to resume after
-                              # failure. Unfortunately our trainable is a function and does
-                              # not support checkpointing. Just set it to a high enough frequency
-                              # that Ray never tries to checkpoint. (Normally >1 should be enough,
-                              # but if Ray restarts it that might count as a second iteration,
-                              # so just make it a moderately sized number.)
-                              checkpoint_freq=1000,
+                              # TODO(adam): delete next line when ray #6126 merged
+                              checkpoint_freq=10000000,
                               **spec['run_kwargs'])
         finally:
             ray.shutdown()
