@@ -21,7 +21,7 @@ docker:
 provider:
   type: aws
   region: us-west-2
-  availability_zone: us-west-2a,us-west-2b,us-west-2c
+  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west2d
 
 # How Ray will authenticate with newly launched nodes.
 auth:
@@ -53,7 +53,9 @@ worker_nodes:
     Name: EC2AccessS3
 
 # List of shell commands to run to set up nodes.
-initialization_commands: []  # before entering Docker
+initialization_commands:  # before entering Docker
+  # TODO(adam): remove once Ray #6111 merged
+  - docker pull humancompatibleai/adversarial_policies:latest
 setup_commands:
   # Part of Ray bug #4403 workaround.
   - ln -sf /root/.mujoco /home/ubuntu/.mujoco

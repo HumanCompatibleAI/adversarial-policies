@@ -167,6 +167,8 @@ def make_sacred(ex, worker_name, worker_fn):
             result = tune.run(trainable_name,
                               name=exp_id,
                               config=spec['config'],
+                              # TODO(adam): delete next line when ray #6126 merged
+                              checkpoint_freq=10000000,
                               **spec['run_kwargs'])
         finally:
             ray.shutdown()
