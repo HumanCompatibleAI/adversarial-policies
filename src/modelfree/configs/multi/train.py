@@ -73,9 +73,9 @@ def _best_guess_train(train):
 def _best_guess_spec(envs=None):
     spec = {
         'config': {
-            'env_name:victim_path': tune.grid_search(_env_victim(envs)),
-            'victim_index': tune.sample_from(
-                lambda spec: VICTIM_INDEX[spec.config['env_name:victim_path'][0]]
+            'env_name:embed_path': tune.grid_search(_env_victim(envs)),
+            'embed_index': tune.sample_from(
+                lambda spec: VICTIM_INDEX[spec.config['env_name:embed_path'][0]]
             ),
             'seed': tune.grid_search([0, 1, 2]),
         },
@@ -94,13 +94,13 @@ def _finetune_train(train):
 def _finetune_spec(envs=None):
     spec = {
         'config': {
-            'env_name:victim_path': tune.grid_search(_env_victim(envs)),
+            'env_name:embed_path': tune.grid_search(_env_victim(envs)),
             'seed': tune.grid_search([0, 1, 2]),
             'load_policy': {
-                'path': tune.sample_from(lambda spec: spec.config['env_name:victim_path'][1]),
+                'path': tune.sample_from(lambda spec: spec.config['env_name:embed_path'][1]),
             },
-            'victim_index': tune.sample_from(
-                lambda spec: VICTIM_INDEX[spec.config['env_name:victim_path'][0]]
+            'embed_index': tune.sample_from(
+                lambda spec: VICTIM_INDEX[spec.config['env_name:embed_path'][0]]
             ),
         },
     }
@@ -122,30 +122,26 @@ def _get_path_from_exp_name(exp_name,
 # ### CONFIGS FOR FINETUNING AGAINST ADVERSARY OR ADVERSARY + DUAL ### #
 
 def _finetune_configs(envs=None, dual_defense=False):
-    """
-    Generates configs for finetuning a zoo model either against an adversary, or jointly against
-    an adversary and zoo agent. An odd thing about this setup is that it requires an adversary
-    path to exist in `victim_path` &  `victim_type` since the adversary is the one being held
-    constant for the zoo agent to train on. Another thing to note is that for dual training (zoo &
-    adversary jointly), we pass lists for `victim_paths` and `victim_types` (plural)
+    """Generates configs for finetuning a Zoo model.
+
+    Note in this setup, the adversary is the embedded agent, whereas usually the victim is.
     :param envs: A list of envs; if set to None, uses all BANSAL_GOOD_ENVS
-    :param dual_defense: A boolean set to true if we're generating configs for an
-    adversary + zoo joint training finetuning run
-    :return:
+    :param dual_defense: If True, fine-tune against both an adversary and Zoo agent (randomly
+        selected per episode); if False, fine-tune against just the adversary.
     """
     if envs is None:
         envs = BANSAL_GOOD_ENVS
     configs = []
     adversary_paths = get_adversary_paths()
     for env in envs:
-        original_victim_index = VICTIM_INDEX[env]
+        original_embed_index = VICTIM_INDEX[env]
         num_zoo = gym_compete.num_zoo_policies(env)
         for original_victim in range(1, num_zoo+1):
             original_victim = str(original_victim)
             load_policy = {'type': 'zoo', 'path': original_victim}
 
             adversary = adversary_paths.get(env,
-                                            {}).get(str(original_victim_index),
+                                            {}).get(str(original_embed_index),
                                                     {}).get(original_victim)
             # If adversary paths are not absolute paths, assume they're relative to
             # MULTI_TRAIN_LOCATION, which is derived from the env variable DATA_LOC
@@ -157,17 +153,17 @@ def _finetune_configs(envs=None, dual_defense=False):
                 # zoo agents to slot into this role
                 for finetuning_zoo in range(1, num_zoo+1):
                     finetuning_zoo = str(finetuning_zoo)
-                    victim_paths = [adversary, finetuning_zoo]
-                    victim_types = ["ppo2", "zoo"]
-                    configs.append((env, victim_paths, victim_types,
-                                    1-original_victim_index, load_policy))
+                    embed_paths = [adversary, finetuning_zoo]
+                    embed_types = ["ppo2", "zoo"]
+                    configs.append((env, embed_paths, embed_types,
+                                    1-original_embed_index, load_policy))
             else:
-                configs.append((env, adversary, "ppo2", 1-original_victim_index, load_policy))
+                configs.append((env, adversary, "ppo2", 1-original_embed_index, load_policy))
     return configs
 
 
-FINETUNE_PATHS_TYPES = "env_name:victim_path:victim_type:victim_index:load_policy"
-FINETUNE_PATHS_TYPES_DUAL = "env_name:victim_paths:victim_types:victim_index:load_policy"
+FINETUNE_PATHS_TYPES = "env_name:embed_path:embed_type:embed_index:load_policy"
+FINETUNE_PATHS_TYPES_DUAL = "env_name:embed_paths:embed_types:embed_index:load_policy"
 
 
 def _finetuning_defense(train, dual_defense=False, envs=None):
@@ -239,29 +235,29 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
     finetuned_paths = _get_path_from_exp_name(finetune_run)
     adversary_paths = get_adversary_paths()
     for env in envs:
-        victim_index = VICTIM_INDEX[env]
-        finetuned_victim_index = 1 - victim_index
+        embed_index = VICTIM_INDEX[env]
+        finetuned_embed_index = 1 - embed_index
         num_zoo = gym_compete.num_zoo_policies(env)
         for original_victim in range(1, num_zoo + 1):
             original_victim = str(original_victim)
             finetuned_victim = finetuned_paths.get(env,
-                                                   {}).get(str(finetuned_victim_index),
+                                                   {}).get(str(finetuned_embed_index),
                                                            {}).get(original_victim, {})
             if from_scratch:
                 load_policy = {'type': 'ppo2', 'path': None}
 
             else:
                 adversary = adversary_paths.get(env,
-                                                {}).get(str(victim_index),
+                                                {}).get(str(embed_index),
                                                         {}).get(original_victim, {})
                 load_policy = {'type': 'ppo2', 'path': adversary}
 
-            configs.append((env, finetuned_victim, victim_index, load_policy))
+            configs.append((env, finetuned_victim, embed_index, load_policy))
 
     return configs
 
 
-TRAIN_AGAINST_FINETUNED_PATHS = "env_name:victim_path:victim_index:load_policy"
+TRAIN_AGAINST_FINETUNED_PATHS = "env_name:embed_path:embed_index:load_policy"
 
 
 def _train_against_finetuned(train, finetune_run, from_scratch=True):
@@ -271,7 +267,7 @@ def _train_against_finetuned(train, finetune_run, from_scratch=True):
                                 _train_against_finetuned_configs(finetune_run=finetune_run,
                                                                  from_scratch=from_scratch))}
     # All victims are new-style policies because we finetuned them
-    train['victim_type'] = "ppo2"
+    train['embed_type'] = "ppo2"
     return ray_config
 
 
@@ -321,7 +317,7 @@ def make_configs(multi_train_ex):
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumans-v0']
                 ),
-                'victim_path': tune.sample_from(
+                'embed_path': tune.sample_from(
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
             },
@@ -559,7 +555,7 @@ def make_configs(multi_train_ex):
         Should perform similarly to the results given in PPO paper."""
         train = dict(train)
         _sparse_reward(train)
-        train['victim_type'] = 'none'
+        train['embed_type'] = 'none'
         train['total_timesteps'] = int(5e6)
         train['batch_size'] = 2048
         train['rew_shape'] = False
@@ -589,7 +585,7 @@ def make_configs(multi_train_ex):
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
                 ),
                 'seed': tune.grid_search([0, 1, 2]),
-                'victim_path': tune.grid_search(['1', '2', '3']),
+                'embed_path': tune.grid_search(['1', '2', '3']),
                 'normalize': tune.grid_search([True, False]),
             },
         }
@@ -611,7 +607,7 @@ def make_configs(multi_train_ex):
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
                 ),
-                'victim_path': tune.grid_search(['1', '2', '3']),
+                'embed_path': tune.grid_search(['1', '2', '3']),
                 'seed': tune.grid_search([0, 1, 2]),
                 'rew_shape_params': {
                     'anneal_frac': tune.grid_search([0.0, 0.1]),
@@ -645,7 +641,7 @@ def make_configs(multi_train_ex):
         train['total_timesteps'] = int(40e6)
         train['rew_shape'] = True
         train['env_name'] = 'multicomp/SumoHumansAutoContact-v0'
-        train['victim_path'] = 3  # median difficulty victim (1 is easy, 2 is hard)
+        train['embed_path'] = 3  # median difficulty victim (1 is easy, 2 is hard)
         spec = {
             'config': {
                 'rew_shape_params': {
@@ -675,7 +671,7 @@ def make_configs(multi_train_ex):
                 'rew_shape_params': {
                     'anneal_frac': tune.grid_search([0.0, 0.25]),
                 },
-                'victim_path': tune.grid_search(['1', '2', '3']),
+                'embed_path': tune.grid_search(['1', '2', '3']),
                 'seed': tune.grid_search([10, 20, 30, 40, 50]),
             },
         }
@@ -723,7 +719,7 @@ def make_configs(multi_train_ex):
                     'multicomp/KickAndDefend-v0',  # should be able to win in this
                     'multicomp/SumoHumans-v0',  # should be able to get to 50% in this
                 ]),
-                'victim_path': tune.sample_from(
+                'embed_path': tune.sample_from(
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
                 'policy': tune.grid_search(['BansalMlpPolicy', 'BansalLstmPolicy']),
@@ -838,10 +834,10 @@ def make_configs(multi_train_ex):
                 'env_name': tune.grid_search(
                     ['multicomp/SumoHumansAutoContact-v0', 'multicomp/KickAndDefend-v0'],
                 ),
-                'victim_path': tune.sample_from(
+                'embed_path': tune.sample_from(
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
-                'victim_index': tune.sample_from(
+                'embed_index': tune.sample_from(
                     lambda spec: VICTIM_INDEX[spec.config.env_name]
                 ),
                 'adv_noise_params': {
@@ -868,12 +864,12 @@ def make_configs(multi_train_ex):
         }
         spec = {
             'config': {
-                'env_name:victim_path': tune.grid_search(_env_victim(
+                'env_name:embed_path': tune.grid_search(_env_victim(
                     ['multicomp/SumoHumansAutoContact-v0', 'multicomp/RunToGoalHumans-v0'],
                 )),
                 'adv_noise_params': {
                     'base_path': tune.sample_from(
-                        lambda spec: spec.config['env_name:victim_path'][1],
+                        lambda spec: spec.config['env_name:embed_path'][1],
                     )
                 },
                 'seed': tune.grid_search([0, 1, 2]),

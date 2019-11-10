@@ -109,20 +109,20 @@ def apply_reward_wrapper(single_env, shaping_params, agent_idx, scheduler):
                                    reward_annealer=scheduler.get_annealer('rew_shape'))
 
 
-def apply_victim_wrapper(victim, noise_params, scheduler):
+def apply_embedded_agent_wrapper(embedded, noise_params, scheduler):
     if 'metric' in noise_params:
         noise_annealer = ConditionalAnnealer.from_dict(noise_params, get_logs=None)
         scheduler.set_conditional('noise')
     else:
-        victim_noise_anneal_frac = noise_params.get('anneal_frac', 0)
-        victim_noise_param = noise_params.get('param', 0)
+        noise_anneal_frac = noise_params.get('anneal_frac', 0)
+        noise_param = noise_params.get('param', 0)
 
-        if victim_noise_anneal_frac <= 0:
+        if noise_anneal_frac <= 0:
             msg = "victim_noise_params.anneal_frac must be >0 if using a NoisyAgentWrapper."
             raise ValueError(msg)
-        noise_annealer = LinearAnnealer(victim_noise_param, 0, victim_noise_anneal_frac)
+        noise_annealer = LinearAnnealer(noise_param, 0, noise_anneal_frac)
     scheduler.set_annealer('noise', noise_annealer)
-    return NoisyAgentWrapper(victim, noise_annealer=scheduler.get_annealer('noise'))
+    return NoisyAgentWrapper(embedded, noise_annealer=scheduler.get_annealer('noise'))
 
 
 def _anneal(reward_dict, reward_annealer):

@@ -109,7 +109,7 @@ TRAIN_CONFIGS = [
     {'num_env': 1},
     {'env_name': 'multicomp/YouShallNotPassHumans-v0'},
     {'normalize': False},
-    {'victim_type': 'ppo2', 'victim_path': os.path.join(BASE_DIR, 'dummy_sumo_ants', 'ppo2')},
+    {'embed_type': 'ppo2', 'embed_path': os.path.join(BASE_DIR, 'dummy_sumo_ants', 'ppo2')},
     {
         'env_name': 'multicomp/SumoHumans-v0',
         'rew_shape': True,
@@ -117,12 +117,12 @@ TRAIN_CONFIGS = [
     },
     {
         'env_name': 'multicomp/SumoHumans-v0',
-        'victim_noise': True,
+        'embed_noise': True,
     },
     {
         'env_name': 'Humanoid-v1',
-        'victim_types': [],
-        'victim_paths': []
+        'embed_types': [],
+        'embed_paths': []
     },
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',
@@ -132,8 +132,8 @@ TRAIN_CONFIGS = [
     {
         'env_name': 'multicomp/SumoHumans-v0',
         'rew_shape': True,
-        'victim_noise': True,
-        'victim_noise_params': {'metric': 'sparse', 'min_wait': 100, 'window_size': 100},
+        'embed_noise': True,
+        'embed_noise_params': {'metric': 'sparse', 'min_wait': 100, 'window_size': 100},
     },
     {
         'env_name': 'multicomp/SumoHumansAutoContact-v0',

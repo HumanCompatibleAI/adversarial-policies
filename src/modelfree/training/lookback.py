@@ -11,7 +11,7 @@ from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MultiWrapper, make_du
 from modelfree.envs.gym_compete import GymCompeteToOurs
 from modelfree.envs.wrappers import make_env
 from modelfree.policies.loader import load_policy
-from modelfree.training.victim_envs import TransparentCurryVecEnv
+from modelfree.training.embedded_agents import TransparentCurryVecEnv
 
 LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
 

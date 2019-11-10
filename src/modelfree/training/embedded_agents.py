@@ -1,3 +1,5 @@
+"""Wrappers to embed a fixed agent in an environment."""
+
 from aprl.envs.multi_agent import VecMultiWrapper, _tuple_pop, _tuple_space_filter
 
 

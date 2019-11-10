@@ -11,7 +11,7 @@ from modelfree.policies.base import ConstantPolicy, PolicyToModel
 from modelfree.policies.loader import load_policy
 from modelfree.policies.wrappers import MultiPolicyWrapper
 from modelfree.train import build_env
-from modelfree.training.victim_envs import CurryVecEnv
+from modelfree.training.embedded_agents import CurryVecEnv
 
 
 class ConstantStatefulPolicy(BasePolicy):
@@ -81,16 +81,16 @@ def create_simple_policy_wrapper(env_name, num_envs, state_shape=None):
 
 
 @contextlib.contextmanager
-def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, victim_index,
+def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, embed_index,
                                               state_shape=None, add_zoo=False, num_zoo=5):
     vec_env, my_idx = build_env(mon_dir, _seed=43, env_name=env_name,
-                                num_env=num_envs, victim_types=["zoo"], victim_index=victim_index,
-                                mask_victim=False, mask_victim_kwargs=dict(),
+                                num_env=num_envs, embed_types=["zoo"], embed_index=embed_index,
+                                mask_embed=False, mask_embed_kwargs=dict(),
                                 lookback_params={'lb_num': 0}, debug=False)
 
     zoo = load_policy(policy_path="1", policy_type="zoo", env=vec_env,
-                      env_name=env_name, index=1 - victim_index, transparent_params=None)
-    half_env = FakeSingleSpacesVec(vec_env, agent_id=victim_index)
+                      env_name=env_name, index=1 - embed_index, transparent_params=None)
+    half_env = FakeSingleSpacesVec(vec_env, agent_id=embed_index)
     policies = [_get_constant_policy(half_env,
                                      constant_value=half_env.action_space.sample(),
                                      state_shape=state_shape) for _ in range(10)]
@@ -101,7 +101,7 @@ def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, victi
 
     vec_env = CurryVecEnv(venv=vec_env,
                           policy=policy_wrapper,
-                          agent_idx=victim_index,
+                          agent_idx=embed_index,
                           deterministic=False)
     vec_env = FlattenSingletonVecEnv(vec_env)
 
@@ -167,14 +167,14 @@ def test_constant_and_zoo_multi_agent_policy_wrapper(test_config, tmpdir):
     env_name, num_envs, num_steps = (test_config["env_name"],
                                      test_config["num_envs"],
                                      test_config["num_steps"])
-    state_shape, victim_index, num_zoo = (test_config.get("state_shape", None),
-                                          test_config.get("victim_index", 1),
-                                          test_config.get("num_zoo", 5))
+    state_shape, embed_index, num_zoo = (test_config.get("state_shape", None),
+                                         test_config.get("embed_index", 1),
+                                         test_config.get("num_zoo", 5))
 
     with create_multi_agent_curried_policy_wrapper(str(tmpdir),
                                                    env_name,
                                                    num_envs,
-                                                   victim_index,
+                                                   embed_index,
                                                    state_shape,
                                                    add_zoo=True,
                                                    num_zoo=num_zoo,
@@ -202,13 +202,13 @@ def test_constant_multi_agent_multi_policy_wrapper(test_config, tmpdir):
     env_name, num_envs, num_steps = (test_config["env_name"],
                                      test_config["num_envs"],
                                      test_config["num_steps"])
-    state_shape, victim_index = (test_config.get("state_shape", None),
-                                 test_config.get("victim_index", 1))
+    state_shape, embed_index = (test_config.get("state_shape", None),
+                                test_config.get("embed_index", 1))
 
     with create_multi_agent_curried_policy_wrapper(str(tmpdir),
                                                    env_name,
                                                    num_envs,
-                                                   victim_index,
+                                                   embed_index,
                                                    state_shape,
                                                    ) as (vec_env, policy_wrapper, zoo_agent):
         obs = vec_env.reset()
