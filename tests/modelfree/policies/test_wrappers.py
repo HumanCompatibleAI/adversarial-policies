@@ -1,4 +1,5 @@
 import contextlib
+import math
 
 import gym
 import numpy as np
@@ -6,11 +7,13 @@ import pytest
 from stable_baselines.common.policies import BasePolicy
 from stable_baselines.common.vec_env import DummyVecEnv
 
-from aprl.envs.multi_agent import FakeSingleSpacesVec, FlattenSingletonVecEnv
+from aprl.envs.multi_agent import (FakeSingleSpacesVec, FlattenSingletonVecEnv,
+                                   make_dummy_vec_multi_env)
+from modelfree.envs.gym_compete import GymCompeteToOurs
+from modelfree.envs.wrappers import make_env
 from modelfree.policies.base import ConstantPolicy, PolicyToModel
 from modelfree.policies.loader import load_policy
 from modelfree.policies.wrappers import MultiPolicyWrapper
-from modelfree.train import build_env
 from modelfree.training.embedded_agents import CurryVecEnv
 
 
@@ -29,11 +32,14 @@ class ConstantStatefulPolicy(BasePolicy):
         self.constant = constant
 
     def step(self, obs, state=None, mask=None, deterministic=False):
-        if state is not None:
-            error_text = f"A state of shape {state.shape} passed in, requires {self.state_shape}"
-            assert state.shape == self.state_shape, error_text
+        if state is None:
+            state = np.ones((obs.shape[0], ) + self.state_shape)
+        assert state.shape[0] == obs.shape[0], "state.shape[0] does not match num_env"
+        error_text = f"A state of shape {state.shape[1:]} passed in, requires {self.state_shape}"
+        assert state.shape[1:] == self.state_shape, error_text
+
         actions = np.array([self.constant] * self.n_env)
-        return actions, state, None, None
+        return actions, None, state, None
 
     def proba_step(self, obs, state=None, mask=None):
         return self.step(obs, state=state, mask=mask)
@@ -47,53 +53,54 @@ def _get_constant_policy(venv, constant_value, state_shape=None):
     return PolicyToModel(policy)
 
 
-def _get_constant_action(constant, action_space):
-    sample_action = action_space.sample()
-    try:
-        shape = sample_action.shape
-    except AttributeError:
-        shape = 1
-    constant_action = np.full(shape=shape, fill_value=constant)
-    if shape == 1:
-        constant_action = constant_action[0]
-    return constant_action
-
-
-def env_func(gym_name):
-    def f():
-        return gym.make(gym_name)
-    return f
-
-
 @contextlib.contextmanager
-def create_simple_policy_wrapper(env_name, num_envs, state_shape=None):
-    vec_env = DummyVecEnv([env_func(env_name) for _ in range(num_envs)])
-    policies = [
-        _get_constant_policy(vec_env,
-                             constant_value=_get_constant_action(i, vec_env.action_space),
-                             state_shape=state_shape)
-        for i in range(vec_env.action_space.n)
-    ]
+def create_simple_policy_wrapper(env_name, num_envs, state_shapes):
+    vec_env = DummyVecEnv([lambda: gym.make(env_name) for _ in range(num_envs)])
+    num_actions = vec_env.action_space.n  # for Discrete spaces
+
+    policies = []
+    for i, state_shape in enumerate(state_shapes):
+        constant_value = np.full(shape=vec_env.action_space.shape, fill_value=i % num_actions)
+        policy = _get_constant_policy(vec_env,
+                                      constant_value=constant_value,
+                                      state_shape=state_shape)
+        policies.append(policy)
     policy_wrapper = MultiPolicyWrapper(policies=policies, num_envs=num_envs)
 
     yield vec_env, policy_wrapper
     policy_wrapper.close()
 
 
+class MultiTimeLimit(gym.wrappers.time_limit.TimeLimit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _step(self, action):
+        obs, rew, done, info = super()._step(action)
+        if done is True:
+            done = [True, True]
+        return obs, rew, done, info
+
+
 @contextlib.contextmanager
-def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, embed_index,
+def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, embed_index, max_steps,
                                               state_shape=None, add_zoo=False, num_zoo=5):
-    vec_env, my_idx = build_env(mon_dir, _seed=43, env_name=env_name,
-                                num_env=num_envs, embed_types=["zoo"], embed_index=embed_index,
-                                mask_embed=False, mask_embed_kwargs=dict(),
-                                lookback_params={'lb_num': 0}, debug=False)
+    def time_limit(env):
+        return MultiTimeLimit(env, max_episode_steps=max_steps)
+
+    def env_fn(i):
+        return make_env(env_name, seed=42, i=i, out_dir=mon_dir,
+                        pre_wrappers=[time_limit, GymCompeteToOurs])
+
+    vec_env = make_dummy_vec_multi_env([lambda: env_fn(i) for i in range(num_envs)])
 
     zoo = load_policy(policy_path="1", policy_type="zoo", env=vec_env,
                       env_name=env_name, index=1 - embed_index, transparent_params=None)
     half_env = FakeSingleSpacesVec(vec_env, agent_id=embed_index)
     policies = [_get_constant_policy(half_env,
                                      constant_value=half_env.action_space.sample(),
-                                     state_shape=state_shape) for _ in range(10)]
+                                     state_shape=state_shape)
+                for _ in range(10)]
     if add_zoo:
         policies += [zoo] * num_zoo
 
@@ -109,130 +116,88 @@ def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, embed
     policy_wrapper.close()
 
 
-SIMPLE_CONFIGS = [dict(env_name="CartPole-v1",
-                       num_envs=2,
-                       num_steps=1000),
-                  dict(env_name="CartPole-v1",
-                       num_envs=2,
-                       num_steps=1000,
-                       state_shape=(10,))]
+def _check_switching(vec_env, num_steps, agent, policy_wrapper, extra_check=None):
+    """Check policies switch at least once across episodes, and never switch within episode."""
+    obs = vec_env.reset()
+    dones = np.full(shape=vec_env.num_envs, fill_value=False)
+    states = None
+    current_policies = [ptm.policy for ptm in policy_wrapper.current_env_policies]
+    num_policies = len(current_policies)
+    num_identical = 0
+    num_switches = 0
+    for step in range(num_steps):
+        # PolicyWrapper is either `agent`, or is embedded in `vec_env`. So after we call
+        # `agent.predict` and `vec_env.step`, `predict` has been called exactly once.
+        actions, states = agent.predict(obs, state=states, mask=dones)
+        obs, rew, new_dones, infos = vec_env.step(actions)
+
+        new_current_policies = [ptm.policy for ptm in policy_wrapper.current_env_policies]
+        for ind, done in enumerate(dones):
+            policies_match = new_current_policies[ind] == current_policies[ind]
+            if done:
+                num_switches += 1
+                if policies_match:
+                    num_identical += 1
+            else:
+                assert policies_match, f"Policies did not match on index {ind}, step {step}"
+
+        if extra_check is not None:
+            extra_check(locals())
+
+        current_policies = new_current_policies
+        dones = new_dones
+
+    max_identical_ok = math.ceil(2 * num_switches / num_policies)
+    dont_match_msg = (f"Same policy {num_identical} > {max_identical_ok} threshold over "
+                      f"{num_switches} episodes")
+    # Expected # of identical policies is num_switches / num_policies
+    # Allow 2x margin of error to avoid flaky tests from randomness
+    assert num_identical < max_identical_ok, dont_match_msg
 
 
-@pytest.mark.parametrize("test_config", SIMPLE_CONFIGS)
-def test_simple_multi_policy_wrapper(test_config, tmpdir):
-    env_name, num_envs, num_steps = (test_config["env_name"],
-                                     test_config["num_envs"],
-                                     test_config["num_steps"])
-    state_shape = test_config.get("state_shape", None)
+def test_simple_multi_policy_switching():
+    """Checks policy switching in simple environment."""
+    num_steps = 5000
 
-    with create_simple_policy_wrapper(env_name,
-                                      num_envs,
-                                      state_shape,
+    def extra_check(vars):
+        assert np.all(vars['actions'] == [p.constant for p in vars['new_current_policies']])
+
+    with create_simple_policy_wrapper(env_name="CartPole-v1",
+                                      num_envs=2,
+                                      state_shapes=[None, (5,), (10,)],
                                       ) as (vec_env, policy_wrapper):
-        obs = vec_env.reset()
-        dones = np.full(shape=num_envs, fill_value=False)
-        current_policies = [ptm.policy.constant for ptm in policy_wrapper.current_env_policies]
-        num_identical = 0
-        num_switches = 0
-        for i in range(num_steps):
-            actions, states = policy_wrapper.predict(obs, mask=dones)
-            new_current_policies = [ptm.policy.constant for ptm in
-                                    policy_wrapper.current_env_policies]
-            for ind, done in enumerate(dones):
-                policies_match = new_current_policies[ind] == current_policies[ind]
-                if not done:
-                    assert policies_match
-                if done:
-                    num_switches += 1
-                    if policies_match:
-                        num_identical += 1
-
-            current_policies = new_current_policies
-            obs, rew, dones, infos = vec_env.step(actions)
-
-        dont_match_msg = "Your policies never empirically change at episode boundaries"
-        assert num_identical / num_switches != 1, dont_match_msg
+        _check_switching(vec_env=vec_env,
+                         num_steps=num_steps,
+                         agent=policy_wrapper,
+                         policy_wrapper=policy_wrapper,
+                         extra_check=extra_check)
 
 
-MULTI_AGENT_ZOO_CONFIGS = [dict(env_name="multicomp/YouShallNotPassHumans-v0",
-                                num_envs=2,
-                                num_steps=1000)]
-
-
-@pytest.mark.parametrize("test_config", MULTI_AGENT_ZOO_CONFIGS)
-def test_constant_and_zoo_multi_agent_policy_wrapper(test_config, tmpdir):
-    """Doesn't check policy switching, just ensures nothing breaks when you are wrapping and
-    switching between both constant and zoo policies as your curried policy"""
-
-    env_name, num_envs, num_steps = (test_config["env_name"],
-                                     test_config["num_envs"],
-                                     test_config["num_steps"])
-    state_shape, embed_index, num_zoo = (test_config.get("state_shape", None),
-                                         test_config.get("embed_index", 1),
-                                         test_config.get("num_zoo", 5))
-
-    with create_multi_agent_curried_policy_wrapper(str(tmpdir),
-                                                   env_name,
-                                                   num_envs,
-                                                   embed_index,
-                                                   state_shape,
-                                                   add_zoo=True,
-                                                   num_zoo=num_zoo,
-                                                   ) as (vec_env, policy_wrapper, zoo_agent):
-        obs = vec_env.reset()
-        dones = np.full(shape=num_envs, fill_value=False)
-        for step in range(num_steps):
-            actions, states = zoo_agent.predict(obs, mask=dones)
-            obs, rew, new_dones, infos = vec_env.step(actions)
-
-
-MULTI_AGENT_CONFIGS = [dict(env_name="multicomp/YouShallNotPassHumans-v0",
+MULTI_AGENT_CONFIGS = [dict(env_name="multicomp/YouShallNotPassHumans-v0",  # MLP Zoo
                             num_envs=2,
-                            num_steps=500),
-                       dict(env_name="multicomp/KickAndDefend-v0",
+                            num_steps=200,
+                            ep_len=10),
+                       dict(env_name="multicomp/KickAndDefend-v0",  # LSTM Zoo
                             num_envs=2,
-                            num_steps=500)]
+                            num_steps=200,
+                            ep_len=10)]
 
 
 @pytest.mark.parametrize("test_config", MULTI_AGENT_CONFIGS)
-def test_constant_multi_agent_multi_policy_wrapper(test_config, tmpdir):
-    """Tests whether, when multi policy wrapper is acting as the curried policy within a
-    multi-policy setting, the policies switch on episode boundaries as expected """
-
-    env_name, num_envs, num_steps = (test_config["env_name"],
-                                     test_config["num_envs"],
-                                     test_config["num_steps"])
-    state_shape, embed_index = (test_config.get("state_shape", None),
-                                test_config.get("embed_index", 1))
+def test_multi_agent_policy_switching(test_config, tmpdir):
+    """Checks policies switch when curried policy, for a mixture of Zoo and constant policies."""
 
     with create_multi_agent_curried_policy_wrapper(str(tmpdir),
-                                                   env_name,
-                                                   num_envs,
-                                                   embed_index,
-                                                   state_shape,
+                                                   env_name=test_config["env_name"],
+                                                   num_envs=test_config["num_envs"],
+                                                   embed_index=test_config.get("embed_index", 1),
+                                                   max_steps=test_config["ep_len"],
+                                                   state_shape=test_config.get("state_shape",
+                                                                               None),
+                                                   add_zoo=True,
+                                                   num_zoo=test_config.get("num_zoo", 5),
                                                    ) as (vec_env, policy_wrapper, zoo_agent):
-        obs = vec_env.reset()
-        state = None
-        dones = np.full(shape=num_envs, fill_value=False)
-        current_policies = [ptm.policy for ptm in policy_wrapper.current_env_policies]
-        num_identical = 0
-        num_switches = 0
-        for step in range(num_steps):
-            actions, state = zoo_agent.predict(obs, mask=dones, state=state)
-            obs, rew, new_dones, infos = vec_env.step(actions)
-
-            new_current_policies = [ptm.policy for ptm in
-                                    policy_wrapper.current_env_policies]
-            for ind, done in enumerate(dones):
-                policies_match = new_current_policies[ind] == current_policies[ind]
-                if done:
-                    num_switches += 1
-                    if policies_match:
-                        num_identical += 1
-                else:
-                    assert policies_match, f"Policies did not match on index {ind}, step {step}"
-            dones = new_dones
-            current_policies = new_current_policies
-
-        dont_match_msg = "Your policies never empirically change at episode boundaries"
-        assert num_identical / num_switches != 1, dont_match_msg
+        _check_switching(vec_env=vec_env,
+                         num_steps=test_config["num_steps"],
+                         agent=zoo_agent,
+                         policy_wrapper=policy_wrapper)

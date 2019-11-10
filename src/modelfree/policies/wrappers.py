@@ -1,4 +1,4 @@
-from typing import List, Sequence, TypeVar
+from typing import List, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 from stable_baselines.common.base_class import BaseRLModel
@@ -44,53 +44,74 @@ class NoisyAgentWrapper(DummyModel):
 T = TypeVar("T")
 
 
-def _array_mask_assign(arr: List[T], mask: List[bool], val: T) -> List[T]:
+def _array_mask_assign(arr: List[T], mask: Sequence[bool], vals: Optional[List[T]]) -> List[T]:
     """Assign val to indices of `arr` that are True in `mask`.
 
     :param arr: a Python list.
     :param mask: a list of boolean values of the same length as `arr`.
-    :param val: value to assign.
+    :param vals: value to assign.
     :return A copy of `arr` with masked values updated to `val`.
     """
-    arr = np.array(arr)
-    arr[mask] = val
-    return list(arr)
+    if vals is None:
+        vals = [None] * sum(mask)
+
+    arr = list(arr)
+    inds = np.arange(len(arr))[mask]
+    for i, v in zip(inds, vals):
+        arr[i] = v
+    return arr
 
 
-def _standardize_state(state_arr, env_mask, inferred_state_shape):
-    """Solves the problem of different policies taking in different types of state vector:
-    either different shapes of array, or None in the case of a MLP policy. Takes all the
-    entries of state_arr that are true in env_mask.
+def _standardize_state(state_arr: Sequence[np.ndarray],
+                       mask: Sequence[bool],
+                       filler_shape: Tuple[int, ...]) -> np.ndarray:
+    """Replaces values in state_arr[env_mask] with a filler value.
+
+    The returned value should have entries of a consistent type, suitable to pass to a policy.
+    The input `state_arr` may contain entries produced by different policies, which may include
+    `None` values and NumPy arrays of various shapes.
+
+    :param state_arr: The state from the previous timestep.
+    :param mask: Mask of indices to replace with filler values. These should be environments
+        the policy does not control -- so it does not matter what output it produces.
+    :param filler_shape: The shape of the value to fill in.
+    :return `None` if `filler_shape` is None, otherwise `state_arr` with appropriate entries
+        masked by the filler value.
     """
-    env_mask = env_mask.copy()
-    if inferred_state_shape is None:
-        filler_value = None
-    else:
-        filler_value = np.zeros(shape=inferred_state_shape)
-        for i in range(len(state_arr)):
-            if env_mask[i] and state_arr[i] is None:
-                # This is to account for the edge case where we are sending this state to a
-                # stateful policy, but at the last step this env had a stateless policy,
-                # and thus had its state value set to None. Stateful policies can take in
-                # None as a state value, but it can't accommodate some of its envs having
-                # arrays and others being None
-                env_mask[i] = False
+    if filler_shape is None:
+        # If the policy is stateless, it should take a `None` state entry
+        return None
 
-    # Fill in `filler_value` for all indices of state_arr where env_mask is False
-    filled_state = _array_mask_assign(state_arr,
-                                      [not el for el in env_mask],
-                                      filler_value)
-    return filled_state
+    # The policy is stateful, and expects entries of shape inferred_state_shape.
+    num_env = len(state_arr)
+    standardized_arr = np.zeros(shape=(num_env, ) + filler_shape)
+
+    if np.any(mask):
+        # Copy over values from state_arr in mask. The others are OK to leave as zero:
+        # we'll ignore actions predicted in those indices anyway.
+        to_copy = np.array(state_arr)[mask]  # extract subset
+        to_copy = np.stack(to_copy)  # ensure it is a 2D array
+        standardized_arr[mask] = to_copy
+
+    return standardized_arr
 
 
 class MultiPolicyWrapper(DummyModel):
-    def __init__(self, policies: Sequence[BaseRLModel], num_envs, debug=False):
+    """Combines multiple policies into a single policy.
+
+    Each policy executes for the entirety of an episode, and then a new policy is randomly
+    selected from the list of policies.
+
+    WARNING: Only suitable for inference, not for training!"""
+
+    def __init__(self, policies: Sequence[BaseRLModel], num_envs: int):
+        """Creates MultiPolicyWrapper.
+
+        :param policies: The underlying policies to execute.
+        :param num_envs: The number of environments to execute in parallel.
+        """
         super().__init__(policies[0], policies[0].sess)
         self.policies = policies
-        # num_envs is kept as a parameter because you need it to construct
-        # self.current_env_policies which makes sense to do the first time at initialization
-        self.num_envs = num_envs
-        self.debug = debug
 
         self.action_space = self.policies[0].policy.ac_space
         self.obs_space = self.policies[0].policy.ob_space
@@ -99,6 +120,9 @@ class MultiPolicyWrapper(DummyModel):
             assert p.policy.ac_space == self.action_space, err_txt.format("action")
             assert p.policy.ob_space == self.obs_space, err_txt.format("obs")
 
+        # Strictly we do not need `num_envs`, but it is convenient to have it so we can
+        # construct an appropriate sized `self.current_env_policies` at initialization.
+        self.num_envs = num_envs
         self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
         self.inferred_state_shapes = [None] * len(policies)
 
@@ -109,8 +133,8 @@ class MultiPolicyWrapper(DummyModel):
         new_state_array = [None] * self.num_envs
 
         for i, policy in enumerate(self.policies):
-            env_mask = [el == policy for el in self.current_env_policies]
-            if sum(env_mask) == 0:
+            env_mask = np.array([el == policy for el in self.current_env_policies])
+            if not np.any(env_mask):
                 # If this policy isn't active for any environments, don't run predict on it
                 continue
 
@@ -120,12 +144,16 @@ class MultiPolicyWrapper(DummyModel):
                 # a single None as input, but not an array with None values
                 standardized_state = None
             else:
-                # Otherwise, create filler values for places where env_mask is False
-                # with the shape that the policy expects. Inferred state shapes will be set
-                # for stateful policies as soon as they return a state vector, i.e. after the
-                # first prediction step
-                standardized_state = _standardize_state(state, env_mask,
-                                                        self.inferred_state_shapes[i])
+                # Otherwise, fill in values for places where env_mask is False, i.e. that belong
+                # to other policies. Also fill in values if the environment has just been reset
+                # (mask is True), as the state may have originated from a different policy.
+                #
+                # Note initially we do not what shape stateful policies expect, so we default to
+                # `None`, which is always OK at the first time step. Inferred state shapes will be
+                # set for stateful policies as soon as they return a state vector.
+                retain = env_mask & ~np.array(mask)
+                standardized_state = _standardize_state(state, mask=retain,
+                                                        filler_shape=self.inferred_state_shapes[i])
 
             predicted_actions, new_states = policy.predict(observation,
                                                            state=standardized_state,
@@ -134,23 +162,18 @@ class MultiPolicyWrapper(DummyModel):
             if new_states is not None and self.inferred_state_shapes[i] is None:
                 # If this is a policy that returns state, and its current inferred state
                 # is None, update the inferred state value to this shape
-                self.inferred_state_shapes[i] = new_states.shape
+                self.inferred_state_shapes[i] = new_states.shape[1:]
+            assert ((new_states is None and self.inferred_state_shapes[i] is None) or
+                    new_states.shape[1:] == self.inferred_state_shapes[i])
 
-            # This is basically numpy mask value assignment, but created to work with python
-            # arrays to accommodate the fact that different policies won't have state
-            # values of the same shape/type
             policy_actions[env_mask] = predicted_actions[env_mask]
             new_state_array = _array_mask_assign(new_state_array, env_mask, new_states)
 
         return policy_actions, new_state_array
 
     def _reset_current_policies(self, mask):
-        for ind, done in enumerate(mask):
-            if done:
-                new_policy = np.random.choice(self.policies)
-                if self.debug:
-                    print(f"Resetting policy {ind}  to {new_policy}")
-                self.current_env_policies[ind] = new_policy
+        num_done = sum(mask)
+        self.current_env_policies[mask] = np.random.choice(self.policies, size=num_done)
 
     def close(self):
         for policy in self.policies:
