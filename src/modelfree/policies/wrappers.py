@@ -1,6 +1,7 @@
-from typing import List, TypeVar
+from typing import List, Sequence, TypeVar
 
 import numpy as np
+from stable_baselines.common.base_class import BaseRLModel
 
 from modelfree.policies.base import DummyModel
 
@@ -42,6 +43,7 @@ class NoisyAgentWrapper(DummyModel):
 
 T = TypeVar("T")
 
+
 def _array_mask_assign(arr: List[T], mask: List[bool], val: T) -> List[T]:
     """Assign val to indices of `arr` that are True in `mask`.
 
@@ -81,35 +83,21 @@ def _standardize_state(state_arr, env_mask, inferred_state_shape):
     return filled_state
 
 
-def waterfall_get(obj, possible_attributes):
-    ret_val = None
-    for attribute in possible_attributes:
-        ret_val = obj.__dict__.get(attribute, None)
-        if ret_val is not None:
-            break
-    return ret_val
-
-
 class MultiPolicyWrapper(DummyModel):
-    def __init__(self, policies, num_envs, debug=False):
+    def __init__(self, policies: Sequence[BaseRLModel], num_envs, debug=False):
         super().__init__(policies[0], policies[0].sess)
         self.policies = policies
         # num_envs is kept as a parameter because you need it to construct
         # self.current_env_policies which makes sense to do the first time at initialization
         self.num_envs = num_envs
         self.debug = debug
-        reference_action_space = waterfall_get(self.policies[0].policy,  ['ac_space',
-                                                                          'action_space'])
-        reference_observation_space = waterfall_get(self.policies[0].policy, ['ob_space',
-                                                                              'observation_space'])
-        self.action_space_shape = reference_action_space.shape
-        self.obs_space_shape = reference_observation_space.shape
+
+        self.action_space = self.policies[0].policy.ac_space
+        self.obs_space = self.policies[0].policy.ob_space
         for p in self.policies:
             err_txt = "All policies must have the same {} space"
-            action_space = waterfall_get(p.policy, ['ac_space', 'action_space']).shape
-            assert action_space == self.action_space_shape, err_txt.format("action")
-            observation_space = waterfall_get(p.policy, ['ob_space', 'observation_space']).shape
-            assert observation_space == self.obs_space_shape, err_txt.format("obs")
+            assert p.policy.ac_space == self.action_space, err_txt.format("action")
+            assert p.policy.ob_space == self.obs_space, err_txt.format("obs")
 
         self.current_env_policies = np.random.choice(self.policies, size=self.num_envs)
         self.inferred_state_shapes = [None] * len(policies)
