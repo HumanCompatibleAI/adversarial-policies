@@ -78,8 +78,8 @@ def tb_layout():
 def setup_logger(out_dir='results', exp_name='test', output_formats=None):
     timestamp = utils.make_timestamp()
     exp_name = exp_name.replace('/', '_')  # environment names can contain /'s
-    out_dir = osp.join(out_dir, '{}-{}'.format(timestamp, exp_name))
-    out_dir = out_dir[0:255]
+    filename = '{}-{}'.format(timestamp, exp_name)[0:255]  # Linux has filename limit of 255
+    out_dir = osp.join(out_dir, filename)
     os.makedirs(out_dir, exist_ok=True)
 
     logger.configure(folder=osp.join(out_dir, 'rl'),
