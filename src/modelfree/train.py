@@ -426,7 +426,6 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observ
                         "Trying to normalize twice. Bansal et al's Zoo agents normalize "
                         "implicitly. Please set normalize=False to disable VecNormalize.")
             normalized_venv = VecNormalize(single_venv)
-
         else:
             normalized_venv = VecNormalize(single_venv, norm_obs=False)
 
@@ -472,11 +471,8 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
         embed_path = "1"
         resolved_adv_noise_params['base_path'] = embed_path
     if embed_types is None and embed_paths is None:
-        resolved_embed_types = [embed_type]
-        resolved_embed_paths = [embed_path]
-    else:
-        resolved_embed_types = embed_types
-        resolved_embed_paths = embed_paths
+        embed_types = [embed_type]
+        embed_paths = [embed_path]
 
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
@@ -485,17 +481,17 @@ def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    multi_venv, our_idx = build_env(out_dir, embed_types=resolved_embed_types)
+    multi_venv, our_idx = build_env(out_dir, embed_types=embed_types)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
     multi_venv = maybe_embed_agent(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks,
-                                   embed_types=resolved_embed_types,
-                                   embed_paths=resolved_embed_paths,
+                                   embed_types=embed_types,
+                                   embed_paths=embed_paths,
                                    adv_noise_params=resolved_adv_noise_params)
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks=log_callbacks,
                                   save_callbacks=save_callbacks,
-                                  embed_paths=resolved_embed_paths,
-                                  embed_types=resolved_embed_types)
+                                  embed_paths=embed_paths,
+                                  embed_types=embed_types)
 
     train_fn = RL_ALGOS[rl_algo]
     res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),
