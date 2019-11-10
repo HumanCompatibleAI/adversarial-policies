@@ -16,7 +16,7 @@ logger = logging.getLogger('scripts.highest_win_rate')
 
 def event_files(path):
     for root, dirs, files in os.walk(path, followlinks=True):
-        if root.endswith('rl/tb'):  # looking for paths of form */data/baselines/*/rl/tb
+        if path.split(os.path.sep)[-2:] == ['rl', 'tb']:
             for name in files:
                 if 'tfevents' in name:
                     yield os.path.join(root, name)
@@ -114,7 +114,7 @@ def directory_type(path):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('logdir', nargs="*", type=directory_type)
+    parser.add_argument('logdir', nargs="+", type=directory_type)
     parser.add_argument('--episode-window', type=int, default=50)
     parser.add_argument('--output_path')
     return parser.parse_args()
@@ -127,8 +127,8 @@ def main():
     # If no output path is given, default to saving it in the first logdir under a fixed name
     if output_path is None:
         output_path = os.path.join(parsed_args.logdir[0], 'highest_win_policies_and_rates.json')
-    print(f"Output path: {output_path}")
-    print(f"Log dir: {parsed_args.logdir}")
+    logger.info(f"Output path: {output_path}")
+    logger.info(f"Log dir: {parsed_args.logdir}")
     with open(output_path, 'w') as f:  # fail fast if output_path inaccessible
         result = find_best(parsed_args.logdir, parsed_args.episode_window)
         json.dump(result, f)

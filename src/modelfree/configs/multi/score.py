@@ -6,7 +6,7 @@ import os.path
 import numpy as np
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_GOOD_ENVS, _get_adversary_paths
+from modelfree.configs.multi.common import BANSAL_GOOD_ENVS, get_adversary_paths
 from modelfree.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('modelfree.configs.multi.score')
@@ -108,7 +108,7 @@ def _summary_paths():
     }
     adversary_agents = {env: (victim_ids, victim_ids)
                         for env, (victim_ids, _opponent_ids) in summary_agents.items()}
-    adversaries = _adversary_vs_victims('ppo2', _get_adversary_paths(),
+    adversaries = _adversary_vs_victims('ppo2', get_adversary_paths(),
                                         no_transfer=True, agents=adversary_agents)
     zoo = _env_agents(agents=summary_agents)
     return adversaries + zoo
@@ -245,7 +245,7 @@ def make_configs(multi_score_ex):
                     _env_agents(agents={env: ([1], [1]) for env in BANSAL_GOOD_ENVS}) +
                     _fixed_vs_victim('zero')[0:1] +
                     _fixed_vs_victim('random')[0:1] +
-                    _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
+                    _adversary_vs_victims('ppo2', get_adversary_paths())[0:1]
                 ),
             }
         }
@@ -318,7 +318,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', _get_adversary_paths())
+                    _adversary_vs_victims('ppo2', get_adversary_paths())
                 ),
             }
         }
@@ -333,7 +333,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', _get_adversary_paths(), no_transfer=True)
+                    _adversary_vs_victims('ppo2', get_adversary_paths(), no_transfer=True)
                 ),
             }
         }

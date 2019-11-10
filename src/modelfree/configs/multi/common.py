@@ -13,8 +13,11 @@ BANSAL_GOOD_ENVS = [  # Environments well-suited to adversarial attacks
 ]
 
 
-def _get_adversary_paths():
-    # Sacred named_configs execute before configs, so we can't make this a Sacred config param.
+def get_adversary_paths():
+    """Load adversary paths from ADVERSARY_PATHS environment variable.
+
+    We can't make this a Sacred config param since Sacred named_configs execute before configs.
+    """
     path = os.getenv('ADVERSARY_PATHS')
     if path is None:
         raise ValueError("Specify path to JSON file containing adversaries in ADVERSARY_PATHS "

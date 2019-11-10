@@ -9,7 +9,7 @@ import os.path as osp
 import numpy as np
 from ray import tune
 
-from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, _get_adversary_paths
+from modelfree.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, get_adversary_paths
 from modelfree.envs import VICTIM_INDEX, gym_compete
 
 MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
@@ -107,10 +107,9 @@ def _finetune_spec(envs=None):
     return spec
 
 
-def _get_path_from_exp_name(exp_name, json_file_path=None):
-    # Takes in an experiment name and auto-constructs the JSON path containing its best policies
-    if json_file_path is None:
-        json_file_path = "highest_win_policies_and_rates.json"
+def _get_path_from_exp_name(exp_name,
+                            json_file_path="highest_win_policies_and_rates.json"):
+    """Takes in an experiment name and constructs the JSON path containing its best policies."""
     full_json_path = os.path.join(MULTI_TRAIN_LOCATION, exp_name, json_file_path)
     try:
         with open(full_json_path, 'r') as f:
@@ -137,7 +136,7 @@ def _finetune_configs(envs=None, dual_defense=False):
     if envs is None:
         envs = BANSAL_GOOD_ENVS
     configs = []
-    adversary_paths = _get_adversary_paths()
+    adversary_paths = get_adversary_paths()
     for env in envs:
         original_victim_index = VICTIM_INDEX[env]
         num_zoo = gym_compete.num_zoo_policies(env)
@@ -238,7 +237,7 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
         envs = BANSAL_GOOD_ENVS
     configs = []
     finetuned_paths = _get_path_from_exp_name(finetune_run)
-    adversary_paths = _get_adversary_paths()
+    adversary_paths = get_adversary_paths()
     for env in envs:
         victim_index = VICTIM_INDEX[env]
         finetuned_victim_index = 1 - victim_index
