@@ -11,7 +11,7 @@ from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MultiWrapper, make_du
 from modelfree.envs.gym_compete import GymCompeteToOurs
 from modelfree.envs.wrappers import make_env
 from modelfree.policies.loader import load_policy
-from modelfree.training.victim_envs import EmbedVictimWrapper
+from modelfree.training.victim_envs import TransparentCurryVecEnv
 
 LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
 
@@ -66,9 +66,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                                  env_name=env_name, index=victim_index,
                                  transparent_params=self.transparent_params)
 
-            multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                            victim_index=victim_index,
-                                            transparent=True, deterministic=True)
+            multi_venv = TransparentCurryVecEnv(venv=multi_venv, policy=victim,
+                                                agent_idx=victim_index, deterministic=True)
 
             single_venv = FlattenSingletonVecEnv(multi_venv)
             data_dict = {'state': None, 'action': None, 'info': defaultdict(dict)}

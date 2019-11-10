@@ -1,34 +1,11 @@
 from aprl.envs.multi_agent import VecMultiWrapper, _tuple_pop, _tuple_space_filter
 
 
-class EmbedVictimWrapper(VecMultiWrapper):
-    """Embeds victim in a (Transparent)CurryVecEnv. Also takes care of closing victim's session"""
-    def __init__(self, multi_env, victim, victim_index, transparent, deterministic):
-        self.victim = victim
-        if transparent:
-            cls = TransparentCurryVecEnv
-        else:
-            cls = CurryVecEnv
-
-        curried_env = cls(multi_env, victim, agent_idx=victim_index, deterministic=deterministic)
-        super().__init__(curried_env)
-
-    def get_policy(self):
-        return self.venv.get_policy()
-
-    def reset(self):
-        return self.venv.reset()
-
-    def step_wait(self):
-        return self.venv.step_wait()
-
-    def close(self):
-        self.victim.sess.close()
-        super().close()
-
-
 class CurryVecEnv(VecMultiWrapper):
-    """Substitutes in a fixed agent for one of the players in a VecMultiEnv."""
+    """Substitutes in a fixed agent for one of the players in a VecMultiEnv.
+
+    The agent's session will be closed, if it exists, when the environment is closed."""
+
     def __init__(self, venv, policy, agent_idx=0, deterministic=False):
         """Fixes one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
@@ -95,6 +72,11 @@ class CurryVecEnv(VecMultiWrapper):
             return self._obs
         else:
             return self._obs[env_idx]
+
+    def close(self):
+        if hasattr(self._policy, 'sess') and self._policy.sess is not None:
+            self._policy.sess.close()
+        super().close()
 
 
 class TransparentCurryVecEnv(CurryVecEnv):

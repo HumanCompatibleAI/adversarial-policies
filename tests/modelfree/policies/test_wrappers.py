@@ -11,7 +11,7 @@ from modelfree.policies.base import ConstantPolicy, PolicyToModel
 from modelfree.policies.loader import load_policy
 from modelfree.policies.wrappers import MultiPolicyWrapper
 from modelfree.train import build_env
-from modelfree.training.victim_envs import EmbedVictimWrapper
+from modelfree.training.victim_envs import CurryVecEnv
 
 
 class ConstantStatefulPolicy(BasePolicy):
@@ -99,10 +99,10 @@ def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, victi
 
     policy_wrapper = MultiPolicyWrapper(policies=policies, num_envs=num_envs)
 
-    vec_env = EmbedVictimWrapper(multi_env=vec_env,
-                                 victim=policy_wrapper,
-                                 victim_index=victim_index, transparent=False,
-                                 deterministic=False)
+    vec_env = CurryVecEnv(venv=vec_env,
+                          policy=policy_wrapper,
+                          agent_idx=victim_index,
+                          deterministic=False)
     vec_env = FlattenSingletonVecEnv(vec_env)
 
     yield vec_env, policy_wrapper, zoo

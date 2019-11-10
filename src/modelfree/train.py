@@ -29,7 +29,7 @@ from modelfree.training.lookback import (DebugVenv, LookbackRewardVecWrapper,
                                          OldMujocoResettableWrapper)
 from modelfree.training.scheduling import ConstantAnnealer, Scheduler
 from modelfree.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
-from modelfree.training.victim_envs import EmbedVictimWrapper
+from modelfree.training.victim_envs import CurryVecEnv, TransparentCurryVecEnv
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('modelfree.train')
@@ -385,10 +385,9 @@ def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, 
             victim = victims[0]
 
         # Curry the victim
-        transparent = transparent_params is not None
-        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                        victim_index=victim_index, transparent=transparent,
-                                        deterministic=deterministic)
+        cls = TransparentCurryVecEnv if transparent_params is not None else CurryVecEnv
+        multi_venv = cls(venv=multi_venv, policy=victim,
+                         agent_idx=victim_index, deterministic=deterministic)
     return multi_venv
 
 
