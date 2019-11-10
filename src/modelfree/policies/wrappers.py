@@ -1,3 +1,5 @@
+from typing import List, TypeVar
+
 import numpy as np
 
 from modelfree.policies.base import DummyModel
@@ -38,6 +40,21 @@ class NoisyAgentWrapper(DummyModel):
         return noisy_actions, states
 
 
+T = TypeVar("T")
+
+def _array_mask_assign(arr: List[T], mask: List[bool], val: T) -> List[T]:
+    """Assign val to indices of `arr` that are True in `mask`.
+
+    :param arr: a Python list.
+    :param mask: a list of boolean values of the same length as `arr`.
+    :param val: value to assign.
+    :return A copy of `arr` with masked values updated to `val`.
+    """
+    arr = np.array(arr)
+    arr[mask] = val
+    return list(arr)
+
+
 def _standardize_state(state_arr, env_mask, inferred_state_shape):
     """Solves the problem of different policies taking in different types of state vector:
     either different shapes of array, or None in the case of a MLP policy. Takes all the
@@ -62,34 +79,6 @@ def _standardize_state(state_arr, env_mask, inferred_state_shape):
                                       [not el for el in env_mask],
                                       filler_value)
     return filled_state
-
-
-def _array_mask_assign(arr, mask, vals):
-    """A helper method for basically doing Numpy-style mask assignment on a Python array.
-    The `mask` variable contains boolean True values at all locations within `vals` that we
-    want to copy over to `arr`. If `vals` is not the same first-dimension as mask, it will
-    be broadcast to all locations that `mask` specifies.
-    :return:
-    """
-    arr_copy = arr.copy()
-    # Check the first-dimension length of vals, checking for numpy array, python arr, and None
-    if vals is None:
-        length = None
-    else:
-        try:
-            length = vals.shape[0]
-        except AttributeError:
-            length = len(vals)
-    # If the first dimension is not the same as the mask, assume we want this value
-    # tiled for every True-valued location in env_mask
-    tile_val = length != len(mask)
-    for i in range(len(arr_copy)):
-        if mask[i]:
-            if tile_val:
-                arr_copy[i] = vals
-            else:
-                arr_copy[i] = vals[i]
-    return arr_copy
 
 
 def waterfall_get(obj, possible_attributes):
@@ -127,7 +116,8 @@ class MultiPolicyWrapper(DummyModel):
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         self._reset_current_policies(mask)
-        policy_actions = [None] * self.num_envs
+        policy_actions = np.zeros((self.num_envs, ) + self.action_space.shape,
+                                  dtype=self.action_space.dtype)
         new_state_array = [None] * self.num_envs
 
         for i, policy in enumerate(self.policies):
@@ -135,6 +125,7 @@ class MultiPolicyWrapper(DummyModel):
             if sum(env_mask) == 0:
                 # If this policy isn't active for any environments, don't run predict on it
                 continue
+
             if state is None:
                 # If it's the first training step, and the global state is None, just pass that
                 # through to policies without standardizing, because stateful policies can accept
@@ -160,7 +151,7 @@ class MultiPolicyWrapper(DummyModel):
             # This is basically numpy mask value assignment, but created to work with python
             # arrays to accommodate the fact that different policies won't have state
             # values of the same shape/type
-            policy_actions = _array_mask_assign(policy_actions, env_mask, predicted_actions)
+            policy_actions[env_mask] = predicted_actions[env_mask]
             new_state_array = _array_mask_assign(new_state_array, env_mask, new_states)
 
         return policy_actions, new_state_array
