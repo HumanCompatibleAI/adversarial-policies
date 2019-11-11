@@ -290,7 +290,7 @@ def _train_adv_against_finetuned(train, finetune_run, from_scratch=True):
     spec = {
         'config': ray_config,
     }
-    return spec
+    return spec, exp_name
 
 
 def make_configs(multi_train_ex):
