@@ -34,7 +34,7 @@ auth:
 
 head_node:
   InstanceType: c5.2xlarge
-  ImageId: ami-03af6b12f8fe02fee  # CHAI Ubuntu 18.04, Updated Mujoco Key
+  ImageId: ami-03cb2176bb0ac9ec7  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
@@ -44,7 +44,7 @@ head_node:
 
 worker_nodes:
   InstanceType: c5.9xlarge  # half a machine, less likely to get preempted than full c5.18xlarge
-  ImageId: ami-03af6b12f8fe02fee  # CHAI Ubuntu 18.04, Updated Mujoco Key
+  ImageId: ami-03cb2176bb0ac9ec7  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
