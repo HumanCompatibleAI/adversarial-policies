@@ -119,7 +119,7 @@ def _get_path_from_exp_name(exp_name,
                                 " trying to use it ")
 
 
-# ### CONFIGS FOR FINETUNING AGAINST ADVERSARY OR ADVERSARY + DUAL ### #
+# ### CONFIGS FOR FINETUNING AGAINST ADVERSARY (SINGLE) OR ADVERSARY + ZOO (DUAL) ### #
 
 def _finetune_configs(envs=None, dual_defense=False):
     """Generates configs for finetuning a Zoo model.
@@ -140,17 +140,13 @@ def _finetune_configs(envs=None, dual_defense=False):
             original_victim = str(original_victim)
             load_policy = {'type': 'zoo', 'path': original_victim}
 
-            adversary = adversary_paths.get(env,
-                                            {}).get(str(original_embed_index),
-                                                    {}).get(original_victim)
-            # If adversary paths are not absolute paths, assume they're relative to
-            # MULTI_TRAIN_LOCATION, which is derived from the env variable DATA_LOC
-            if not os.path.isabs(adversary):
-                adversary = os.path.join(MULTI_TRAIN_LOCATION, adversary)
+            adversary = (adversary_paths.get(env, {})
+                                        .get(str(original_embed_index), {})
+                                        .get(original_victim))
+            adversary = os.path.join(MULTI_TRAIN_LOCATION, adversary)
 
             if dual_defense:
-                # If we're training both best adversary and zoo, experiment with different
-                # zoo agents to slot into this role
+                # If training both best adversary and Zoo, try each possible Zoo agent
                 for finetuning_zoo in range(1, num_zoo+1):
                     finetuning_zoo = str(finetuning_zoo)
                     embed_paths = [adversary, finetuning_zoo]
@@ -158,12 +154,11 @@ def _finetune_configs(envs=None, dual_defense=False):
                     configs.append((env, embed_paths, embed_types,
                                     1-original_embed_index, load_policy))
             else:
-                configs.append((env, adversary, "ppo2", 1-original_embed_index, load_policy))
+                configs.append((env, [adversary], ["ppo2"], 1-original_embed_index, load_policy))
     return configs
 
 
-FINETUNE_PATHS_TYPES = "env_name:embed_path:embed_type:embed_index:load_policy"
-FINETUNE_PATHS_TYPES_DUAL = "env_name:embed_paths:embed_types:embed_index:load_policy"
+FINETUNE_PATHS_TYPES = "env_name:embed_paths:embed_types:embed_index:load_policy"
 
 
 def _finetuning_defense(train, dual_defense=False, envs=None):
@@ -171,44 +166,39 @@ def _finetuning_defense(train, dual_defense=False, envs=None):
     # A hack to make it so  you can in theory fine tune LSTMs
     train['num_env'] = 16
     train['normalize_observations'] = False
-    ray_config = {}
-    paths_and_types = tune.grid_search(_finetune_configs(envs=envs, dual_defense=dual_defense))
-    if dual_defense:
-        ray_config[FINETUNE_PATHS_TYPES_DUAL] = paths_and_types
-    else:
-        ray_config[FINETUNE_PATHS_TYPES] = paths_and_types
+    ray_config = {
+        FINETUNE_PATHS_TYPES: tune.grid_search(
+            _finetune_configs(envs=envs, dual_defense=dual_defense)
+        ),
+    }
 
     return ray_config
 
 
-def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20):
-    """
-       Creates a spec for conducting a hyperparameter search for
-       finetuning a zoo agent against an adversary
-       """
+def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20, exp_suffix=''):
+    """Hyperparameter search for finetuning Zoo agent against adversary."""
     ray_config = _finetuning_defense(train, dual_defense, envs)
     train['total_timesteps'] = int(10e6)
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
         'run_kwargs': {
-            'num_samples': num_samples
+            'num_samples': num_samples,
         }
     }
-    return spec
+    dual_name = 'dual' if dual_defense else 'single'
+    exp_name = f'hyper_finetune_defense{dual_name}_{exp_suffix}'
+    return spec, exp_name
 
 
 def _finetune_defense_long(train, dual_defense=False, envs=None):
-    """
-    Creates a spec for conducting a multi-seed long finetuning run against
-    either an adversary or an (adversary, zoo) combined setup across environments
-    """
+    """Multi-seed, long (20e6) timestep finetuning against adversary."""
     ray_config = _finetuning_defense(train, dual_defense, envs=envs)
     train['total_timesteps'] = int(20e6)
     # "Victim" here is the adversary
-    ray_config['seed'] = tune.grid_search([x for x in range(5)])
+    ray_config['seed'] = tune.grid_search(list(range(5)))
     spec = {
-        "config": ray_config
+        "config": ray_config,
     }
     return spec
 
@@ -216,16 +206,15 @@ def _finetune_defense_long(train, dual_defense=False, envs=None):
 # ### RETRAINING ADVERSARY AGAINST ADVERSARIALLY-FINETUNED VICTIM ### #
 
 def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True):
-    """
-    Generates configs for training an adversary against an adversarially-finetuned zoo agent.
+    """Train an adversary against an adversarially-finetuned Zoo agent.
 
     :param finetune_run: An experiment name (or <experiment_name/experiment_timestamp>)
-    representing to finetuned zoo agent you'd like to train against. This code assumes that
+    representing the finetuned Zoo agent you'd like to train against. This method assumes that
     highest_win_rate.py has been run, and takes the best-performing finetuned agent for each
     (env, zoo_id) combination.
     :param envs: A list of envs; if set to None, uses all BANSAL_GOOD_ENVS
     :param from_scratch: If True, trains an adversary from random initialization; if False,
-    finetunes an adversary starting with the already-existing adversary for that (env, zoo_id)
+        finetunes an adversary starting with the already-existing adversary.
     :return:
     """
 
@@ -240,16 +229,16 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
         num_zoo = gym_compete.num_zoo_policies(env)
         for original_victim in range(1, num_zoo + 1):
             original_victim = str(original_victim)
-            finetuned_victim = finetuned_paths.get(env,
-                                                   {}).get(str(finetuned_embed_index),
-                                                           {}).get(original_victim, {})
+            finetuned_victim = (finetuned_paths.get(env, {})
+                                               .get(str(finetuned_embed_index), {})
+                                               .get(original_victim, {}))
+
             if from_scratch:
                 load_policy = {'type': 'ppo2', 'path': None}
-
             else:
-                adversary = adversary_paths.get(env,
-                                                {}).get(str(embed_index),
-                                                        {}).get(original_victim, {})
+                adversary = (adversary_paths.get(env, {})
+                                            .get(str(embed_index), {})
+                                            .get(original_victim, {}))
                 load_policy = {'type': 'ppo2', 'path': adversary}
 
             configs.append((env, finetuned_victim, embed_index, load_policy))
@@ -262,39 +251,36 @@ TRAIN_AGAINST_FINETUNED_PATHS = "env_name:embed_path:embed_index:load_policy"
 
 def _train_against_finetuned(train, finetune_run, from_scratch=True):
     _sparse_reward(train)
-    ray_config = {TRAIN_AGAINST_FINETUNED_PATHS:
-                  tune.grid_search(
-                                _train_against_finetuned_configs(finetune_run=finetune_run,
-                                                                 from_scratch=from_scratch))}
+    ray_config = {
+        TRAIN_AGAINST_FINETUNED_PATHS: tune.grid_search(
+            _train_against_finetuned_configs(finetune_run=finetune_run,
+                                             from_scratch=from_scratch)
+        ),
+    }
     # All victims are new-style policies because we finetuned them
     train['embed_type'] = "ppo2"
     return ray_config
 
 
 def _hyper_train_adversary_against_finetuned(train, finetune_run, from_scratch=True):
-    """
-    Creates a spec for doing a hyperparameter search across environments of retraining an adversary
-    against a policy that has been defensively finetuned
-    """
+    """Hyperparameter search for retraining an adversary against defensively finetuned victim."""
     ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(10e6)
-    # Victim is back to being the finetuned victim again
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
         'run_kwargs': {'num_samples': 2}
     }
-    return spec
+    from_scratch_name = 'from_scratch' if from_scratch else 'finetune'
+    exp_name = f'hyper_adv_{from_scratch_name}_against_{finetune_run}'
+    return spec, exp_name
 
 
 def _train_adversary_against_finetuned_long(train, finetune_run, from_scratch=True):
-    """
-        Creates a spec for doing a long run across seeds of retraining an adversary against a
-        finetuned zoo agent
-        """
+    """Multi-seed, long (20e6) retraining of adversary against finetuned Zoo agent."""
     ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(20e6)
-    ray_config['seed'] = tune.grid_search([x for x in range(5)])
+    ray_config['seed'] = tune.grid_search(list(range(5)))
     spec = {
         'config': ray_config,
     }
@@ -303,7 +289,9 @@ def _train_adversary_against_finetuned_long(train, finetune_run, from_scratch=Tr
 
 def make_configs(multi_train_ex):
 
-    # From-scratch sparse reward training
+    # ### STANDARD ADVERSARIAL EXPERIMENTS ### #
+    # ### Train adversary from scratch against a fixed victim. ### #
+
     @multi_train_ex.named_config
     def hyper(train):
         """A random search to find good hyperparameters in Bansal et al's environments."""
@@ -333,210 +321,6 @@ def make_configs(multi_train_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    ###############################################################################################
-    # BEGIN CONFIGS FOR DEFENSE EXPERIMENTS
-    ###############################################################################################
-
-    # HYPERPARAMETER TUNING: FINETUNE ZOO
-
-    @multi_train_ex.named_config
-    def hyper_finetune_defense_mlp(train):
-        """Hyperparameter search for finetuning defense against only the adversary
-        MLP (YSNP) only"""
-        train = dict(train)
-        spec = _hyper_finetune_defense(train, dual_defense=False,
-                                       envs=['multicomp/YouShallNotPassHumans-v0'],
-                                       num_samples=100)
-        exp_name = 'hyper_finetune_defense_mlp'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_finetune_defense(train):
-        """Hyperparameter search for finetuning defense against only the adversary"""
-        train = dict(train)
-        spec = _hyper_finetune_defense(train, dual_defense=False)
-        exp_name = 'hyper_finetune_defense'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_finetune_dual_defense_mlp(train):
-        """Hyperparameter search for finetuning defense against the adversary and a zoo agent
-        MLP (YSNP) only """
-        train = dict(train)
-        spec = _hyper_finetune_defense(train, dual_defense=True,
-                                       envs=['multicomp/YouShallNotPassHumans-v0'],
-                                       num_samples=100
-                                       )
-        exp_name = 'hyper_finetune_dual_defense_mlp'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_finetune_dual_defense(train):
-        """Hyperparameter search for finetuning defense against the adversary and a zoo agent"""
-        train = dict(train)
-        spec = _hyper_finetune_defense(train, dual_defense=True)
-        exp_name = 'hyper_finetune_dual_defense'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    # BEST-HYPERPARAM LONG RUN: FINETUNE
-
-    @multi_train_ex.named_config
-    def finetune_adv_defense_long_run(train):
-        """ Longer run of finetuning across seeds for training against just an adversary
-            with hyperparameters generated by hyperparameter search
-        """
-        train = dict(train)
-        spec = _finetune_defense_long(train, dual_defense=False)
-        train['learning_rate'] = .00005
-        train['batch_size'] = 2048
-        exp_name = "finetune_adv_defense_long_run"
-        _ = locals()
-        del _
-
-    @multi_train_ex.named_config
-    def finetune_dual_defense_long_run(train):
-        """ Longer run of finetuning across seeds for training against both an adversary and
-        zoo agent with hyperparameters generated by hyperparameter search
-        """
-        train = dict(train)
-        spec = _finetune_defense_long(train, dual_defense=True)
-        train['learning_rate'] = .000025
-        train['batch_size'] = 16384
-        exp_name = "finetune_dual_defense_long_run"
-        _ = locals()
-        del _
-
-    @multi_train_ex.named_config
-    def finetune_dual_defense_long_run_mlp(train):
-        """ Longer run of finetuning across seeds for training against both an adversary and
-        zoo agent with hyperparameters generated by hyperparameter search
-        """
-        train = dict(train)
-        spec = _finetune_defense_long(train, dual_defense=True,
-                                      envs=['multicomp/YouShallNotPassHumans-v0'])
-        train['learning_rate'] = .000025
-        train['batch_size'] = 16384
-        exp_name = "finetune_dual_defense_long_run_mlp"
-        _ = locals()
-        del _
-
-    # HYPERPARAMETER TUNING: RETRAIN ADVERSARY
-
-    @multi_train_ex.named_config
-    def hyper_against_adv_finetuned_from_scratch(train):
-        """Hyperparameter search for training adversary from scratch against best policy from
-        hyper_finetune_defense"""
-        train = dict(train)
-        spec = _hyper_train_adversary_against_finetuned(train,
-                                                        finetune_run="hyper_finetune_defense",
-                                                        from_scratch=True)
-        exp_name = 'hyper_against_adv_finetuned_from_scratch'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_against_dual_finetuned_from_scratch(train):
-        """Hyperparameter search for training adversary from scratch against best policy from
-        hyper_finetune_dual_defense """
-        train = dict(train)
-        spec = _hyper_train_adversary_against_finetuned(train,
-                                                        finetune_run="hyper_finetune_dual_defense",
-                                                        from_scratch=True)
-        exp_name = 'hyper_against_dual_finetuned_from_scratch'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_against_adv_finetuned_from_existing(train):
-        """Hyperparameter search for finetuning adversary from existing adversary against
-        best policy from hyper_finetune_defense"""
-        train = dict(train)
-        spec = _hyper_train_adversary_against_finetuned(train,
-                                                        finetune_run="hyper_finetune_defense",
-                                                        from_scratch=False)
-        exp_name = 'hyper_against_adv_finetuned_from_existing'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def hyper_against_dual_finetuned_from_existing(train):
-        """Hyperparameter search for finetuning adversary from existing adversary against
-                best policy from hyper_finetune_dual_defense"""
-        train = dict(train)
-        spec = _hyper_train_adversary_against_finetuned(train,
-                                                        finetune_run="hyper_finetune_dual_defense",
-                                                        from_scratch=False)
-        exp_name = 'hyper_against_dual_finetuned_from_existing'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    # BEST-HYPERPARAM LONG RUN: RETRAIN ADVERSARY
-    @multi_train_ex.named_config
-    def train_against_finetuned_adv(train):
-        """Longer run of an adversary retraining run against the current best finetuned
-        zoo agent from the long run of finetuning against just an adversary
-        """
-        train = dict(train)
-        train['learning_rate'] = 8e-4
-        train['batch_size'] = 2048
-        spec = _train_adversary_against_finetuned_long(train,
-                                                       finetune_run="finetune_adv_"
-                                                                    "defense_long_run",
-                                                       from_scratch=True)
-        exp_name = 'train_against_finetuned_adv'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def train_against_finetuned_dual(train):
-        """Longer run of an adversary retraining run against the current best finetuned
-        zoo agent from the long run of finetuning against an adversary and zoo agent jointly
-        """
-        train = dict(train)
-        train['learning_rate'] = 2.2e-4
-        train['batch_size'] = 2048
-        spec = _train_adversary_against_finetuned_long(train,
-                                                       finetune_run="finetune_dual_"
-                                                                    "defense_long_run",
-                                                       from_scratch=True)
-        exp_name = "train_against_finetuned_adv"
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    ###############################################################################################
-    # END CONFIGS FOR DEFENSE EXPERIMENTS
-    ###############################################################################################
-
-    @multi_train_ex.named_config
-    def paper(train):
-        """Final experiments for paper. Like best_guess but more seeds & timesteps."""
-        train = dict(train)
-        _sparse_reward(train)
-        _best_guess_train(train)
-        train['total_timesteps'] = int(20e6)
-        spec = _best_guess_spec()
-        spec['config']['seed'] = tune.grid_search([x for x in range(5)])
-        exp_name = 'paper'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def paper_sumohumans_only(train):
-        """Final experiments for paper. Like best_guess but more seeds & timesteps."""
-        train = dict(train)
-        _sparse_reward(train)
-        _best_guess_train(train)
-        train['total_timesteps'] = int(20e6)
-        spec = _best_guess_spec(envs=['multicomp/SumoHumans-v0'])
-        spec['config']['seed'] = tune.grid_search([x for x in range(5)])
-        exp_name = 'paper'
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
     @multi_train_ex.named_config
     def best_guess(train):
         """Train with promising hyperparameters for 10 million timesteps."""
@@ -549,48 +333,16 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
-    def single_agent_baseline(train):
-        """Baseline applying our method to standard single-agent Gym MuJoCo environments.
-
-        Should perform similarly to the results given in PPO paper."""
+    def paper(train):
+        """Final experiments for paper. Like best_guess but more seeds & timesteps."""
         train = dict(train)
         _sparse_reward(train)
-        train['embed_type'] = 'none'
-        train['total_timesteps'] = int(5e6)
-        train['batch_size'] = 2048
-        train['rew_shape'] = False
-        spec = {
-            'config': {
-                'env_name': tune.grid_search(['Reacher-v1', 'Hopper-v1', 'Ant-v1', 'Humanoid-v1']),
-                'seed': tune.grid_search([0, 1, 2]),
-            },
-        }
-        exp_name = 'single_agent_baseline'
-        _ = locals()   # quieten flake8 unused variable warning
-        del _
-
-    @multi_train_ex.named_config
-    def vec_normalize(train):
-        """Does using VecNormalize make a difference in performance?
-        (Answer: not much after we rescaled reward; before the reward clipping had big effect.)"""
-        train = dict(train)
-        _sparse_reward(train)
-        train['total_timesteps'] = int(5e6)
-        train['learning_rate'] = 2.5e-4
-        train['batch_size'] = 2048
-        train['rl_args'] = {'ent_coef': 0.00}
-        spec = {
-            'config': {
-                'env_name': tune.grid_search(
-                    ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
-                ),
-                'seed': tune.grid_search([0, 1, 2]),
-                'embed_path': tune.grid_search(['1', '2', '3']),
-                'normalize': tune.grid_search([True, False]),
-            },
-        }
-        exp_name = 'vec_normalize'
-        _ = locals()   # quieten flake8 unused variable warning
+        _best_guess_train(train)
+        train['total_timesteps'] = int(20e6)
+        spec = _best_guess_spec()
+        spec['config']['seed'] = tune.grid_search(list(range(5)))
+        exp_name = 'paper'
+        _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.named_config
@@ -618,7 +370,8 @@ def make_configs(multi_train_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    # From-scratch dense reward
+    # ### SPARSE VS DENSE REWARDS ### #
+
     @multi_train_ex.named_config
     def dense_env_reward(train):
         """Train with the dense reward defined by the environment."""
@@ -679,7 +432,192 @@ def make_configs(multi_train_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    # Finetuning
+    # ### DIAGNOSTIC EXPERIMENTS ### #
+
+    @multi_train_ex.named_config
+    def single_agent_baseline(train):
+        """Baseline applying our method to standard single-agent Gym MuJoCo environments.
+
+        Should perform similarly to the results given in PPO paper."""
+        train = dict(train)
+        _sparse_reward(train)
+        train['embed_type'] = 'none'
+        train['total_timesteps'] = int(5e6)
+        train['batch_size'] = 2048
+        train['rew_shape'] = False
+        spec = {
+            'config': {
+                'env_name': tune.grid_search(['Reacher-v1', 'Hopper-v1', 'Ant-v1', 'Humanoid-v1']),
+                'seed': tune.grid_search([0, 1, 2]),
+            },
+        }
+        exp_name = 'single_agent_baseline'
+        _ = locals()   # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def vec_normalize(train):
+        """Does using VecNormalize make a difference in performance?
+        (Answer: not much after we rescaled reward; before the reward clipping had big effect.)"""
+        train = dict(train)
+        _sparse_reward(train)
+        train['total_timesteps'] = int(5e6)
+        train['learning_rate'] = 2.5e-4
+        train['batch_size'] = 2048
+        train['rl_args'] = {'ent_coef': 0.00}
+        spec = {
+            'config': {
+                'env_name': tune.grid_search(
+                    ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
+                ),
+                'seed': tune.grid_search([0, 1, 2]),
+                'embed_path': tune.grid_search(['1', '2', '3']),
+                'normalize': tune.grid_search([True, False]),
+            },
+        }
+        exp_name = 'vec_normalize'
+        _ = locals()   # quieten flake8 unused variable warning
+        del _
+
+    # ### DEFENSE EXPERIMENTS ### #
+
+    @multi_train_ex.named_config
+    def defense_dual():
+        defense_kwargs = {'dual_defense': True}  # noqa: F841
+
+    @multi_train_ex.named_config
+    def defense_single():
+        defense_kwargs = {'dual_defense': False}  # noqa: F841
+
+    @multi_train_ex.named_config
+    def defense_only_mlp(defense_kwargs):
+        defense_kwargs['envs'] = ['multicomp/YouShallNotPassHumans-v0']
+        defense_kwargs['num_samples'] = 100
+        defense_kwargs['exp_suffix'] = 'mlp'
+
+    @multi_train_ex.named_config
+    def adv_from_scratch():
+        adv_retrain_kwargs = {'from_scratch': True}  # noqa: F841
+
+    @multi_train_ex.named_config
+    def adv_finetune():
+        adv_retrain_kwargs = {'from_scratch': False}  # noqa: F841
+
+    # HYPERPARAMETER TUNING
+
+    @multi_train_ex.named_config
+    def hyper_finetune_defense(train, defense_kwargs):
+        """Hyperparameter search for finetuning defense.
+
+        You must use this with one of the modifiers `defense_dual` or `defense_single`,
+        specified before this named config. You may optionally use `defense_only_mlp`.
+        """
+        train = dict(train)
+        spec, exp_name = _hyper_finetune_defense(train, **defense_kwargs)
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def hyper_adv_against_hardened(train, defense_kwargs, adv_retrain_kwargs):
+        """Hyperparameter search for training adversary against best hardened victim.
+
+        You must specify the same modifiers as used with `hyper_finetune_defense` to locate
+        the correct victim.
+
+        You must also specify one of the modifiers `adv_from_scratch` or `adv_finetune`.
+        """
+        train = dict(train)
+        _, finetune_run = _hyper_finetune_defense({}, **defense_kwargs)
+        spec, exp_name = _hyper_train_adversary_against_finetuned(train,
+                                                                  **adv_retrain_kwargs,
+                                                                  finetune_run=finetune_run)
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    # BEST-HYPERPARAM LONG RUN: FINETUNE
+
+    # TODO(adam): where do these hyperparams come from? are they up to date?
+    # TODO(adam): try and consolidate configs as much as possible
+    @multi_train_ex.named_config
+    def finetune_adv_defense_long_run(train):
+        """ Longer run of finetuning across seeds for training against just an adversary
+            with hyperparameters generated by hyperparameter search
+        """
+        train = dict(train)
+        spec = _finetune_defense_long(train, dual_defense=False)
+        train['learning_rate'] = .00005
+        train['batch_size'] = 2048
+        exp_name = "finetune_adv_defense_long_run"
+        _ = locals()
+        del _
+
+    @multi_train_ex.named_config
+    def finetune_dual_defense_long_run(train):
+        """ Longer run of finetuning across seeds for training against both an adversary and
+        zoo agent with hyperparameters generated by hyperparameter search
+        """
+        # From s3://adversarial-policies/multi_train/hyper_finetune_dual_defense_mlp/
+        # 20191108_005843-63b70ae42b414191b23601e494a100c9
+        train = dict(train)
+        spec = _finetune_defense_long(train, dual_defense=True)
+        train['learning_rate'] = .000025
+        train['batch_size'] = 16384
+        exp_name = "finetune_dual_defense_long_run"
+        _ = locals()
+        del _
+
+    @multi_train_ex.named_config
+    def finetune_dual_defense_long_run_mlp(train):
+        """ Longer run of finetuning across seeds for training against both an adversary and
+        zoo agent with hyperparameters generated by hyperparameter search
+        """
+        train = dict(train)
+        spec = _finetune_defense_long(train, dual_defense=True,
+                                      envs=['multicomp/YouShallNotPassHumans-v0'])
+        train['learning_rate'] = .000025
+        train['batch_size'] = 16384
+        exp_name = "finetune_dual_defense_long_run_mlp"
+        _ = locals()
+        del _
+
+    # BEST-HYPERPARAM LONG RUN: RETRAIN ADVERSARY
+
+    # TODO(adam): again, are these hyperparams up to date?
+    # TODO(adam): Maybe consolidate further
+    @multi_train_ex.named_config
+    def train_against_finetuned_adv(train):
+        """Longer run of an adversary retraining run against the current best finetuned
+        zoo agent from the long run of finetuning against just an adversary
+        """
+        train = dict(train)
+        train['learning_rate'] = 8e-4
+        train['batch_size'] = 2048
+        spec = _train_adversary_against_finetuned_long(train,
+                                                       finetune_run="finetune_adv_"
+                                                                    "defense_long_run",
+                                                       from_scratch=True)
+        exp_name = 'train_against_finetuned_adv'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_train_ex.named_config
+    def train_against_finetuned_dual(train):
+        """Longer run of an adversary retraining run against the current best finetuned
+        zoo agent from the long run of finetuning against an adversary and zoo agent jointly
+        """
+        train = dict(train)
+        train['learning_rate'] = 2.2e-4
+        train['batch_size'] = 2048
+        spec = _train_adversary_against_finetuned_long(train,
+                                                       finetune_run="finetune_dual_"
+                                                                    "defense_long_run",
+                                                       from_scratch=True)
+        exp_name = "train_against_finetuned_adv"
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    # ### FINETUNING ### #
+
     @multi_train_ex.named_config
     def finetune_nolearn(train):
         """Sanity check finetuning: with a learning rate of 0.0, do we get performance the
@@ -818,7 +756,8 @@ def make_configs(multi_train_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    # Adversarial noise ball
+    # ### ADVERSARIAL NOISE BALL ### #
+
     @multi_train_ex.named_config
     def noise_ball_search(train):
         """Random search of size of allowed noise ball."""
