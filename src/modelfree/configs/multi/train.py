@@ -176,7 +176,7 @@ def _generic_finetune_defense(train, dual_defense=False, envs=None, exp_suffix='
         ),
     }
     dual_name = 'dual' if dual_defense else 'single'
-    exp_name = f'finetune_defense_r{dual_name}_{exp_suffix}'
+    exp_name = f'finetune_defense_{dual_name}_{exp_suffix}'
 
     return ray_config, exp_name
 
