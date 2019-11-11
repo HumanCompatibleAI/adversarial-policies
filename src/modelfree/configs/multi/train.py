@@ -550,6 +550,7 @@ def make_configs(multi_train_ex):
         spec, exp_name = _hyper_train_adv_against_finetuned(train,
                                                             **adv_retrain_kwargs,
                                                             finetune_run=finetune_run)
+        del finetune_run
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -584,6 +585,7 @@ def make_configs(multi_train_ex):
         spec, exp_name = _train_adv_against_finetuned(train,
                                                       **adv_retrain_kwargs,
                                                       finetune_run=finetune_run)
+        del finetune_run
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
