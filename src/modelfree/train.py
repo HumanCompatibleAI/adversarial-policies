@@ -97,7 +97,8 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
             # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
             model = load_backward_compatible_model(cls, load_policy['path'], **kwargs)
         elif load_policy['type'] == 'zoo':
-            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name)
+            policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name,
+                                                                      transparent_params=None)
             kwargs['policy_kwargs'] = policy_kwargs
             model = cls(policy=policy_cls, **kwargs)
 
@@ -135,7 +136,7 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
 
 def _get_mpi_num_proc():
     # SOMEDAY: If we end up using MPI-based algorithms regularly, come up with a cleaner solution.
-    from mpi4py import MPI
+    from mpi4py import MPI  # pytype:disable=import-error
     if MPI is None:
         num_proc = 1
     else:
@@ -408,7 +409,7 @@ MPI_RL_ALGOS = {
 }
 
 try:
-    from mpi4py import MPI
+    from mpi4py import MPI  # pytype:disable=import-error
     del MPI
     RL_ALGOS.update(MPI_RL_ALGOS)
 except ImportError:

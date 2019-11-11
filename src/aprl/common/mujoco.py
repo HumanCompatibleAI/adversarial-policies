@@ -1,4 +1,4 @@
-from abc import abstractmethod
+import abc
 from collections import namedtuple
 
 import gym
@@ -32,14 +32,14 @@ class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
         return np.concatenate((self.qpos, self.qvel))
 
 
-class ResettableEnv(gym.Env):
+class ResettableEnv(gym.Env, abc.ABC):
     """A Gym environment that can be reset to an arbitrary state."""
-    @abstractmethod
+    @abc.abstractmethod
     def get_state(self):
         """Returns a serialized representation of the current state."""
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def set_state(self, x):
         """Restores the environment to a previously saved state.
         :param x: return value of a previous call to get_state()."""

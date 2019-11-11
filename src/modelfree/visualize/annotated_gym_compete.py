@@ -193,7 +193,7 @@ class AnnotatedGymCompete(gym.Wrapper):
             DoubleArray3 = ctypes.c_double * 3
             lookat = [float(x) for x in camera_cfg['lookat']]
             assert len(lookat) == 3
-            camera_cfg['lookat'] = DoubleArray3(*lookat)
+            camera_cfg['lookat'] = DoubleArray3(*lookat)  # pytype:disable=not-callable
 
         viewer = self.env.unwrapped.env_scene.viewer
         for k, v in camera_cfg.items():

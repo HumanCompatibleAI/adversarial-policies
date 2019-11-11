@@ -7,7 +7,7 @@ from tests.aprl.test_envs import check_env, check_random_rollout
 from modelfree.envs.gym_compete import GymCompeteToOurs
 
 spec_list = [spec
-             for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)
+             for spec in sorted(gym.envs.registration.registry.all(), key=lambda x: x.id)
              if spec.id.startswith('multicomp/')]
 
 
