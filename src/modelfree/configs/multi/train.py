@@ -4,7 +4,6 @@ import collections
 import itertools
 import json
 import os
-import os.path as osp
 
 import numpy as np
 from ray import tune
@@ -43,7 +42,7 @@ HYPERPARAM_SEARCH_VALUES = {
         lambda spec: 10 ** (-2 + -3 * np.random.random())),
 }
 
-MULTI_TRAIN_LOCATION = osp.join(os.environ.get('DATA_LOC', 'data'), "multi_train")
+DATA_LOCATION = os.path.abspath(os.environ.get('DATA_LOC', 'data'))
 
 
 def _env_victim(envs=None):
@@ -110,13 +109,21 @@ def _finetune_spec(envs=None):
 def _get_path_from_exp_name(exp_name,
                             json_file_path="highest_win_policies_and_rates.json"):
     """Takes in an experiment name and constructs the JSON path containing its best policies."""
-    full_json_path = os.path.join(MULTI_TRAIN_LOCATION, exp_name, json_file_path)
+    full_json_path = os.path.join(DATA_LOCATION, 'multi_train', exp_name, json_file_path)
     try:
         with open(full_json_path, 'r') as f:
             return json.load(f)['policies']
     except FileNotFoundError:
         raise FileNotFoundError(f"Please run highest_win_rate.py for experiment {exp_name} before"
                                 " trying to use it ")
+
+
+def _get_policy_path(paths, env_name, embed_index, victim_path):
+    """Computes policy path from a loaded JSON, such as returned by `get_adversary_paths`."""
+    res = paths.get(env_name, {}).get(str(embed_index), {}).get(victim_path)
+    if res is not None:
+        res = os.path.join(DATA_LOCATION, res)
+    return res
 
 
 # ### CONFIGS FOR FINETUNING AGAINST ADVERSARY (SINGLE) OR ADVERSARY + ZOO (DUAL) ### #
@@ -140,10 +147,8 @@ def _finetune_configs(envs=None, dual_defense=False):
             original_victim = str(original_victim)
             load_policy = {'type': 'zoo', 'path': original_victim}
 
-            adversary = (adversary_paths.get(env, {})
-                                        .get(str(original_embed_index), {})
-                                        .get(original_victim))
-            adversary = os.path.join(MULTI_TRAIN_LOCATION, adversary)
+            adversary = _get_policy_path(adversary_paths, env,
+                                         str(original_embed_index), original_victim)
 
             if dual_defense:
                 # If training both best adversary and Zoo, try each possible Zoo agent
@@ -232,20 +237,18 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
         num_zoo = gym_compete.num_zoo_policies(env)
         for original_victim in range(1, num_zoo + 1):
             original_victim = str(original_victim)
-            finetuned_victim = (finetuned_paths.get(env, {})
-                                               .get(str(finetuned_embed_index), {})
-                                               .get(original_victim, None))
+            finetuned_victim = _get_policy_path(finetuned_paths, env, finetuned_embed_index,
+                                                original_victim)
             if not finetuned_victim:
                 continue
 
             if from_scratch:
                 load_policy = {'type': 'ppo2', 'path': None}
             else:
-                adversary = (adversary_paths.get(env, {})
-                                            .get(str(embed_index), {})
-                                            .get(original_victim, None))
-                if not adversary:
-                    continue
+                adversary = _get_policy_path(adversary_paths, env, embed_index,
+                                             original_victim)
+                assert adversary is not None
+
                 load_policy = {'type': 'ppo2', 'path': adversary}
 
             configs.append((env, finetuned_victim, embed_index, load_policy))
