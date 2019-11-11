@@ -15,17 +15,6 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
-RET=0
-for suite in ${TEST_SUITES}; do
-    docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
-                          humancompatibleai/adversarial_policies:local-test \
-                          ci/run_tests.sh ${suite}
-    RET=$(($RET + $?))
-done
-
-if [[ $RET -eq 0 ]]; then
-    echo "All tests passed"
-else
-    echo "Test failed"
-fi
-exit $RET
+docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+                      humancompatibleai/adversarial_policies:local-test \
+                      ci/run_tests.sh

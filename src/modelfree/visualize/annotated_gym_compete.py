@@ -6,7 +6,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont
 import gym
-import mujoco_py
+import mujoco_py_131
 import numpy as np
 
 from modelfree.envs import VICTIM_INDEX
@@ -162,7 +162,7 @@ class AnnotatedGymCompete(gym.Wrapper):
         # Start the viewer ourself to control dimensions.
         # env_scene only sets this if None so will not be overwritten.
         width, height = resolution
-        env_scene.viewer = mujoco_py.MjViewer(init_width=width, init_height=height)
+        env_scene.viewer = mujoco_py_131.MjViewer(init_width=width, init_height=height)
         env_scene.viewer.start()
         env_scene.viewer.set_model(env_scene.model)
         env_scene.viewer_setup()

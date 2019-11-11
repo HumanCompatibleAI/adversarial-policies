@@ -6,7 +6,7 @@ import warnings
 
 import gym
 from gym import Wrapper
-from gym.monitoring import VideoRecorder
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
 import numpy as np
 
 from aprl.common.multi_monitor import MultiMonitor

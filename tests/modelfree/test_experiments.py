@@ -119,7 +119,7 @@ TRAIN_CONFIGS = [
         'victim_noise': True,
     },
     {
-        'env_name': 'Humanoid-v1',
+        'env_name': 'Humanoid-v3',
         'victim_type': 'none',
     },
     {
