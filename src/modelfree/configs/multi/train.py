@@ -517,6 +517,13 @@ def make_configs(multi_train_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
+    @multi_train_ex.capture
+    def squash_sacred_warning(defense_kwargs):
+        """Sacred thinks we don't use defense_kwargs, but we do in the above named_config.
+
+        This is because Sacred is only looking at capture functions, not at named_config's.
+        """
+
     @multi_train_ex.named_config
     def hyper_adv_against_hardened(train, defense_kwargs, adv_retrain_kwargs):
         """Hyperparameter search for training adversary against best hardened victim.
