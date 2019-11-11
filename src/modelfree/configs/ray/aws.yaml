@@ -25,6 +25,7 @@ provider:
   type: aws
   region: us-west-2
   availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west2d
+  cache_stopped_nodes: False  # TODO(adam): remove when Ray issue #6128 is closed
 
 # How Ray will authenticate with newly launched nodes.
 auth:
