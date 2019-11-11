@@ -285,7 +285,7 @@ def _hyper_train_adv_against_finetuned(train, finetune_run, from_scratch=True):
 
 def _train_adv_against_finetuned(train, finetune_run, from_scratch=True):
     """Multi-seed, long (20e6) retraining of adversary against finetuned Zoo agent."""
-    ray_config = _generic_train_adv_against_finetuned(train, finetune_run, from_scratch)
+    ray_config, exp_name = _generic_train_adv_against_finetuned(train, finetune_run, from_scratch)
     ray_config['seed'] = tune.grid_search(list(range(5)))
     spec = {
         'config': ray_config,
