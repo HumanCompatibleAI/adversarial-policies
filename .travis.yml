@@ -8,7 +8,7 @@ matrix:
     python: 3.6
     before_install: []
     install:
-      - pip install flake8 isort
+      - pip install flake8 isort pytype
     script:
       - ci/code_checks.sh
     after_success: []
