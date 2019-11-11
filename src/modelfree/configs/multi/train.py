@@ -569,7 +569,7 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.named_config
-    def avg_against_hardened(train, defense_kwargs, adv_retrain_kwargs):
+    def adv_against_hardened(train, defense_kwargs, adv_retrain_kwargs):
         """Retrain adversary against the current best finetuned Zoo agent, from finetune_defense.
 
         You must specify the same modifiers as used with `hyper_finetune_defense` to locate
