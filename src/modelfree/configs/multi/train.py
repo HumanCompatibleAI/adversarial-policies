@@ -234,14 +234,18 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
             original_victim = str(original_victim)
             finetuned_victim = (finetuned_paths.get(env, {})
                                                .get(str(finetuned_embed_index), {})
-                                               .get(original_victim, {}))
+                                               .get(original_victim, None))
+            if not finetuned_victim:
+                continue
 
             if from_scratch:
                 load_policy = {'type': 'ppo2', 'path': None}
             else:
                 adversary = (adversary_paths.get(env, {})
                                             .get(str(embed_index), {})
-                                            .get(original_victim, {}))
+                                            .get(original_victim, None))
+                if not adversary:
+                    continue
                 load_policy = {'type': 'ppo2', 'path': adversary}
 
             configs.append((env, finetuned_victim, embed_index, load_policy))
