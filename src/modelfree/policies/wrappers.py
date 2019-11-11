@@ -3,20 +3,20 @@ from typing import List, Optional, Sequence, Tuple, TypeVar
 import numpy as np
 from stable_baselines.common.base_class import BaseRLModel
 
-from modelfree.policies.base import DummyModel
+from modelfree.policies.base import ModelWrapper
 
 
-class NoisyAgentWrapper(DummyModel):
-    def __init__(self, agent, noise_annealer, noise_type='gaussian'):
+class NoisyAgentWrapper(ModelWrapper):
+    def __init__(self, model: BaseRLModel, noise_annealer, noise_type: str = 'gaussian'):
         """
         Wrap an agent and add noise to its actions
-        :param agent: (BaseRLModel) the agent to wrap
+        :param model: the agent to wrap
         :param noise_annealer: Annealer.get_value - presumably the noise should be decreased
         over time in order to get the adversarial policy to perform well on a normal victim.
-        :param noise_type: str - the type of noise parametrized by noise_annealer's value.
-        Current options are [gaussian]
+        :param noise_type: the type of noise parametrized by noise_annealer's value.
+            Current options are [gaussian]
         """
-        super().__init__(policy=agent, sess=agent.sess)
+        super().__init__(model=model)
         self.noise_annealer = noise_annealer
         self.noise_generator = self._get_noise_generator(noise_type)
 
@@ -32,7 +32,7 @@ class NoisyAgentWrapper(DummyModel):
         logger.logkv('shaping/victim_noise', current_noise_param)
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
-        original_actions, states = self.policy.predict(observation, state, mask, deterministic)
+        original_actions, states = self.model.predict(observation, state, mask, deterministic)
         action_shape = original_actions.shape
         noise_param = self.noise_annealer()
 
@@ -96,7 +96,7 @@ def _standardize_state(state_arr: Sequence[np.ndarray],
     return standardized_arr
 
 
-class MultiPolicyWrapper(DummyModel):
+class MultiPolicyWrapper(ModelWrapper):
     """Combines multiple policies into a single policy.
 
     Each policy executes for the entirety of an episode, and then a new policy is randomly
@@ -110,15 +110,15 @@ class MultiPolicyWrapper(DummyModel):
         :param policies: The underlying policies to execute.
         :param num_envs: The number of environments to execute in parallel.
         """
-        super().__init__(policies[0], policies[0].sess)
+        super().__init__(policies[0])
         self.policies = policies
 
-        self.action_space = self.policies[0].policy.ac_space
-        self.obs_space = self.policies[0].policy.ob_space
+        self.action_space = self.policies[0].action_space
+        self.obs_space = self.policies[0].observation_space
         for p in self.policies:
             err_txt = "All policies must have the same {} space"
-            assert p.policy.ac_space == self.action_space, err_txt.format("action")
-            assert p.policy.ob_space == self.obs_space, err_txt.format("obs")
+            assert p.action_space == self.action_space, err_txt.format("action")
+            assert p.observation_space == self.obs_space, err_txt.format("obs")
 
         # Strictly we do not need `num_envs`, but it is convenient to have it so we can
         # construct an appropriate sized `self.current_env_policies` at initialization.

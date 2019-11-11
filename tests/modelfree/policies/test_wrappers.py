@@ -121,7 +121,7 @@ def _check_switching(vec_env, num_steps, agent, policy_wrapper, extra_check=None
     obs = vec_env.reset()
     dones = np.full(shape=vec_env.num_envs, fill_value=False)
     states = None
-    current_policies = [ptm.policy for ptm in policy_wrapper.current_env_policies]
+    current_policies = [ptm.policy_obj for ptm in policy_wrapper.current_env_policies]
     num_policies = len(current_policies)
     num_identical = 0
     num_switches = 0
@@ -131,7 +131,7 @@ def _check_switching(vec_env, num_steps, agent, policy_wrapper, extra_check=None
         actions, states = agent.predict(obs, state=states, mask=dones)
         obs, rew, new_dones, infos = vec_env.step(actions)
 
-        new_current_policies = [ptm.policy for ptm in policy_wrapper.current_env_policies]
+        new_current_policies = [ptm.policy_obj for ptm in policy_wrapper.current_env_policies]
         for ind, done in enumerate(dones):
             policies_match = new_current_policies[ind] == current_policies[ind]
             if done:
