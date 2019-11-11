@@ -81,10 +81,11 @@ class RewardShapingVecWrapper(VecEnvWrapper):
 
             if done[env_num]:
                 ep_length = max(len(self.step_rew_dict[k]) for k in self.step_rew_dict.keys())
-                self.ep_logs['length'].appendleft(ep_length)
+                self.ep_logs['length'].appendleft(ep_length)  # pytype:disable=attribute-error
                 for rew_type in REW_TYPES:
                     rew_type_total = sum(self.step_rew_dict[rew_type][env_num])
-                    self.ep_logs[rew_type].appendleft(rew_type_total)
+                    rew_type_logs = self.ep_logs[rew_type]
+                    rew_type_logs.appendleft(rew_type_total)  # pytype:disable=attribute-error
                     self.step_rew_dict[rew_type][env_num] = []
                 self.ep_logs['total_episodes'] += 1
         return obs, rew, done, infos

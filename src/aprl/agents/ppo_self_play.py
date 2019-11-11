@@ -19,7 +19,7 @@ from aprl.agents.self_play import AbstractMultiEnvRunner, SelfPlay, e_arr
 from aprl.envs import FakeSingleSpacesVec
 
 try:
-    from mpi4py import MPI
+    from mpi4py import MPI  # pytype:disable=import-error
 except ImportError:
     MPI = None
 
