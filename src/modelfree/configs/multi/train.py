@@ -530,8 +530,8 @@ def make_configs(multi_train_ex):
         del _
 
     @multi_train_ex.capture
-    def squash_sacred_warning(defense_kwargs, hyper_defense_kwargs):
-        """Sacred thinks we don't use these arguments, but we do in the above named_config.
+    def squash_sacred_warning(defense_kwargs, hyper_defense_kwargs, adv_retrain_kwargs):
+        """Sacred thinks we don't use these arguments, but we do in various named_config's.
 
         This is because Sacred is only looking at capture functions, not at named_config's.
         """
