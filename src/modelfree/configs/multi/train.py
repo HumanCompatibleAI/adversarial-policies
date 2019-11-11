@@ -161,23 +161,29 @@ def _finetune_configs(envs=None, dual_defense=False):
 FINETUNE_PATHS_TYPES = "env_name:embed_paths:embed_types:embed_index:load_policy"
 
 
-def _finetuning_defense(train, dual_defense=False, envs=None):
+def _generic_finetune_defense(train, dual_defense=False, envs=None, exp_suffix=''):
+    """Finetuning victim against adversary.
+
+    This is the most generic helper method, used as a base for `_hyper_finetune_defense`
+    and `_finetune_defense`.
+    """
     _sparse_reward(train)
-    # A hack to make it so  you can in theory fine tune LSTMs
-    train['num_env'] = 16
+    train['num_env'] = 16  # TODO(adam): cleaner way of allowing finetuning LSTMs
     train['normalize_observations'] = False
     ray_config = {
         FINETUNE_PATHS_TYPES: tune.grid_search(
             _finetune_configs(envs=envs, dual_defense=dual_defense)
         ),
     }
+    dual_name = 'dual' if dual_defense else 'single'
+    exp_name = f'finetune_defense_r{dual_name}_{exp_suffix}'
 
-    return ray_config
+    return ray_config, exp_name
 
 
-def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20, exp_suffix=''):
+def _hyper_finetune_defense(train, num_samples=20, **kwargs):
     """Hyperparameter search for finetuning Zoo agent against adversary."""
-    ray_config = _finetuning_defense(train, dual_defense, envs)
+    ray_config, exp_name = _generic_finetune_defense(train, **kwargs)
     train['total_timesteps'] = int(10e6)
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
@@ -186,21 +192,18 @@ def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20
             'num_samples': num_samples,
         }
     }
-    dual_name = 'dual' if dual_defense else 'single'
-    exp_name = f'hyper_finetune_defense_{dual_name}_{exp_suffix}'
+    exp_name = f'hyper_{exp_name}'
     return spec, exp_name
 
 
-def _finetune_defense_long(train, dual_defense=False, envs=None):
+def _finetune_defense(train, **kwargs):
     """Multi-seed, long (20e6) timestep finetuning against adversary."""
-    ray_config = _finetuning_defense(train, dual_defense, envs=envs)
-    train['total_timesteps'] = int(20e6)
-    # "Victim" here is the adversary
+    ray_config, exp_name = _generic_finetune_defense(train, **kwargs)
     ray_config['seed'] = tune.grid_search(list(range(5)))
     spec = {
-        "config": ray_config,
+        'config': ray_config,
     }
-    return spec
+    return spec, exp_name
 
 
 # ### RETRAINING ADVERSARY AGAINST ADVERSARIALLY-FINETUNED VICTIM ### #
@@ -249,37 +252,40 @@ def _train_against_finetuned_configs(finetune_run, envs=None, from_scratch=True)
 TRAIN_AGAINST_FINETUNED_PATHS = "env_name:embed_path:embed_index:load_policy"
 
 
-def _train_against_finetuned(train, finetune_run, from_scratch=True):
+def _generic_train_adv_against_finetuned(train, finetune_run, from_scratch=True):
+    """Retrain adversary against defensively finetuned victim.
+
+    This is the most generic helper method, that is used by `_hyper_train_adv_against_finetuned`
+    and `_train_adv_against_finetuned`."""
     _sparse_reward(train)
+    train['embed_type'] = "ppo2"  # all victims are new-style policies because we finetuned them
     ray_config = {
         TRAIN_AGAINST_FINETUNED_PATHS: tune.grid_search(
             _train_against_finetuned_configs(finetune_run=finetune_run,
                                              from_scratch=from_scratch)
         ),
     }
-    # All victims are new-style policies because we finetuned them
-    train['embed_type'] = "ppo2"
-    return ray_config
+    from_scratch_name = 'from_scratch' if from_scratch else 'finetune'
+    exp_name = f'adv_{from_scratch_name}_against_{finetune_run}'
+    return ray_config, exp_name
 
 
-def _hyper_train_adversary_against_finetuned(train, finetune_run, from_scratch=True):
+def _hyper_train_adv_against_finetuned(train, finetune_run, from_scratch=True):
     """Hyperparameter search for retraining an adversary against defensively finetuned victim."""
-    ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
+    ray_config, exp_name = _generic_train_adv_against_finetuned(train, finetune_run, from_scratch)
     train['total_timesteps'] = int(10e6)
     ray_config.update(HYPERPARAM_SEARCH_VALUES)
     spec = {
         'config': ray_config,
         'run_kwargs': {'num_samples': 2}
     }
-    from_scratch_name = 'from_scratch' if from_scratch else 'finetune'
-    exp_name = f'hyper_adv_{from_scratch_name}_against_{finetune_run}'
+    exp_name = f'hyper_{exp_name}'
     return spec, exp_name
 
 
-def _train_adversary_against_finetuned_long(train, finetune_run, from_scratch=True):
+def _train_adv_against_finetuned(train, finetune_run, from_scratch=True):
     """Multi-seed, long (20e6) retraining of adversary against finetuned Zoo agent."""
-    ray_config = _train_against_finetuned(train, finetune_run, from_scratch)
-    train['total_timesteps'] = int(20e6)
+    ray_config = _generic_train_adv_against_finetuned(train, finetune_run, from_scratch)
     ray_config['seed'] = tune.grid_search(list(range(5)))
     spec = {
         'config': ray_config,
@@ -481,19 +487,23 @@ def make_configs(multi_train_ex):
 
     # ### DEFENSE EXPERIMENTS ### #
 
+    # MODIFIERS: Used with all experiments
+
     @multi_train_ex.named_config
     def defense_dual():
         defense_kwargs = {'dual_defense': True}  # noqa: F841
+        hyper_defense_kwargs = {}  # noqa: F841
 
     @multi_train_ex.named_config
     def defense_single():
         defense_kwargs = {'dual_defense': False}  # noqa: F841
+        hyper_defense_kwargs = {}  # noqa: F841
 
     @multi_train_ex.named_config
-    def defense_only_mlp(defense_kwargs):
+    def defense_only_mlp(defense_kwargs, hyper_defense_kwargs):
         defense_kwargs['envs'] = ['multicomp/YouShallNotPassHumans-v0']
-        defense_kwargs['num_samples'] = 100
         defense_kwargs['exp_suffix'] = 'mlp'
+        hyper_defense_kwargs['num_samples'] = 100
 
     @multi_train_ex.named_config
     def adv_from_scratch():
@@ -506,20 +516,22 @@ def make_configs(multi_train_ex):
     # HYPERPARAMETER TUNING
 
     @multi_train_ex.named_config
-    def hyper_finetune_defense(train, defense_kwargs):
+    def hyper_finetune_defense(train, defense_kwargs, hyper_defense_kwargs):
         """Hyperparameter search for finetuning defense.
 
         You must use this with one of the modifiers `defense_dual` or `defense_single`,
         specified before this named config. You may optionally use `defense_only_mlp`.
         """
         train = dict(train)
-        spec, exp_name = _hyper_finetune_defense(train, **defense_kwargs)
+        spec, exp_name = _hyper_finetune_defense(train,
+                                                 **defense_kwargs,
+                                                 **hyper_defense_kwargs)
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.capture
-    def squash_sacred_warning(defense_kwargs):
-        """Sacred thinks we don't use defense_kwargs, but we do in the above named_config.
+    def squash_sacred_warning(defense_kwargs, hyper_defense_kwargs):
+        """Sacred thinks we don't use these arguments, but we do in the above named_config.
 
         This is because Sacred is only looking at capture functions, not at named_config's.
         """
@@ -535,95 +547,47 @@ def make_configs(multi_train_ex):
         """
         train = dict(train)
         _, finetune_run = _hyper_finetune_defense({}, **defense_kwargs)
-        spec, exp_name = _hyper_train_adversary_against_finetuned(train,
-                                                                  **adv_retrain_kwargs,
-                                                                  finetune_run=finetune_run)
+        spec, exp_name = _hyper_train_adv_against_finetuned(train,
+                                                            **adv_retrain_kwargs,
+                                                            finetune_run=finetune_run)
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    # BEST-HYPERPARAM LONG RUN: FINETUNE
-
-    # TODO(adam): where do these hyperparams come from? are they up to date?
-    # TODO(adam): try and consolidate configs as much as possible
-    @multi_train_ex.named_config
-    def finetune_adv_defense_long_run(train):
-        """ Longer run of finetuning across seeds for training against just an adversary
-            with hyperparameters generated by hyperparameter search
-        """
-        train = dict(train)
-        spec = _finetune_defense_long(train, dual_defense=False)
-        train['learning_rate'] = .00005
-        train['batch_size'] = 2048
-        exp_name = "finetune_adv_defense_long_run"
-        _ = locals()
-        del _
+    # BEST-HYPERPARAM LONG RUNS
 
     @multi_train_ex.named_config
-    def finetune_dual_defense_long_run(train):
-        """ Longer run of finetuning across seeds for training against both an adversary and
-        zoo agent with hyperparameters generated by hyperparameter search
-        """
-        # From s3://adversarial-policies/multi_train/hyper_finetune_dual_defense_mlp/
-        # 20191108_005843-63b70ae42b414191b23601e494a100c9
+    def finetune_defense(train, defense_kwargs):
+        """Finetune victim against adversary and optionally a normal opponent."""
         train = dict(train)
-        spec = _finetune_defense_long(train, dual_defense=True)
-        train['learning_rate'] = .000025
-        train['batch_size'] = 16384
-        exp_name = "finetune_dual_defense_long_run"
-        _ = locals()
-        del _
-
-    @multi_train_ex.named_config
-    def finetune_dual_defense_long_run_mlp(train):
-        """ Longer run of finetuning across seeds for training against both an adversary and
-        zoo agent with hyperparameters generated by hyperparameter search
-        """
-        train = dict(train)
-        spec = _finetune_defense_long(train, dual_defense=True,
-                                      envs=['multicomp/YouShallNotPassHumans-v0'])
-        train['learning_rate'] = .000025
-        train['batch_size'] = 16384
-        exp_name = "finetune_dual_defense_long_run_mlp"
-        _ = locals()
-        del _
-
-    # BEST-HYPERPARAM LONG RUN: RETRAIN ADVERSARY
-
-    # TODO(adam): again, are these hyperparams up to date?
-    # TODO(adam): Maybe consolidate further
-    @multi_train_ex.named_config
-    def train_against_finetuned_adv(train):
-        """Longer run of an adversary retraining run against the current best finetuned
-        zoo agent from the long run of finetuning against just an adversary
-        """
-        train = dict(train)
-        train['learning_rate'] = 8e-4
-        train['batch_size'] = 2048
-        spec = _train_adversary_against_finetuned_long(train,
-                                                       finetune_run="finetune_adv_"
-                                                                    "defense_long_run",
-                                                       from_scratch=True)
-        exp_name = 'train_against_finetuned_adv'
+        # Hyperparameter search found similar hyperparameters for dual finetuning as for
+        # training an adversary, so reuse _best_guess_train for consistency.
+        # TODO(adam): do we want different hyperparameters for single defense?
+        _best_guess_train(train)
+        train['total_timesteps'] = int(20e6)
+        spec, exp_name = _finetune_defense(train, **defense_kwargs)
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_train_ex.named_config
-    def train_against_finetuned_dual(train):
-        """Longer run of an adversary retraining run against the current best finetuned
-        zoo agent from the long run of finetuning against an adversary and zoo agent jointly
+    def avg_against_hardened(train, defense_kwargs, adv_retrain_kwargs):
+        """Retrain adversary against the current best finetuned Zoo agent, from finetune_defense.
+
+        You must specify the same modifiers as used with `hyper_finetune_defense` to locate
+        the correct victim.
+
+        You must also specify one of the modifiers `adv_from_scratch` or `adv_finetune`.
         """
         train = dict(train)
-        train['learning_rate'] = 2.2e-4
-        train['batch_size'] = 2048
-        spec = _train_adversary_against_finetuned_long(train,
-                                                       finetune_run="finetune_dual_"
-                                                                    "defense_long_run",
-                                                       from_scratch=True)
-        exp_name = "train_against_finetuned_adv"
+        _best_guess_train(train)
+        train['total_timesteps'] = int(20e6)
+        _, finetune_run = _finetune_defense({}, **defense_kwargs)
+        spec, exp_name = _train_adv_against_finetuned(train,
+                                                      **adv_retrain_kwargs,
+                                                      finetune_run=finetune_run)
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    # ### FINETUNING ### #
+    # ### FINETUNING (Not as a defense) ### #
 
     @multi_train_ex.named_config
     def finetune_nolearn(train):
