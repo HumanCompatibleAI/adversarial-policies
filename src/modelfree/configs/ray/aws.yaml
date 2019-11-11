@@ -59,7 +59,8 @@ worker_nodes:
 # List of shell commands to run to set up nodes.
 initialization_commands:  # before entering Docker
   - sudo apt-get install s3fs
-  - sudo mkdir /home/ubuntu/aws_private
+  - "[[ -d /home/ubuntu/aws_private ]] || sudo mkdir /home/ubuntu/aws_private"
+  - "sudo umount /home/ubuntu/aws_private || true"
   - sudo s3fs -o allow_other,umask=0002,iam_role=auto adversarial-policies /home/ubuntu/aws_private
   # TODO(adam): remove once Ray #6111 merged
   - docker pull humancompatibleai/adversarial_policies:latest
