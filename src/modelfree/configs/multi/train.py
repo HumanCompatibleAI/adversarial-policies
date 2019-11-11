@@ -187,7 +187,7 @@ def _hyper_finetune_defense(train, dual_defense=False, envs=None, num_samples=20
         }
     }
     dual_name = 'dual' if dual_defense else 'single'
-    exp_name = f'hyper_finetune_defense{dual_name}_{exp_suffix}'
+    exp_name = f'hyper_finetune_defense_{dual_name}_{exp_suffix}'
     return spec, exp_name
 
 
