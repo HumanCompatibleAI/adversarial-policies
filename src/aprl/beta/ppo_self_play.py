@@ -15,7 +15,7 @@ from baselines.common.policies import build_policy
 import numpy as np
 import tensorflow as tf
 
-from aprl.agents.self_play import AbstractMultiEnvRunner, SelfPlay, e_arr
+from aprl.beta.self_play import AbstractMultiEnvRunner, SelfPlay, e_arr
 from aprl.envs import FakeSingleSpacesVec
 
 try:

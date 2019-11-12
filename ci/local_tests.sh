@@ -15,6 +15,6 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
-docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} --env CODECOV_TOKEN=${CODECOV_TOKEN} \
                       humancompatibleai/adversarial_policies:local-test \
                       ci/run_tests.sh
