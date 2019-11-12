@@ -141,15 +141,20 @@ def load_policy(policy_type, policy_path, env, env_name, index, transparent_para
 
 def load_backward_compatible_model(cls, root_dir, denv=None, **kwargs):
     """Backwards compatibility hack to load old pickled policies
-    which still expect modelfree.scheduling to exist.
+    which still expect modelfree.* to exist.
     """
-    sys.modules['modelfree.scheduling'] = sys.modules['aprl.training.scheduling']
-    sys.modules['modelfree.training.scheduling'] = sys.modules['aprl.training.scheduling']
+    mock_modules = {
+        'modelfree': 'aprl',
+        'modelfree.scheduling': 'aprl.training.scheduling',
+        'modelfree.training.scheduling': 'aprl.training.scheduling',
+    }
+    for old, new in mock_modules.items():
+        sys.modules[old] = sys.modules[new]
     if 'env' in kwargs:
         denv = kwargs['env']
         del kwargs['env']
     model_path = os.path.join(root_dir, 'model.pkl')
     model = cls.load(model_path, env=denv, **kwargs)
-    del sys.modules['modelfree.scheduling']
-    del sys.modules['modelfree.training.scheduling']
+    for old in mock_modules:
+        del sys.modules[old]
     return model
