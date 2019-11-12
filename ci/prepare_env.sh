@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-venv=${env}venv
+venv=venv
 . ${venv}/bin/activate
 
 echo "Downloading MuJoCo Key"

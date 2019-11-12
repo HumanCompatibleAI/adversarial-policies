@@ -5,7 +5,7 @@ from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
 from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
-from aprl.utils import getattr_unwrapped
+from aprl.common.utils import getattr_unwrapped
 
 
 class MultiAgentEnv(Env):
@@ -181,14 +181,14 @@ class SingleToMulti(Wrapper, MultiAgentEnv):
     Consequently observations, actions and rewards are singleton tuples.
     The observation action spaces are singleton Tuple spaces.
     The info dict is nested inside an outer with key 0."""
-    def __init__(self, env):
+    def __init__(self, env: gym.Env):
         Wrapper.__init__(self, env)
         self.action_space = gym.spaces.Tuple((self.action_space, ))
         self.observation_space = gym.spaces.Tuple((self.observation_space, ))
         MultiAgentEnv.__init__(self, num_agents=1)
 
     def step(self, action_n):
-        observations, rewards, done, infos = self.env.step(action_n)
+        observations, rewards, done, infos = self.env.step(action_n[0])
         rewards = (rewards,)
         observations = (observations,)
         infos = {0: infos}

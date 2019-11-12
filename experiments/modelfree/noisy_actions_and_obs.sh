@@ -10,14 +10,14 @@ TIMESTAMP=`date --iso-8601=seconds`
 # Format: multi_score <opponent_type> <noise_type> ["extra_config1 ..."]
 # opponent_type: one of zoo_baseline or adversary_trained
 # noise_type: one of ${NOISE_TYPES}
-# extra_config: a string with a list of space-separated named configs for modelfree.multi.score
+# extra_config: a string with a list of space-separated named configs for aprl.multi.score
 # Saves to ${noise_type}/${TIMESTMAP}/${opponent_type}.json
 function multi_score {
     opponent_type=$1
     noise_type=$2
     extra_configs=$3
 
-    python -m modelfree.multi.score with ${opponent_type} ${noise_type} ${extra_configs} \
+    python -m aprl.multi.score with ${opponent_type} ${noise_type} ${extra_configs} \
               medium_accuracy save_path=${OUT_ROOT}/${noise_type}/${TIMESTAMP}/${opponent_type}.json
     wait_proc
 }

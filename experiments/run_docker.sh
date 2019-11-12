@@ -5,7 +5,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 CMD="bash"
 NAME="adversarial-policies"
-VENV="modelfree"
 TAG="latest"
 RM="--rm"
 FLAGS=""
@@ -39,11 +38,6 @@ case $key in
     shift
     shift
     ;;
-    -v|--venv)
-    VENV="$2"
-    shift
-    shift
-    ;;
     *)
     echo "Unrecognized option '${key}'"
     exit 1
@@ -63,4 +57,4 @@ docker run \
        --name ${NAME} \
        --mount type=bind,source="$(pwd)"/data,target=/adversarial-policies/data \
        ${DOCKER_REPO}:${TAG} \
-       bash -c "env=${VENV} . ci/prepare_env.sh && ${CMD}"
+       bash -c ". ci/prepare_env.sh && ${CMD}"
