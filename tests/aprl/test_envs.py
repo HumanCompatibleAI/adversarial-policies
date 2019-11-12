@@ -55,7 +55,7 @@ def check_random_rollout(env):
 # Test aprl environments
 
 spec_list = [spec
-             for spec in sorted(gym.envs.registry.all(), key=lambda x: x.id)
+             for spec in sorted(gym.envs.registration.registry.all(), key=lambda x: x.id)
              if spec.id.startswith('aprl/')]
 
 
