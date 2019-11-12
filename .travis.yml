@@ -1,6 +1,10 @@
 sudo: required
 dist: xenial
 
+branches:
+  only:
+    - master
+
 matrix:
   include:
   - name: "Linting"
