@@ -6,7 +6,7 @@ import os
 import gym
 from stable_baselines import logger
 
-from aprl.agents.ppo_self_play import PPOSelfPlay
+from aprl.beta.ppo_self_play import PPOSelfPlay
 from aprl.common.multi_monitor import MultiMonitor
 from aprl.envs import make_dummy_vec_multi_env
 

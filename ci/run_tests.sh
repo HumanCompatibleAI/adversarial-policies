@@ -14,6 +14,12 @@ modelfree)
     ;;
 esac
 
+num_cpus=$2
+if [[ ${num_cpus} == "" ]]; then
+  num_cpus=$(nproc --all)
+  num_cpus=$((${num_cpus} / 2))
+fi
+
 set -e  # exit immediately on any error
 
 . ci/prepare_env.sh
@@ -21,11 +27,11 @@ set -e  # exit immediately on any error
 set -o xtrace  # print commands
 
 COV_PACKAGES="aprl modelfree"
-COV_FLAGS=""
+COV_FLAGS="--cov=tests"
 for package in $COV_PACKAGES; do
     COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.7/site-packages/${package}"
 done
-pytest -vv $COV_FLAGS tests/${env}
+pytest -vv -n ${num_cpus} ${COV_FLAGS} tests/${env}
 
 mv .coverage .coverage.${env}
 coverage combine  # rewrite paths from virtualenv to src/
