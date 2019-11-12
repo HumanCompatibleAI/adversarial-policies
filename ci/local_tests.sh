@@ -17,7 +17,7 @@ fi
 
 RET=0
 for suite in ${TEST_SUITES}; do
-    docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+    docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} --env CODECOV_TOKEN=${CODECOV_TOKEN} \
                           humancompatibleai/adversarial_policies:local-test \
                           ci/run_tests.sh ${suite}
     RET=$(($RET + $?))

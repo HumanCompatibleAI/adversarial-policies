@@ -13,6 +13,7 @@ ray[debug]>=0.7.6
 boto3>=1.9
 awscli>=1.16
 pytest>=4.1
+pytest-xdist>=1.30.0
 codecov>=2.0.15
 pytest-cov>=2.6.1
 flake8>=3.7
