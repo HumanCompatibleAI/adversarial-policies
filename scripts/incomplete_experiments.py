@@ -23,6 +23,7 @@ def get_args():
 def get_stats(data_dir):
     started = {}
     completed = {}
+    data_dir = os.path.abspath(data_dir)
     for root, dirs, files in os.walk(data_dir, followlinks=True):
         # checkpoint directories are irrelevant and will slow down search
         logger.debug(f"Searching '{root}'")
@@ -33,14 +34,14 @@ def get_stats(data_dir):
             # root is of format .../exp_name/timestamp/run_id/data/baselines/run_id
             assert components[-2] == 'baselines'
             logger.debug(f"Found final_model in '{root}'")
-            exp_name = os.path.relpath(os.path.join(*components[:-5]), data_dir)
+            exp_name = os.path.relpath(os.path.join('/', *components[:-4]), data_dir)
             completed[exp_name] = completed.get(exp_name, 0) + 1
             dirs[:] = []  # no need to search further in data/baselines/*
         elif 'sacred' in dirs:
             # root is of format ../exp_name/timestamp/run_id/data/sacred
             assert components[-1] == 'data'
             logger.debug(f"Found sacred at '{root}'")
-            exp_name = os.path.relpath(os.path.join(*components[:-3]), data_dir)
+            exp_name = os.path.relpath(os.path.join('/', *components[:-2]), data_dir)
             started[exp_name] = started.get(exp_name, 0) + 1
             dirs.remove('sacred')  # don't need to search inside it
 
