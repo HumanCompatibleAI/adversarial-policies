@@ -112,7 +112,7 @@ def run_external(named_configs, post_named_configs, config_updates, adversary_pa
        :return (dict) mapping from named configs to their output directory
     """
     # Sad workaround for Sacred config limitation,
-    # see modelfree.configs.multi.score:_get_adversary_paths
+    # see aprl.configs.multi.score:_get_adversary_paths
     os.environ['ADVERSARY_PATHS'] = adversary_path
 
     output_dir = {}

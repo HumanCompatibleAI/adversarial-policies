@@ -13,13 +13,9 @@ if [[ ${num_cpus} == "" ]]; then
 fi
 
 export LD_LIBRARY_PATH=/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}
-COV_PACKAGES="aprl modelfree"
-COV_FLAGS="--cov=tests"
-for package in $COV_PACKAGES; do
-    COV_FLAGS="$COV_FLAGS --cov=${venv}/lib/python3.7/site-packages/${package}"
-done
+COV_FLAGS="--cov=tests --cov=${venv}/lib/python3.7/site-packages/aprl"
 pytest -vv -n ${num_cpus} ${COV_FLAGS} tests/
 
-mv .coverage .coverage.${env}
+mv .coverage .coverage.tmp
 coverage combine  # rewrite paths from virtualenv to src/
 codecov

@@ -10,7 +10,7 @@ from aprl.multi import common_worker
 
 
 def score_worker(base_config, tune_config, reporter):
-    """Run a modelfree.training experiment with specified config, logging to reporter.
+    """Run a aprl.score experiment with specified config, logging to reporter.
 
     :param base_config: (dict) default config
     :param tune_config: (dict) overrides values in base_config

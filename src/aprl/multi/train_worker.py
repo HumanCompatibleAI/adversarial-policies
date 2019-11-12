@@ -22,7 +22,7 @@ class ReporterOutputFormat(logger.KVWriter):
 
 
 def train_rl(base_config, tune_config, reporter):
-    """Run a modelfree.training experiment with specified config, logging to reporter.
+    """Run a aprl.train experiment with specified config, logging to reporter.
 
     :param base_config: (dict) default config
     :param tune_config: (dict) overrides values in base_config

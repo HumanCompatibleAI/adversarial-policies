@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-TEST_SUITES="aprl modelfree"
-
 if [[ ${MUJOCO_KEY} == "" ]]; then
     echo "Set MUJOCO_KEY file to a URL with your key"
     exit 1
