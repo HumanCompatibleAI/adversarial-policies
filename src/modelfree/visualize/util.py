@@ -135,15 +135,15 @@ def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
 
 def load_datasets(timestamped_path, victim_suffix='', opponent_suffix=''):
     score_dir = os.path.dirname(timestamped_path)
+    fixed_path = os.path.join(score_dir, 'fixed_baseline.json')
     try:
-        fixed_path = os.path.join(score_dir, 'fixed_baseline.json')
         fixed = load_fixed_baseline(fixed_path)
     except FileNotFoundError:
         logger.warning(f"No fixed baseline at '{fixed_path}'")
         fixed = None
 
+    zoo_path = os.path.join(score_dir, 'zoo_baseline.json')
     try:
-        zoo_path = os.path.join(score_dir, 'zoo_baseline.json')
         zoo = load_zoo_baseline(zoo_path)
     except FileNotFoundError:
         logger.warning(f"No fixed baseline at '{zoo_path}'")
@@ -236,7 +236,7 @@ def _split_groups(df):
     return group_members, num_matches
 
 
-class DogmaticNormalize(matplotlib.colors.Normalize):
+class DogmaticNormalize(matplotlib.colors.Normalize):  # pytype:disable=module-attr
     """Workaround heatmap resetting vmin and vmax internally."""
     def __init__(self, vmin, vmax):
         self._real_vmin = vmin
@@ -276,7 +276,7 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
     cbar = cbar_width > 0
     cbar_ax = None
     if cbar > 0:
-        gs = matplotlib.gridspec.GridSpec(1, 1)
+        gs = matplotlib.gridspec.GridSpec(1, 1)  # pytype:disable=module-attr
         cbar_ax = fig.add_subplot(gs[0, 0])
         margin_width = cbar_width * 1 / 9
         bar_width = cbar_width * 3 / 9

@@ -145,7 +145,7 @@ def fit_model(_run, ray_server, activation_dir, output_root,
 
     # Clean up temporary directory (if needed)
     if tmp_dir is not None:
-        tmp_dir.clean()
+        tmp_dir.cleanup()
 
     ray.shutdown()
 
