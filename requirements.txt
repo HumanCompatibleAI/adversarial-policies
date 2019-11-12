@@ -20,6 +20,7 @@ flake8>=3.7
 isort>=4.3
 statsmodels>=0.9.0
 seaborn>=0.9.0
+pytype>=2019.10.17
 ilqr @ git+https://github.com/anassinator/ilqr.git
 gym>=0.15.4
 mujoco-py>=2.0,<2.1

@@ -8,14 +8,12 @@ branches:
 matrix:
   include:
   - name: "Linting"
-    language: python
-    python: 3.6
-    before_install: []
-    install:
-      - pip install flake8 isort
+    language: generic
     script:
-      - ci/code_checks.sh
-    after_success: []
+      - >
+        docker run --rm --env MUJOCO_KEY=${MUJOCO_KEY} \
+                   humancompatibleai/adversarial_policies:$TRAVIS_BUILD_NUMBER \
+                   /bin/bash -c ". ./ci/prepare_env.sh && ./ci/code_checks.sh"
 
   - name: "Unit Tests"
     language: generic
