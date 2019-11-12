@@ -7,7 +7,7 @@ Theano>=1.0
 sacred>=0.8.0
 pymongo>=3.8.0
 GitPython>=2.1
-baselines @ git+git://github.com/HumanCompatibleAI/baselines.git@f70377
+baselines @ git+https://github.com/HumanCompatibleAI/baselines.git@f70377
 stable-baselines>=2.8.0
 ray[debug]>=0.7.6
 boto3>=1.9
@@ -25,4 +25,4 @@ ilqr @ git+https://github.com/anassinator/ilqr.git
 gym>=0.15.4
 mujoco-py>=2.0,<2.1
 mujoco-py-131 @ git+https://github.com/AdamGleave/mujoco-py.git@mj131
-git+git://github.com/HumanCompatibleAI/multiagent-competition.git@cced2b#wheel=gym_compete
+gym_compete @ git+https://github.com/HumanCompatibleAI/multiagent-competition.git

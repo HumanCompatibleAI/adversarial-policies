@@ -6,7 +6,6 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 from aprl.common.mujoco import MujocoState, ResettableEnv
-from aprl.envs.gym_compete import GymCompeteToOurs
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MultiWrapper, make_dummy_vec_multi_env,
                                    make_subproc_vec_multi_env)
 from aprl.envs.wrappers import make_env
@@ -54,7 +53,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         """
         def env_fn(i):
             return make_env(env_name, 0, i, out_dir='data/lookbacks/',
-                            pre_wrappers=[GymCompeteToOurs, OldMujocoResettableWrapper])
+                            pre_wrappers=[OldMujocoResettableWrapper])
         lb_tuples = []
         for _ in range(self.lb_num):
             make_vec_env = make_dummy_vec_multi_env if use_debug else make_subproc_vec_multi_env
