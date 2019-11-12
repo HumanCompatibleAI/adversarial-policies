@@ -4,7 +4,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${DIR}/common.sh
 
 function multi_score {
-  python -m modelfree.multi.score with "$@" high_accuracy
+  python -m aprl.multi.score with "$@" high_accuracy
 }
 
 OUT_DIR=data/aws/score_agents

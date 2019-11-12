@@ -61,21 +61,17 @@ WORKDIR /adversarial-policies
 # expire until we actually change the requirements.
 COPY ./requirements-build.txt /adversarial-policies/
 COPY ./requirements.txt /adversarial-policies/
-COPY ./requirements-aprl.txt /adversarial-policies/
-COPY ./requirements-modelfree.txt /adversarial-policies/
 COPY ./ci/build_venv.sh /adversarial-policies/ci/build_venv.sh
 # mjkey.txt needs to exist for build, but doesn't need to be a real key
-RUN    touch /root/.mujoco/mjkey.txt \
-    && parallel ci/build_venv.sh {} ::: aprl modelfree
+RUN    touch /root/.mujoco/mjkey.txt && ci/build_venv.sh
 
+ENV PATH="/adversarial-policies/venv/bin:$PATH"
 # Delay copying (and installing) the code until the very end
 COPY . /adversarial-policies
 # Build a wheel then install to avoid copying whole directory (pip issue #2195)
 RUN python3 setup.py sdist bdist_wheel
-RUN parallel ". {}venv/bin/activate && \
-              pip install dist/aprl-*.whl" ::: aprl modelfree
+RUN pip install dist/aprl-*.whl
 
 # Default entrypoints
 ENTRYPOINT ["/adversarial-policies/vendor/Xdummy-entrypoint"]
 CMD ["ci/run_tests.sh"]
-

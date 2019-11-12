@@ -12,7 +12,7 @@ from mujoco_py import functions as mjfunc
 import numpy as np
 
 from aprl.common.mujoco import MujocoState
-from aprl.utils import getattr_unwrapped
+from aprl.common.utils import getattr_unwrapped
 
 
 class MujocoFiniteDiff(object):

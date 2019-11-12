@@ -7,22 +7,16 @@ import select
 import sys
 import time
 
-import gym
-import gym_compete  # side-effect: load multicomp/*
 import imageio
 import mujoco_py
 import numpy as np
 
-from modelfree.common.utils import make_env
-from modelfree.envs.gym_compete import GymCompeteToOurs
-from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
+from aprl.envs.wrappers import make_env
+from aprl.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 
 def get_img(env_name, seed):
-    pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else []
-
-    env = make_env(env_name, int(seed), 0, None,
-                   pre_wrappers=pre_wrappers)
+    env = make_env(env_name, int(seed), 0, None)
     env = AnnotatedGymCompete(env, env_name, 'zoo', '1', 'zoo', '1', None,
                               resolution=(640, 480), font='times', font_size=24,
                               draw=False)

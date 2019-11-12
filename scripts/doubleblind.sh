@@ -5,7 +5,7 @@ ROOT_DIR="$( dirname "${SCRIPT_DIR}" )"
 
 OPTIONS="-v -z -r -lpt"
 EXCLUDES="LICENSE README.md setup.py scripts/doubleblind.sh ci/local_tests.sh .travis.yml experiments/common.sh experiments/planning 
-          src/modelfree/configs/ray/ .git supplementary.zip *.pkl requirements*.txt"
+          src/aprl/configs/ray/ .git supplementary.zip *.pkl requirements*.txt"
 
 # Refuse to compile if we find any of these words in non-excluded sources
 BLACKLISTED="Adam Gleave Michael Dennis Cody Neel Kant Sergey Levine Stuart Russell berkeley humancompatibleai humancompatible"
