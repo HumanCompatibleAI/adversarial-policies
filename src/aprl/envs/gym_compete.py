@@ -4,7 +4,6 @@ import os
 import pickle
 import pkgutil
 
-from gym import Wrapper
 from gym_compete import policy
 import tensorflow as tf
 
@@ -38,25 +37,6 @@ SYMMETRIC_ENV = OrderedDict([
     ('SumoHumans-v0', True),
     ('YouShallNotPassHumans-v0', False),
 ])
-
-
-class GymCompeteToOurs(Wrapper, multi_agent.MultiAgentEnv):
-    """This adapts gym_compete.MultiAgentEnv to our eponymous MultiAgentEnv.
-
-       The main differences are that we have a scalar done (episode-based) rather than vector
-       (agent-based), and only return one info dict (property of environment not agent)."""
-    def __init__(self, env):
-        Wrapper.__init__(self, env)
-        multi_agent.MultiAgentEnv.__init__(self, num_agents=2)
-
-    def step(self, action_n):
-        observations, rewards, dones, infos = self.env.step(action_n)
-        done = any(dones)
-        infos = {i: v for i, v in enumerate(infos)}
-        return observations, rewards, done, infos
-
-    def reset(self):
-        return self.env.reset()
 
 
 def game_outcome(info):

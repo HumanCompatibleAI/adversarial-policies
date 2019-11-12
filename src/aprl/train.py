@@ -15,8 +15,8 @@ from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
 from aprl.common import utils
-from aprl.envs.gym_compete import (GameOutcomeMonitor, GymCompeteToOurs,
-                                   get_policy_type_for_zoo_agent, load_zoo_agent_params)
+from aprl.envs.gym_compete import (GameOutcomeMonitor, get_policy_type_for_zoo_agent,
+                                   load_zoo_agent_params)
 from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
                                    make_dummy_vec_multi_env, make_subproc_vec_multi_env)
 from aprl.envs.observation_masking import make_mask_agent_wrappers
@@ -266,8 +266,6 @@ def wrappers_config(env_name):
 def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
               mask_victim, mask_victim_kwargs, lookback_params, debug):
     pre_wrappers = []
-    if env_name.startswith('multicomp/'):
-        pre_wrappers.append(GymCompeteToOurs)
     if lookback_params['lb_num'] > 0:
         pre_wrappers.append(OldMujocoResettableWrapper)
 
