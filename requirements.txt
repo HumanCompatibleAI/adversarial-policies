@@ -24,4 +24,4 @@ ilqr @ git+https://github.com/anassinator/ilqr.git
 gym>=0.15.4
 mujoco-py>=2.0,<2.1
 mujoco-py-131 @ git+https://github.com/AdamGleave/mujoco-py.git@mj131
-git+git://github.com/HumanCompatibleAI/multiagent-competition.git@cf054f#wheel=gym_compete
+git+git://github.com/HumanCompatibleAI/multiagent-competition.git@cced2b#wheel=gym_compete
