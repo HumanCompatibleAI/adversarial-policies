@@ -12,7 +12,7 @@ setup(
     url='https://github.com/HumanCompatibleAI/adversarial-policies',
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    package_data={'modelfree':
+    package_data={'aprl':
         [
             'configs/multi/*.json',
             'configs/noise/*.json',
