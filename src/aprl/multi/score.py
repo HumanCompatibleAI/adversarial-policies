@@ -21,7 +21,7 @@ multi_score_ex = Experiment('multi_score', ingredients=[score_ex])
 pylog = logging.getLogger('aprl.multi.score')
 
 # Load common configs (e.g. upload directories) and define the run command
-run = common.make_sacred(multi_score_ex, 'score', score_worker)
+run = common.make_sacred(multi_score_ex, 'score', score_worker.score_worker)
 
 # Load named configs for individual experiments (these change a lot, so keep out of this file)
 make_configs(multi_score_ex)

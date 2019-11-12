@@ -10,9 +10,9 @@ import numpy as np
 import pytest
 from ray import tune
 
-from aprl.activations.density import density_ex
-from aprl.activations.tsne import tsne_ex
-from aprl.multi import multi_score_ex
+from aprl.activations.density.pipeline import density_ex
+from aprl.activations.tsne.pipeline import tsne_ex
+from aprl.multi.score import multi_score_ex
 from aprl.multi.train import multi_train_ex
 from aprl.policies.loader import AGENT_LOADERS
 from aprl.score_agent import score_ex

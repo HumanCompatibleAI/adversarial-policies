@@ -9,15 +9,14 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.configs.multi.train import make_configs
-from aprl.multi import common
-from aprl.multi.train_worker import train_rl
+from aprl.multi import common, train_worker
 from aprl.train import train_ex
 
 multi_train_ex = Experiment('multi_train', ingredients=[train_ex])
 pylog = logging.getLogger('aprl.multi.train')
 
 # Load common configs (e.g. upload directories) and define the run command
-run = common.make_sacred(multi_train_ex, 'train_rl', train_rl)
+run = common.make_sacred(multi_train_ex, 'train_rl', train_worker.train_rl)
 
 # Load named configs for individual experiments (these change a lot, so keep out of this file)
 make_configs(multi_train_ex)
