@@ -3,7 +3,7 @@ import time
 import numpy as np
 from stable_baselines.bench import Monitor
 
-from aprl.utils import getattr_unwrapped
+from aprl.common.utils import getattr_unwrapped
 
 
 class MultiMonitor(Monitor):

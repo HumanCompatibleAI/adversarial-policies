@@ -5,7 +5,7 @@ from stable_baselines.common.vec_env import VecEnv, VecEnvWrapper
 from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
-from aprl.utils import getattr_unwrapped
+from aprl.common.utils import getattr_unwrapped
 
 
 class MultiAgentEnv(Env):

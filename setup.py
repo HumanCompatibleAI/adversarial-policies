@@ -2,10 +2,9 @@
 
 from setuptools import find_packages, setup
 
-# Where the magic happens:
 setup(
     name='aprl',
-    version=0.1,
+    version=0.2,
     description='Adversarial Policies for Reinforcement Learning',
     author='Adam Gleave, Michael Dennis, et al',
     author_email='adam@gleave.me',
