@@ -25,20 +25,24 @@ def get_stats(data_dir):
     completed = {}
     for root, dirs, files in os.walk(data_dir, followlinks=True):
         # checkpoint directories are irrelevant and will slow down search
-        dirs[:] = list(filter(lambda x: x != 'checkpoint', dirs))
+        logger.debug(f"Searching '{root}'")
+        dirs[:] = list(filter(lambda x: x not in ['checkpoint', 'mon', 'tb'], dirs))
         components = root.split(os.path.sep)
 
-        # components of format .../exp_name/timestamp/run_id/data/baselines/run_id/final_model
-        finalized = components[-1] == 'final_model' and components[-3] == 'baselines'
-        if finalized:
+        if 'final_model' in dirs:
+            # root is of format .../exp_name/timestamp/run_id/data/baselines/run_id
+            assert components[-2] == 'baselines'
+            logger.debug(f"Found final_model in '{root}'")
             exp_name = os.path.relpath(os.path.join(*components[:-5]), data_dir)
             completed[exp_name] = completed.get(exp_name, 0) + 1
-
-        # components of format ../exp_name/timestamp/run_id/data/sacred
-        sacred_exists = components[-1] == 'sacred' and components[-2] == 'data'
-        if sacred_exists:
+            dirs[:] = []  # no need to search further in data/baselines/*
+        elif 'sacred' in dirs:
+            # root is of format ../exp_name/timestamp/run_id/data/sacred
+            assert components[-1] == 'data'
+            logger.debug(f"Found sacred at '{root}'")
             exp_name = os.path.relpath(os.path.join(*components[:-3]), data_dir)
             started[exp_name] = started.get(exp_name, 0) + 1
+            dirs.remove('sacred')  # don't need to search inside it
 
     return started, completed
 
