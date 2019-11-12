@@ -54,6 +54,9 @@ worker_nodes:
 
 # List of shell commands to run to set up nodes.
 initialization_commands:  # before entering Docker
+  - curl -o $HOME/goofys https://github.com/kahing/goofys/releases/latest/download/goofys
+  - "[[ -d /home/ubuntu/aws_private ]] || sudo mkdir /home/ubuntu/aws_private"
+  - sudo $HOME/goofys -o allow_other --file-mode=0666 --dir-mode=0777 adversarial-policies /home/ubuntu/aws_private
   # TODO(adam): remove once Ray #6111 merged
   - docker pull humancompatibleai/adversarial_policies:latest
 setup_commands:
