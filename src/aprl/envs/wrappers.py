@@ -10,7 +10,7 @@ from gym.wrappers.monitoring.video_recorder import VideoRecorder
 import numpy as np
 
 from aprl.common.multi_monitor import MultiMonitor
-from aprl.envs.multi_agent import MultiAgentEnv, SingleToMulti, VecMultiWrapper
+from aprl.envs.multi_agent import SingleToMulti, VecMultiWrapper
 
 
 class VideoWrapper(Wrapper):
@@ -286,7 +286,7 @@ def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrappers=None, post_w
 
     multi_env = _apply_wrappers(pre_wrappers, multi_env)
 
-    if not isinstance(multi_env, MultiAgentEnv):
+    if not hasattr(multi_env, 'num_agents'):
         multi_env = SingleToMulti(multi_env)
 
     if out_dir is not None:
