@@ -5,6 +5,3 @@ include=src/*
 aprl_source = 
 	src/aprl
 	*venv/lib/python*/site-packages/aprl
-modelfree_source =
-	src/modelfree
-	*venv/lib/python*/site-packages/modelfree

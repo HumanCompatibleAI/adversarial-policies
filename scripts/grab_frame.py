@@ -7,15 +7,13 @@ import select
 import sys
 import time
 
-import gym
-import gym_compete  # side-effect: load multicomp/*
 import imageio
 import mujoco_py
 import numpy as np
 
-from modelfree.common.utils import make_env
-from modelfree.envs.gym_compete import GymCompeteToOurs
-from modelfree.visualize.annotated_gym_compete import AnnotatedGymCompete
+from aprl.common.utils import make_env
+from aprl.envs.gym_compete import GymCompeteToOurs
+from aprl.visualize.annotated_gym_compete import AnnotatedGymCompete
 
 
 def get_img(env_name, seed):

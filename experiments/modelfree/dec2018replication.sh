@@ -12,9 +12,9 @@ SEEDS="0 1 2"
 OUT_DIR=data/mf-dec2018rep
 
 # Train PPO against victims
-python -m modelfree.multi.train with dec2018rep
+python -m aprl.multi.train with dec2018rep
 
-SCORE_AGENT="modelfree.score_agent with episodes=1000 num_env=16 render=False"
+SCORE_AGENT="aprl.score_agent with episodes=1000 num_env=16 render=False"
 # Baseline: pretrained policy
 call_parallel "$*" ${OUT_DIR}/pretrained ${SCORE_AGENT} \
          env_name={env_name} agent_a_path={agent_a_path} agent_b_path={agent_b_path} \
