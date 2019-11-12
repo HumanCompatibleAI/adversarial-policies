@@ -8,7 +8,6 @@ import pytest
 from stable_baselines.common.policies import BasePolicy
 from stable_baselines.common.vec_env import DummyVecEnv
 
-from aprl.envs.gym_compete import GymCompeteToOurs
 from aprl.envs.multi_agent import (FakeSingleSpacesVec, FlattenSingletonVecEnv,
                                    make_dummy_vec_multi_env)
 from aprl.envs.wrappers import make_env
@@ -72,26 +71,15 @@ def create_simple_policy_wrapper(env_name, num_envs, state_shapes):
     policy_wrapper.close()
 
 
-class MultiTimeLimit(time_limit.TimeLimit):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _step(self, action):
-        obs, rew, done, info = super()._step(action)
-        if done is True:
-            done = [True, True]
-        return obs, rew, done, info
-
-
 @contextlib.contextmanager
 def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, embed_index, max_steps,
                                               state_shape=None, add_zoo=False, num_zoo=5):
-    def time_limit(env):
-        return MultiTimeLimit(env, max_episode_steps=max_steps)
+    def episode_limit(env):
+        return time_limit.TimeLimit(env, max_episode_steps=max_steps)
 
     def env_fn(i):
         return make_env(env_name, seed=42, i=i, out_dir=mon_dir,
-                        pre_wrappers=[time_limit, GymCompeteToOurs])
+                        pre_wrappers=[episode_limit])
 
     vec_env = make_dummy_vec_multi_env([lambda: env_fn(i) for i in range(num_envs)])
 
