@@ -252,10 +252,7 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
     Note all MuJoCo environments are resettable."""
     def __init__(self, env):
         """Wraps a MujocoEnv, adding get_state and set_state methods.
-        :param env: a MujocoEnv. NOTE: it must not be wrapped in a TimeLimit."""
-        if hasattr(env, '_max_episode_steps'):
-            raise TypeError('Environment must not have a time limit '
-                            '(try passing in env.unwrapped instead).')
+        :param env: a MujocoEnv."""
         gym.Wrapper.__init__(self, env)
         self.sim = env.unwrapped.env_scene
 
