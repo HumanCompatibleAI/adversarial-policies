@@ -271,7 +271,10 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
 
         :return: (float) radius
         """
-        return self.env.env.RADIUS
+        if hasattr(self.env.unwrapped, 'RADIUS'):
+            return self.env.unwrapped.RADIUS
+        else:
+            return None
 
     def get_state(self):
         """Serializes the qpos and qvel state of the MuJoCo emulator.
@@ -295,8 +298,8 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
         """Set the radius of this environment.
 
         :param radius (float) size of environment, if it exists"""
-        self.env.env.RADIUS = radius
-        self.env.env._set_geom_radius()
+        self.env.unwrapped.RADIUS = radius
+        self.env.unwrapped._set_geom_radius()
 
     def set_sim_data(self, sim_data):
         """Set the fields of the MjData object of this environment
