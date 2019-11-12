@@ -3,7 +3,7 @@ from gym.spaces import Tuple
 import numpy as np
 import pytest
 
-from aprl.envs import gym_compete, multi_agent
+from aprl.envs import multi_agent
 
 spec_list = [spec
              for spec in sorted(gym.envs.registration.registry.all(), key=lambda x: x.id)
@@ -12,10 +12,6 @@ spec_list = [spec
 
 def make_env(spec, i=0):
     env = spec.make()
-    print(spec.id)
-    if spec.id.startswith('multicomp/'):
-        print('wrapping in gymcompete')
-        env = gym_compete.GymCompeteToOurs(env)
     env.seed(42 + i)
     return env
 
@@ -35,7 +31,7 @@ def test_envs_exist():
 def test_random_rollout(env_from_spec):
     """Based on Gym smoke test in gym.envs.tests.test_envs."""
     ob = env_from_spec.reset()
-    for _ in range(10):
+    for _ in range(1000):
         assert env_from_spec.observation_space.contains(ob)
         a = env_from_spec.action_space.sample()
         assert env_from_spec.action_space.contains(a)

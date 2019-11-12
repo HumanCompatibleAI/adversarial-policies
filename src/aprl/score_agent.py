@@ -14,7 +14,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from aprl.common import utils
-from aprl.envs.gym_compete import GymCompeteToOurs, game_outcome
+from aprl.envs.gym_compete import game_outcome
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
 from aprl.envs.observation_masking import make_mask_agent_wrappers
 from aprl.envs.wrappers import TrajectoryRecorder, VideoWrapper, make_env, simulate
@@ -202,7 +202,6 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         else:
             tmp_dir = None
         video_dirs = [osp.join(save_dir, str(i)) for i in range(num_env)]
-    pre_wrappers = [GymCompeteToOurs] if 'multicomp' in env_name else []
 
     agent_wrappers = {}
     if mask_agent_index is not None:
@@ -216,7 +215,6 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     def env_fn(i):
         env = make_env(env_name, _seed, i, None,
-                       pre_wrappers=pre_wrappers,
                        agent_wrappers=agent_wrappers)
         if videos:
             if video_params['annotated']:
