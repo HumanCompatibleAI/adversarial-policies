@@ -52,7 +52,7 @@ def test_env(env_from_spec):
     assert ob_space.contains(ob), 'Step observation: {!r} not in space'.format(ob)
     assert isinstance(done, bool), "Expected {} to be a boolean".format(done)
 
-    if isinstance(env_from_spec, multi_agent.MultiAgentEnv):
+    if hasattr(env_from_spec, 'num_agents'):  # multi agent environment
         assert len(reward) == env_from_spec.num_agents
         assert isinstance(env_from_spec.observation_space, Tuple), 'Observations should be Tuples'
         assert isinstance(env_from_spec.action_space, Tuple), 'Actions should be Tuples'
