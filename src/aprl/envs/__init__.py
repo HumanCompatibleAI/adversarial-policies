@@ -1,8 +1,22 @@
 # flake8: noqa: F401
 import collections
 
-from gym.envs.registration import register
+import gym
+from gym.envs import registration
 from pkg_resources import resource_filename
+
+
+def register(id, **kwargs):
+    """Idempotent version of gym.envs.registration.registry.
+
+    Needed since aprl.envs can get imported multiple times, e.g. when deserializing policies.
+    """
+    try:
+        existing_spec = registration.spec(id)
+        new_spec = registration.EnvSpec(id, **kwargs)
+        assert existing_spec.__dict__ == new_spec.__dict__
+    except gym.error.UnregisteredEnv:  # not previously registered
+        registration.register(id, **kwargs)
 
 # Low-dimensional multi-agent environments
 
