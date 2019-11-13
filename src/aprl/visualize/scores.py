@@ -71,6 +71,16 @@ def full_masked_config():
 
 
 @visualize_score_ex.named_config
+def defense_config():
+    transfer_score_paths = [{'path': os.path.join('defense', 'dual.json')}]
+    styles = ['paper', 'scores_monolithic']
+    publication = True
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
 def paper_config():
     transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
 

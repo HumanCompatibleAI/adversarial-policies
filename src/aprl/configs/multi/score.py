@@ -9,7 +9,8 @@ from typing import Callable, Iterable, List, NamedTuple, Optional, Tuple
 import numpy as np
 from ray import tune
 
-from aprl.configs.multi.common import BANSAL_GOOD_ENVS, DATA_LOCATION, get_adversary_paths
+from aprl.configs import DATA_LOCATION
+from aprl.configs.multi.common import BANSAL_GOOD_ENVS, get_adversary_paths
 from aprl.envs import VICTIM_INDEX, gym_compete
 
 AgentConfigGenFn = Callable[[str, int], Iterable[Tuple[str, str]]]

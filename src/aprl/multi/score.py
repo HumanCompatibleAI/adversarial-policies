@@ -6,6 +6,7 @@ import math
 import os
 import os.path as osp
 import shutil
+import tempfile
 
 from ray import tune
 from sacred import Experiment
@@ -75,8 +76,13 @@ def _remap_keys(d):
 def multi_score(score, save_path):
     f = None
     try:
+        tmp_path = None
         if save_path is not None:
             f = open(save_path, 'w')  # open it now so we fail fast if file is unwriteable
+        else:
+            fd, tmp_path = tempfile.mkstemp(prefix='multi_score')
+            f = os.fdopen(fd, mode='w')
+            save_path = tmp_path
 
         analysis, exp_id = run(base_config=score)
         trials = analysis.trials
@@ -89,11 +95,13 @@ def multi_score(score, save_path):
             key = tuple(idx[col] for col in cols)
             results[key] = trial.last_result['score']
 
-        if f is not None:
-            json.dump(_remap_keys(results), f)
+        json.dump(_remap_keys(results), f)
     finally:
         if f is not None:
             f.close()
+            multi_score_ex.add_artifact(save_path, name='scores.json')
+        if tmp_path is not None:
+            os.unlink(tmp_path)
 
     return {'scores': results, 'exp_id': exp_id}
 

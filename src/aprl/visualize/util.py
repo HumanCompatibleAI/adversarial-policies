@@ -1,6 +1,7 @@
 import json
 import logging
 import os.path
+import re
 
 import matplotlib.backends.backend_pdf
 from matplotlib.patches import Rectangle
@@ -8,6 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from aprl import train
+from aprl.configs import DATA_LOCATION
 from aprl.envs import VICTIM_INDEX, gym_compete
 from aprl.visualize import styles
 
@@ -16,12 +19,12 @@ logger = logging.getLogger('aprl.visualize.util')
 # Data loading & manipulation
 
 
-def load_json(path):
+def load_json(path: str):
     with open(path, 'r') as f:
         return json.load(f)
 
 
-def load_scores(path, reindex_victim=False):
+def load_scores(path: str) -> pd.DataFrame:
     raw = load_json(path)
     res = {}
     for d in raw:
@@ -42,7 +45,7 @@ def load_scores(path, reindex_victim=False):
 
     df = pd.DataFrame(res).T
     df.index.names = ['env_name', 'victim_type', 'victim_path',
-                      'adversary_type', 'adversary_path']
+                      'opponent_type', 'opponent_path']
     cols = ['Opponent Win', 'Victim Win', 'Ties']
     return df.loc[:, cols].copy()
 
@@ -125,7 +128,7 @@ def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
     return combined
 
 
-def load_datasets(timestamped_path, victim_suffix='', opponent_suffix=''):
+def load_datasets_old(timestamped_path, victim_suffix='', opponent_suffix=''):
     score_dir = os.path.dirname(timestamped_path)
     fixed_path = os.path.join(score_dir, 'fixed_baseline.json')
     try:
@@ -144,6 +147,94 @@ def load_datasets(timestamped_path, victim_suffix='', opponent_suffix=''):
     transfer = load_transfer_baseline(os.path.join(timestamped_path, 'adversary_transfer.json'))
     return combine_all(fixed, zoo, transfer,
                        victim_suffix=victim_suffix, opponent_suffix=opponent_suffix)
+
+
+def abbreviate_agent_config(env_name: str, agent_type: str, agent_path: str, victim: bool) -> str:
+    """Convert an agent configuration into a short abbreviation."""
+    if agent_type == 'zoo':
+        prefix = 'Zoo'
+        if not gym_compete.is_symmetric(env_name):
+            prefix += 'V' if victim else 'O'
+        assert isinstance(agent_path, str) and len(agent_path) == 1 and agent_path.isnumeric()
+        return f'{prefix}{agent_path}'
+    elif agent_type == 'zero':
+        return 'Zero'
+    elif agent_type == 'random':
+        return 'Rand'
+    elif agent_type == 'ppo2':
+        components = agent_path.split(os.path.sep)
+        components = components[:-3]  # chop off baselines/*/final_model
+        components = components[components.index('multi_train'):]  # make relative
+        sacred_path = os.path.join(DATA_LOCATION, *components,
+                                   'sacred', 'train', '1', 'config.json')
+
+        with open(sacred_path, 'r') as f:
+            cfg = json.load(f)
+
+        load_policy = cfg['load_policy']
+        finetuned = load_policy['path'] is not None
+        if finetuned:
+            orig = abbreviate_agent_config(env_name, load_policy['type'],
+                                           load_policy['path'], victim)
+
+        try:
+            embed_types, embed_paths, _ = train.resolve_embed(
+                cfg['embed_type'], cfg['embed_path'], cfg['embed_types'], cfg['embed_paths'], {})
+        except KeyError:
+            # TODO(adam): this is for backward compatibility, remove after retraining old policies
+            embed_types = [cfg['victim_type']]
+            embed_paths = [str(cfg['victim_path'])]
+
+        if victim:
+            assert finetuned
+            assert load_policy['type'] == 'zoo'
+
+            single = set(embed_types) == {'ppo2'}
+            dual = set(embed_types) == {'ppo2', 'zoo'}
+            assert single or dual
+            defense_type = 'S' if single else 'D'
+            return orig.replace('Zoo', f'Zoo{defense_type}')
+        else:  # opponent
+            assert len(embed_types) == 1
+            victim_abbv = abbreviate_agent_config(env_name, embed_types[0],
+                                                  embed_paths[0], True)
+            victim_abbv = re.sub(r'Zoo(.*)[O|V]', r'\1', victim_abbv)
+            prefix = 'F' if finetuned else ''
+            return f'{prefix}Adv{victim_abbv}'
+    else:
+        raise ValueError(f"Unknown agent_type '{agent_type}'")
+
+
+def victim_abbrev(x) -> str:
+    env_name, victim_type, victim_path, _, _ = x
+    return abbreviate_agent_config(env_name, victim_type, victim_path, victim=True)
+
+
+def opponent_abbrev(x) -> str:
+    env_name, _, _, opponent_type, opponent_path = x
+    return abbreviate_agent_config(env_name, opponent_type, opponent_path, victim=False)
+
+
+def load_datasets(path: str, victim_suffix: str = '', opponent_suffix: str = '') -> pd.DataFrame:
+    # TODO(adam): suffixes?
+    # Format: DataFrame with MultiIndex
+    # Columns: Opponent Win, Victim Win, Ties
+    # Index: Environment, y-axis (victim), x-axis (opponent)
+    # Fairly sensible. But does mean you have to do all the parsing here! May be tricky.
+    scores = load_scores(path)
+
+    assert scores.index.is_unique
+    idx = scores.index.to_frame()
+    victims = idx.apply(victim_abbrev, axis='columns')
+    opponents = idx.apply(opponent_abbrev, axis='columns')
+    idx['victim_abbrev'] = victims
+    idx['opponent_abbrev'] = opponents
+    idx = idx.drop(columns=['victim_type', 'victim_path', 'opponent_type', 'opponent_path'])
+    idx = pd.MultiIndex.from_frame(idx)
+    assert idx.is_unique, "two distinct agents mapped to same abbreviation"
+    scores.index = idx
+
+    return scores
 
 # Visualization
 
@@ -210,8 +301,8 @@ def outside_legend(legend_entries, legend_ncol, fig, ax_left, ax_right,
 
 
 GROUPS = {
-    'rows': [r'ZooV?[0-9]', r'ZooMV?[0-9]'],
-    'cols': [r'^Adv[0-9]', r'^ZooO?[0-9]', r'Zero|Rand']
+    'rows': [r'^ZooV?[0-9]', r'^ZooSV?[0-9]', r'^ZooDV?[0-9]', r'^ZooMV?[0-9]'],
+    'cols': [r'^Adv[0-9]', r'^F?AdvS[0-9]', r'^F?AdvD[0-9]', r'^ZooO?[0-9]', r'^(Zero|Rand)']
 }
 
 
@@ -250,6 +341,10 @@ DIRECTIONS = {  # Which way is better?
 
 def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
                     xlabel=False, ylabel=False, cbar_width=0.0, yaxis=True):
+    single_env = pd.DataFrame(single_env)
+    # Blank out names so Seaborn doesn't plot them
+    single_env.index.names = [None for _ in single_env.index.names]
+
     group_members, num_matches = _split_groups(single_env)
     single_kind = single_env[col].unstack()
     direction = DIRECTIONS[col]

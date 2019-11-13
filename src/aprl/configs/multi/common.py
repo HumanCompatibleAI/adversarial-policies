@@ -3,8 +3,6 @@ import os
 
 from aprl.envs import gym_compete
 
-DATA_LOCATION = os.path.abspath(os.environ.get('DATA_LOC', 'data'))
-
 BANSAL_ENVS = ['multicomp/' + env for env in gym_compete.POLICY_STATEFUL.keys()]
 BANSAL_ENVS += ['multicomp/SumoHumansAutoContact-v0', 'multicomp/SumoAntsAutoContact-v0']
 BANSAL_GOOD_ENVS = [  # Environments well-suited to adversarial attacks
