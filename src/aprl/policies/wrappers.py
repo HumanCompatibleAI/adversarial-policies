@@ -148,9 +148,9 @@ class MultiPolicyWrapper(base.ModelWrapper):
                 # to other policies. Also fill in values if the environment has just been reset
                 # (mask is True), as the state may have originated from a different policy.
                 #
-                # Note initially we do not what shape stateful policies expect, so we default to
-                # `None`, which is always OK at the first time step. Inferred state shapes will be
-                # set for stateful policies as soon as they return a state vector.
+                # Note initially we do not know what shape stateful policies expect, so we default
+                # to `None`, which is always OK at the first time step. Inferred state shapes will
+                # be set for stateful policies as soon as they return a state vector.
                 retain = env_mask & ~np.array(mask)
                 standardized_state = _standardize_state(state, mask=retain,
                                                         filler_shape=self.inferred_state_shapes[i])

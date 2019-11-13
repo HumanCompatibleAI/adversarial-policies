@@ -9,7 +9,7 @@ from stable_baselines.common.policies import BasePolicy
 import tensorflow as tf
 
 
-class DummyModel(BaseRLModel):
+class PredictOnlyModel(BaseRLModel):
     """Abstract class for policies pretending to be RL algorithms (models).
 
     Provides stub implementations that raise NotImplementedError.
@@ -52,7 +52,7 @@ class DummyModel(BaseRLModel):
         raise NotImplementedError()
 
 
-class ModelWrapper(DummyModel):
+class ModelWrapper(PredictOnlyModel):
     """Base class for wrapping RL algorithms (models)."""
 
     def __init__(self, model: BaseRLModel):
@@ -63,7 +63,7 @@ class ModelWrapper(DummyModel):
         self.model = model
 
 
-class PolicyToModel(DummyModel):
+class PolicyToModel(PredictOnlyModel):
     """Converts BasePolicy to a BaseRLModel with only predict implemented."""
 
     def __init__(self, policy_obj: BasePolicy):

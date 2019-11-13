@@ -76,7 +76,7 @@ def _best_guess_spec(envs=None):
             'embed_index': tune.sample_from(
                 lambda spec: VICTIM_INDEX[spec.config['env_name:embed_path'][0]]
             ),
-            'seed': tune.grid_search([0, 1, 2]),
+            'seed': tune.grid_search(list(range(3))),
         },
     }
     return spec
@@ -94,7 +94,7 @@ def _finetune_spec(envs=None):
     spec = {
         'config': {
             'env_name:embed_path': tune.grid_search(_env_victim(envs)),
-            'seed': tune.grid_search([0, 1, 2]),
+            'seed': tune.grid_search(list(range(3))),
             'load_policy': {
                 'path': tune.sample_from(lambda spec: spec.config['env_name:embed_path'][1]),
             },
@@ -373,7 +373,7 @@ def make_configs(multi_train_ex):
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
                 ),
                 'embed_path': tune.grid_search(['1', '2', '3']),
-                'seed': tune.grid_search([0, 1, 2]),
+                'seed': tune.grid_search(list(range(3))),
                 'rew_shape_params': {
                     'anneal_frac': tune.grid_search([0.0, 0.1]),
                 },
@@ -461,7 +461,7 @@ def make_configs(multi_train_ex):
         spec = {
             'config': {
                 'env_name': tune.grid_search(['Reacher-v1', 'Hopper-v1', 'Ant-v1', 'Humanoid-v1']),
-                'seed': tune.grid_search([0, 1, 2]),
+                'seed': tune.grid_search(list(range(3))),
             },
         }
         exp_name = 'single_agent_baseline'
@@ -483,7 +483,7 @@ def make_configs(multi_train_ex):
                 'env_name': tune.grid_search(
                     ['multicomp/KickAndDefend-v0', 'multicomp/SumoAnts-v0'],
                 ),
-                'seed': tune.grid_search([0, 1, 2]),
+                'seed': tune.grid_search(list(range(3))),
                 'embed_path': tune.grid_search(['1', '2', '3']),
                 'normalize': tune.grid_search([True, False]),
             },
@@ -493,31 +493,48 @@ def make_configs(multi_train_ex):
         del _
 
     # ### DEFENSE EXPERIMENTS ### #
+    #
+    # Example usages:
+    # 1) `with defense_single defense_only_mlp hyper_finetune_defense`
+    #     Hyperparameter search for finetuning an MLP victim policy against a single adversary.
+    # 2) `with defense_dual finetune_defense`
+    #     Finetunes victims against a mixture of the adversary and a normal opponent.
+    # 3) `with defense_dual from_scratch adv_against_hardened`
+    #     Trains an adversary against the hardened victims from 2).
 
-    # MODIFIERS: Used with all experiments
+    # MODIFIERS: Used across all experiments. Need to be called before the experiment named_config
+    # they modify, so that the parameters they set are available in that named_config method.
 
     @multi_train_ex.named_config
     def defense_dual():
+        """Victim plays mixture of normal opponent and adversary."""
         defense_kwargs = {'dual_defense': True}  # noqa: F841
         hyper_defense_kwargs = {}  # noqa: F841
 
     @multi_train_ex.named_config
     def defense_single():
+        """Victim plays just adversary."""
         defense_kwargs = {'dual_defense': False}  # noqa: F841
         hyper_defense_kwargs = {}  # noqa: F841
 
     @multi_train_ex.named_config
     def defense_only_mlp(defense_kwargs, hyper_defense_kwargs):
+        """Modifier for defense experiments.
+
+        Restricts to just MLP environments, which is currently just YouShallNotPassHumans-v0.
+        """
         defense_kwargs['envs'] = ['multicomp/YouShallNotPassHumans-v0']
         defense_kwargs['exp_suffix'] = 'mlp'
         hyper_defense_kwargs['num_samples'] = 100
 
     @multi_train_ex.named_config
     def adv_from_scratch():
+        """Adversary policy is retrained from scratch (random initialization)."""
         adv_retrain_kwargs = {'from_scratch': True}  # noqa: F841
 
     @multi_train_ex.named_config
     def adv_finetune():
+        """Previous best adversarial policy is loaded and then finetuned."""
         adv_retrain_kwargs = {'from_scratch': False}  # noqa: F841
 
     # HYPERPARAMETER TUNING
@@ -527,7 +544,8 @@ def make_configs(multi_train_ex):
         """Hyperparameter search for finetuning defense.
 
         You must use this with one of the modifiers `defense_dual` or `defense_single`,
-        specified before this named config. You may optionally use `defense_only_mlp`.
+        specified before this named config. You may optionally use `defense_only_mlp`,
+        which must be specified after `defense_dual` and `defense_single` but before this.
         """
         train = dict(train)
         spec, exp_name = _hyper_finetune_defense(train,
@@ -641,7 +659,7 @@ def make_configs(multi_train_ex):
                     lambda spec: TARGET_VICTIM[spec.config.env_name]
                 ),
                 'policy': tune.grid_search(['BansalMlpPolicy', 'BansalLstmPolicy']),
-                'seed': tune.grid_search([0, 1, 2]),
+                'seed': tune.grid_search(list(range(3))),
             },
         }
         exp_name = 'gym_compete_from_scratch'
@@ -729,7 +747,7 @@ def make_configs(multi_train_ex):
             'config': {
                 'env_name': tune.grid_search(LSTM_ENVS),
                 'policy': tune.grid_search(['MlpLstmPolicy', 'BansalLstmPolicy']),
-                'seed': tune.grid_search([0, 1, 2]),
+                'seed': tune.grid_search(list(range(3))),
             },
         }
         exp_name = 'lstm_policies'
@@ -791,7 +809,7 @@ def make_configs(multi_train_ex):
                         lambda spec: spec.config['env_name:embed_path'][1],
                     )
                 },
-                'seed': tune.grid_search([0, 1, 2]),
+                'seed': tune.grid_search(list(range(3))),
             },
         }
         exp_name = 'noise_ball'
