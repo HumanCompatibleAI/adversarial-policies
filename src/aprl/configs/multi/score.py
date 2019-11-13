@@ -1,13 +1,12 @@
 """Named configs for aprl.multi.score."""
 
-import json
 import logging
 import os.path
 
 import numpy as np
 from ray import tune
 
-from aprl.configs.multi.common import BANSAL_GOOD_ENVS
+from aprl.configs.multi.common import BANSAL_GOOD_ENVS, get_adversary_paths
 from aprl.envs import VICTIM_INDEX, gym_compete
 
 logger = logging.getLogger('aprl.configs.multi.score')
@@ -100,17 +99,6 @@ def _adversary_vs_victims(adversary_type, adversary_paths, no_transfer=False, **
 PATHS_AND_TYPES = 'env_name:agent_a_type:agent_a_path:agent_b_type:agent_b_path'
 
 
-def _get_adversary_paths():
-    # Sacred named_configs execute before configs, so we can't make this a Sacred config param.
-    path = os.getenv('ADVERSARY_PATHS')
-    if path is None:
-        raise ValueError("Specify path to JSON file containing adversaries in ADVERSARY_PATHS "
-                         "environment variable. (Run 'experiments/highest_win_rate.py'"
-                         "to generate this.)")
-    with open(path, 'r') as f:
-        return json.load(f)['policies']
-
-
 def _summary_paths():
     summary_agents = {
         # ([median victim Zoo id], [best Zoo opponent ID]) -- note 0-indexed
@@ -120,7 +108,7 @@ def _summary_paths():
     }
     adversary_agents = {env: (victim_ids, victim_ids)
                         for env, (victim_ids, _opponent_ids) in summary_agents.items()}
-    adversaries = _adversary_vs_victims('ppo2', _get_adversary_paths(),
+    adversaries = _adversary_vs_victims('ppo2', get_adversary_paths(),
                                         no_transfer=True, agents=adversary_agents)
     zoo = _env_agents(agents=summary_agents)
     return adversaries + zoo
@@ -257,7 +245,7 @@ def make_configs(multi_score_ex):
                     _env_agents(agents={env: ([1], [1]) for env in BANSAL_GOOD_ENVS}) +
                     _fixed_vs_victim('zero')[0:1] +
                     _fixed_vs_victim('random')[0:1] +
-                    _adversary_vs_victims('ppo2', _get_adversary_paths())[0:1]
+                    _adversary_vs_victims('ppo2', get_adversary_paths())[0:1]
                 ),
             }
         }
@@ -330,7 +318,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', _get_adversary_paths())
+                    _adversary_vs_victims('ppo2', get_adversary_paths())
                 ),
             }
         }
@@ -345,7 +333,7 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', _get_adversary_paths(), no_transfer=True)
+                    _adversary_vs_victims('ppo2', get_adversary_paths(), no_transfer=True)
                 ),
             }
         }

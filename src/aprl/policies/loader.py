@@ -11,25 +11,27 @@ import tensorflow as tf
 
 from aprl.envs.gym_compete import load_zoo_agent
 from aprl.envs.multi_agent import FakeSingleSpacesVec
-from aprl.policies.base import (DummyModel, OpenAIToStablePolicy, PolicyToModel, RandomPolicy,
+from aprl.policies.base import (ModelWrapper, OpenAIToStablePolicy, PolicyToModel, RandomPolicy,
                                 ZeroPolicy)
 
 pylog = logging.getLogger('aprl.policy_loader')
 
 
-class NormalizeModel(DummyModel):
-    def __init__(self, policy, vec_normalize):
-        super().__init__(policy, policy.sess)
+class NormalizeModel(ModelWrapper):
+    def __init__(self,
+                 model: stable_baselines.common.base_class.BaseRLModel,
+                 vec_normalize: VecNormalize):
+        super().__init__(model=model)
         self.vec_normalize = vec_normalize
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         norm_obs = self.vec_normalize._normalize_observation(observation)
-        return self.policy.predict(norm_obs, state, mask, deterministic)
+        return self.model.predict(norm_obs, state, mask, deterministic)
 
     def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
         """Returns same values as predict, as well as a dictionary with transparent data."""
         norm_obs = self.vec_normalize._normalize_observation(observation)
-        return self.policy.predict_transparent(norm_obs, state, mask, deterministic)
+        return self.model.predict_transparent(norm_obs, state, mask, deterministic)
 
 
 def load_stable_baselines(cls):
@@ -78,7 +80,9 @@ def load_old_ppo2(root_dir, env, env_name, index, transparent_params):
                                     total_timesteps=1, seed=0,
                                     nminibatches=4, log_interval=1, save_interval=1,
                                     load_path=model_path)
-    stable_policy = OpenAIToStablePolicy(policy)
+    stable_policy = OpenAIToStablePolicy(policy,
+                                         ob_space=denv.observation_space,
+                                         ac_space=denv.action_space)
     model = PolicyToModel(stable_policy)
 
     try:

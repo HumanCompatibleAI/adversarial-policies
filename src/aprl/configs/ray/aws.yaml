@@ -15,13 +15,17 @@ docker:
     - "-p 6006:6006"
     # These are to work around Ray bug #4403.
     - "-v /home/ubuntu/ray_results:/home/ubuntu/ray_results"
+    - "-v /home/ubuntu/aws_private:/home/ubuntu/aws_private"
     - "--env LOGNAME=ubuntu"
     - "--env HOME=/home/ubuntu"
+    - "--env DATA_LOC=/home/ubuntu/aws_private"
+    - "--env ADVERSARY_PATHS=/home/ubuntu/aws_private/multi_train/paper/highest_win_policies_and_rates.json"
 
 provider:
   type: aws
   region: us-west-2
-  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west2d
+  availability_zone: us-west-2a,us-west-2b,us-west-2c,us-west-2d
+  cache_stopped_nodes: False  # TODO(adam): remove when Ray issue #6128 is closed
 
 # How Ray will authenticate with newly launched nodes.
 auth:
@@ -29,8 +33,8 @@ auth:
   ssh_private_key: ~/.ssh/adversarial-policies
 
 head_node:
-  InstanceType: c5.2xlarge
-  ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
+  InstanceType: c5.4xlarge
+  ImageId: ami-03cb2176bb0ac9ec7  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
@@ -39,8 +43,8 @@ head_node:
         VolumeType: gp2
 
 worker_nodes:
-  InstanceType: c5.18xlarge
-  ImageId: ami-047e8f856c7a36d06  # CHAI Ubuntu 18.04
+  InstanceType: c5.9xlarge  # half a machine, less likely to get preempted than full c5.18xlarge
+  ImageId: ami-03cb2176bb0ac9ec7  # CHAI Ubuntu 18.04
   KeyName: Adversarial Policies
   BlockDeviceMappings:
     - DeviceName: /dev/sda1
@@ -80,7 +84,7 @@ head_start_ray_commands:
     ray stop &&
     ulimit -n 65536 &&
     ray start --head --redis-port=6379 --object-manager-port=8076 \
-              --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=4
+              --autoscaling-config=~/ray_bootstrap_config.yaml --num-cpus=8
 
 worker_start_ray_commands:
   # (Re)start spot termination monitor.

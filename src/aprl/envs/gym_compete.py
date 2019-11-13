@@ -131,7 +131,7 @@ def is_symmetric(env_name):
     return SYMMETRIC_ENV[env_name_to_canonical(env_name)]
 
 
-def get_policy_type_for_zoo_agent(env_name, transparent_params):
+def get_policy_type_for_zoo_agent(env_name, transparent_params=None):
     """Determines the type of policy gym_complete used in each environment.
     :param env_name: (str) the environment of the policy we want to load
     :return: a tuple (cls, kwargs) -- call cls(**kwargs) to create policy."""

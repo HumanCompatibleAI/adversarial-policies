@@ -106,48 +106,48 @@ def fit_tsne_helper(activation_paths, output_dir, num_components, num_observatio
 @fit_model_ex.main
 def fit_model(_run, ray_server, activation_dir, output_root,
               num_components, num_observations, perplexity, data_type):
-    ray.init(redis_address=ray_server)
+    try:
+        ray.init(redis_address=ray_server)
 
-    # Find activation paths for each environment & victim-path tuple
-    stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
-    opponent_pattern = re.compile(r'.*_opponent_([^\s]+)_[^\s]+\.npz')
-    activation_paths = {}
-    for fname in os.listdir(activation_dir):
-        stem_match = stem_pattern.match(fname)
-        if stem_match is None:
-            logger.debug(f"Skipping {fname}")
-            continue
-        stem = stem_match.groups()[0]
+        # Find activation paths for each environment & victim-path tuple
+        stem_pattern = re.compile(r'(.*)_opponent_.*\.npz')
+        opponent_pattern = re.compile(r'.*_opponent_([^\s]+)_[^\s]+\.npz')
+        activation_paths = {}
+        for fname in os.listdir(activation_dir):
+            stem_match = stem_pattern.match(fname)
+            if stem_match is None:
+                logger.debug(f"Skipping {fname}")
+                continue
+            stem = stem_match.groups()[0]
 
-        opponent_match = opponent_pattern.match(fname)
-        opponent_type = opponent_match.groups()[0]
+            opponent_match = opponent_pattern.match(fname)
+            opponent_type = opponent_match.groups()[0]
 
-        path = osp.join(activation_dir, fname)
-        activation_paths.setdefault(stem, {})[opponent_type] = path
+            path = osp.join(activation_dir, fname)
+            activation_paths.setdefault(stem, {})[opponent_type] = path
 
-    # Create temporary output directory (if needed)
-    tmp_dir = None
-    if output_root is None:
-        tmp_dir = tempfile.TemporaryDirectory()
-        output_root = tmp_dir.name
+        # Create temporary output directory (if needed)
+        tmp_dir = None
+        if output_root is None:
+            tmp_dir = tempfile.TemporaryDirectory()
+            output_root = tmp_dir.name
 
-    # Fit t-SNE and save model weights
-    results = []
-    for stem, paths in activation_paths.items():
-        output_dir = osp.join(output_root, stem)
-        os.makedirs(output_dir)
-        future = fit_tsne_helper.remote(paths, output_dir, num_components,
-                                        num_observations, perplexity, data_type)
-        results.append(future)
+        # Fit t-SNE and save model weights
+        results = []
+        for stem, paths in activation_paths.items():
+            output_dir = osp.join(output_root, stem)
+            os.makedirs(output_dir)
+            future = fit_tsne_helper.remote(paths, output_dir, num_components,
+                                            num_observations, perplexity, data_type)
+            results.append(future)
 
-    ray.get(results)  # block until all jobs have finished
-    utils.add_artifacts(_run, output_root, ingredient=fit_model_ex)
-
-    # Clean up temporary directory (if needed)
-    if tmp_dir is not None:
-        tmp_dir.cleanup()
-
-    ray.shutdown()
+        ray.get(results)  # block until all jobs have finished
+        utils.add_artifacts(_run, output_root, ingredient=fit_model_ex)
+    finally:
+        # Clean up temporary directory (if needed)
+        if tmp_dir is not None:
+            tmp_dir.cleanup()
+        ray.shutdown()
 
 
 def main():

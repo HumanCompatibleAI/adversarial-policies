@@ -10,7 +10,7 @@ from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MultiWrapper, make_du
                                    make_subproc_vec_multi_env)
 from aprl.envs.wrappers import make_env
 from aprl.policies.loader import load_policy
-from aprl.training.victim_envs import EmbedVictimWrapper
+from aprl.training.embedded_agents import TransparentCurryVecEnv
 
 LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
 
@@ -65,9 +65,8 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                                  env_name=env_name, index=victim_index,
                                  transparent_params=self.transparent_params)
 
-            multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                            victim_index=victim_index,
-                                            transparent=True, deterministic=True)
+            multi_venv = TransparentCurryVecEnv(venv=multi_venv, policy=victim,
+                                                agent_idx=victim_index, deterministic=True)
 
             single_venv = FlattenSingletonVecEnv(multi_venv)
             data_dict = {'state': None, 'action': None, 'info': defaultdict(dict)}
@@ -223,7 +222,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""
-        return obs[:, :self._policy.policy.observation_space.shape[0]]
+        return obs[:, :self._policy.observation_space.shape[0]]
 
     def _get_all_mujoco_state_data(self, env_idx):
         """Get qpos+qvel state, full MjData dictionary and environment radius if applicable

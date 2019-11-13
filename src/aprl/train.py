@@ -1,4 +1,4 @@
-"""Uses PPO to training an attack policy against a fixed victim policy."""
+"""Uses PPO to training an attack policy against a fixed, embedded policy."""
 
 import functools
 import json
@@ -22,11 +22,12 @@ from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MergeAgentVecEnv,
 from aprl.envs.observation_masking import make_mask_agent_wrappers
 import aprl.envs.wrappers
 from aprl.policies.loader import load_backward_compatible_model, load_policy, mpi_unavailable_error
+from aprl.policies.wrappers import MultiPolicyWrapper
+from aprl.training.embedded_agents import CurryVecEnv, TransparentCurryVecEnv
 from aprl.training.logger import setup_logger
 from aprl.training.lookback import DebugVenv, LookbackRewardVecWrapper, OldMujocoResettableWrapper
 from aprl.training.scheduling import ConstantAnnealer, Scheduler
-from aprl.training.shaping_wrappers import apply_reward_wrapper, apply_victim_wrapper
-from aprl.training.victim_envs import EmbedVictimWrapper
+from aprl.training.shaping_wrappers import apply_embedded_agent_wrapper, apply_reward_wrapper
 
 train_ex = Experiment('train')
 pylog = logging.getLogger('aprl.train')
@@ -84,7 +85,7 @@ def old_ppo2(_seed, env, out_dir, total_timesteps, num_env, policy,
 
 @train_ex.capture
 def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out_dir,
-            total_timesteps, policy, load_policy, rl_args, victim_index, debug, logger,
+            total_timesteps, policy, load_policy, rl_args, embed_index, debug, logger,
             log_callbacks, save_callbacks, log_interval, checkpoint_interval, **kwargs):
     kwargs = dict(env=env,
                   verbose=1 if not debug else 2,
@@ -100,7 +101,7 @@ def _stable(cls, our_type, callback_key, callback_mul, _seed, env, env_name, out
             kwargs['policy_kwargs'] = policy_kwargs
             model = cls(policy=policy_cls, **kwargs)
 
-            our_idx = 1 - victim_index  # TODO: code duplication?
+            our_idx = 1 - embed_index  # TODO: code duplication?
             params = load_zoo_agent_params(load_policy['path'], env_name, our_idx)
             # We do not need to restore train_model, since it shares params with act_model
             model.act_model.restore(params)
@@ -193,13 +194,16 @@ def train_config():
     num_env = 8                     # number of environments to run in parallel
     total_timesteps = 4096          # total number of timesteps to training for
 
-    # Victim Config
-    victim_type = "zoo"             # type supported by aprl.policies.loader
-    victim_path = "1"               # path or other unique identifier
-    victim_index = 0                # which agent the victim is (we default to other agent)
+    # Embedded Agent Config
+    # Typically this is the victim, but for victim hardening this could be the adversary
+    embed_index = 0                 # index embedded agent plays as
+    embed_type = None               # any type supported by aprl.policies.loader
+    embed_path = None               # path or other unique identifier
+    embed_types = None              # list of types for embedded agents
+    embed_paths = None              # list of paths for embedded agents
 
-    mask_victim = False             # should victim obsevations be limited
-    mask_victim_kwargs = {          # control how victim observations are limited
+    mask_embed = False              # should embedded agent's observations be limited
+    mask_embed_kwargs = {           # control how embedded agent's observations are limited
         'masking_type': 'initialization',
     }
 
@@ -208,20 +212,32 @@ def train_config():
     policy = "MlpPolicy"            # policy network type
     batch_size = 2048               # batch size
     learning_rate = 3e-4            # learning rate
-    normalize = True                # normalize environment observations and reward
+    normalize = True                # normalize environment reward
+    normalize_observations = True   # if normalize, then normalize environments observations too
     rl_args = dict()                # algorithm-specific arguments
 
-    # RL Algorithm Policies/Demonstrations
+    # General
+    checkpoint_interval = 131072    # save weights to disk after this many timesteps
+    log_interval = 2048             # log statistics to disk after this many timesteps
+    log_output_formats = None       # custom output formats for logging
+    debug = False                   # debug mode; may run more slowly
+    seed = 0                        # random seed
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@train_ex.config
+def adversary_policy_config(rl_algo, embed_type, embed_path):
     load_policy = {                 # fine-tune this policy
         'path': None,               # path with policy weights
         'type': rl_algo,            # type supported by aprl.policies.loader
     }
     adv_noise_params = {            # param dict for epsilon-ball noise policy added to zoo policy
         'noise_val': None,          # size of noise ball. Set to nonnegative float to activate.
-        'base_path': victim_path,   # path of agent to be wrapped with noise ball
-        'base_type': victim_type,   # type of agent to be wrapped with noise ball
+        'base_path': embed_path,   # path of agent to be wrapped with noise ball
+        'base_type': embed_type,   # type of agent to be wrapped with noise ball
     }
-    transparent_params = None       # param set for transparent victim policies
+    transparent_params = None       # params for transparent embedded policies
     expert_dataset_path = None      # path to trajectory data to train GAIL
     lookback_params = {             # parameters for doing lookback white-box attacks
         'lb_num': 0,                # number of lookback venvs, if zero, lookback is disabled
@@ -230,12 +246,6 @@ def train_config():
         'lb_type': rl_algo,         # type of lookback base policy
     }
 
-    # General
-    checkpoint_interval = 131072    # save weights to disk after this many timesteps
-    log_interval = 2048             # log statistics to disk after this many timesteps
-    log_output_formats = None       # custom output formats for logging
-    debug = False                   # debug mode; may run more slowly
-    seed = 0                        # random seed
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -255,28 +265,40 @@ def wrappers_config(env_name):
     rew_shape = True  # enable reward shaping
     rew_shape_params = load_default(env_name, 'rew')  # parameters for reward shaping
 
-    victim_noise = False  # enable adding noise to victim
-    victim_noise_params = load_default(env_name, 'noise')  # parameters for victim noise
+    embed_noise = False  # enable adding noise to embedded agents
+    embed_noise_params = load_default(env_name, 'noise')  # parameters for noise
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@train_ex.named_config
+def no_embed():
+    """Does not load and embed another agent. Useful for debugging, allowing training in a
+       single-agent environment.
+    """
+    embed_types = []
+    embed_paths = []
 
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @train_ex.capture
-def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
-              mask_victim, mask_victim_kwargs, lookback_params, debug):
+def build_env(out_dir, _seed, env_name, num_env, embed_types, embed_index,
+              mask_embed, mask_embed_kwargs, lookback_params, debug):
     pre_wrappers = []
     if lookback_params['lb_num'] > 0:
         pre_wrappers.append(OldMujocoResettableWrapper)
 
     agent_wrappers = {}
-    if mask_victim:
-        agent_wrappers = make_mask_agent_wrappers(env_name, victim_index, **mask_victim_kwargs)
+    if mask_embed:
+        agent_wrappers = make_mask_agent_wrappers(env_name, embed_index, **mask_embed_kwargs)
 
-    if victim_type == 'none':
+    if len(embed_types) == 0:
         our_idx = 0
     else:
-        our_idx = 1 - victim_index
+        our_idx = 1 - embed_index
 
     def env_fn(i):
         return aprl.envs.wrappers.make_env(env_name, _seed, i, out_dir, our_idx,
@@ -291,10 +313,10 @@ def build_env(out_dir, _seed, env_name, num_env, victim_type, victim_index,
     if debug and lookback_params['lb_num'] > 0:
         multi_venv = DebugVenv(multi_venv)
 
-    if victim_type == 'none':
-        assert multi_venv.num_agents == 1, "No victim only works in single-agent environments"
+    if len(embed_types) == 0:
+        assert multi_venv.num_agents == 1, "No embedding only works in single-agent environments."
     else:
-        assert multi_venv.num_agents == 2, "Need two-agent environment when victim"
+        assert multi_venv.num_agents == 2, "Need two-agent environment when agent embedded."
 
     return multi_venv, our_idx
 
@@ -311,8 +333,7 @@ def multi_wrappers(multi_venv, env_name, log_callbacks):
 
 
 @train_ex.capture
-def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_path, victim_type,
-                        deterministic):
+def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, deterministic):
     adv_noise_agent_val = adv_noise_params['noise_val']
     base_policy_path = adv_noise_params['base_path']
     base_policy_type = adv_noise_params['base_type']
@@ -329,39 +350,50 @@ def wrap_adv_noise_ball(env_name, our_idx, multi_venv, adv_noise_params, victim_
 
 
 @train_ex.capture
-def maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks, env_name, victim_type,
-                       victim_path, victim_index, victim_noise, victim_noise_params,
-                       adv_noise_params, transparent_params, lookback_params):
-    if victim_type != 'none':
+def maybe_embed_agent(multi_venv, our_idx, scheduler, log_callbacks, env_name, embed_types,
+                      embed_paths, embed_index, embed_noise, embed_noise_params,
+                      adv_noise_params, transparent_params, lookback_params):
+    if len(embed_types) > 0:
         deterministic = lookback_params is not None
         # If we are actually training an epsilon-ball noise agent on top of a zoo agent
         if adv_noise_params['noise_val'] is not None:
             multi_venv = wrap_adv_noise_ball(env_name, our_idx, multi_venv,
+                                             adv_noise_params=adv_noise_params,
                                              deterministic=deterministic)
+        embedded_policies = []
+        # If we're loading multiple embedded agents
+        for embed_type, embed_path in zip(embed_types, embed_paths):
+            embedded_policies.append(load_policy(policy_path=embed_path,
+                                     policy_type=embed_type, env=multi_venv,
+                                     env_name=env_name, index=embed_index,
+                                     transparent_params=transparent_params))
 
-        # Load the victim and then wrap it if appropriate.
-        victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                             env_name=env_name, index=victim_index,
-                             transparent_params=transparent_params)
+        if embed_noise:
+            for i in range(len(embedded_policies)):
+                embedded = apply_embedded_agent_wrapper(embedded=embedded_policies[i],
+                                                        noise_params=embed_noise_params,
+                                                        scheduler=scheduler)
+                embedded_policies[i] = embedded
+                log_callbacks.append(lambda logger, locals, globals:
+                                     embedded_policies[i].log_callback(logger))
 
-        if victim_noise:
-            victim = apply_victim_wrapper(victim=victim, noise_params=victim_noise_params,
-                                          scheduler=scheduler)
-            log_callbacks.append(lambda logger, locals, globals: victim.log_callback(logger))
+        if len(embedded_policies) > 1:
+            embedded_policy = MultiPolicyWrapper(embedded_policies, num_envs=multi_venv.num_envs)
+        else:
+            embedded_policy = embedded_policies[0]
 
-        # Curry the victim
-        transparent = transparent_params is not None
-        multi_venv = EmbedVictimWrapper(multi_env=multi_venv, victim=victim,
-                                        victim_index=victim_index, transparent=transparent,
-                                        deterministic=deterministic)
-
+        # Curry the embedded agent
+        cls = TransparentCurryVecEnv if transparent_params is not None else CurryVecEnv
+        multi_venv = cls(venv=multi_venv, policy=embedded_policy,
+                         agent_idx=embed_index, deterministic=deterministic)
     return multi_venv
 
 
 @train_ex.capture
-def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_shape_params,
-                    victim_index, victim_path, victim_type, debug, env_name, load_policy,
-                    lookback_params, transparent_params, log_callbacks, save_callbacks):
+def single_wrappers(single_venv, scheduler, our_idx, normalize, normalize_observations,
+                    rew_shape, rew_shape_params, embed_index, embed_paths, embed_types,
+                    debug, env_name, load_policy, lookback_params, transparent_params,
+                    log_callbacks, save_callbacks):
     if rew_shape:
         rew_shape_venv = apply_reward_wrapper(single_env=single_venv, scheduler=scheduler,
                                               shaping_params=rew_shape_params, agent_idx=our_idx)
@@ -373,20 +405,28 @@ def single_wrappers(single_venv, scheduler, our_idx, normalize, rew_shape, rew_s
                 scheduler.set_annealer_get_logs(anneal_type, rew_shape_venv.get_logs)
 
     if lookback_params['lb_num'] > 0:
+        if len(embed_types) > 1:
+            raise ValueError("Lookback is not supported with multiple embedded agents")
+        embed_path = embed_paths[0]
+        embed_type = embed_types[0]
         lookback_venv = LookbackRewardVecWrapper(single_venv, env_name, debug,
-                                                 victim_index, victim_path, victim_type,
+                                                 embed_index, embed_path, embed_type,
                                                  transparent_params, **lookback_params)
         single_venv = lookback_venv
 
     if normalize:
-        normalized_venv = VecNormalize(single_venv)
+        if normalize_observations:
+            if load_policy['path'] is not None:
+                if load_policy['type'] == 'zoo':
+                    raise ValueError(
+                        "Trying to normalize twice. Bansal et al's Zoo agents normalize "
+                        "implicitly. Please set normalize=False to disable VecNormalize.")
+            normalized_venv = VecNormalize(single_venv)
+        else:
+            normalized_venv = VecNormalize(single_venv, norm_obs=False)
 
-        if load_policy['path'] is not None:
-            if load_policy['type'] == 'zoo':
-                raise ValueError("Trying to normalize twice. Bansal et al's Zoo agents normalize "
-                                 "implicitly. Please set normalize=False to disable VecNormalize.")
-
-                normalized_venv.load_running_average(load_policy['path'])
+        if load_policy['path'] is not None and load_policy['type'] != 'zoo':
+            normalized_venv.load_running_average(load_policy['path'])
 
         save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
         single_venv = normalized_venv
@@ -417,22 +457,37 @@ NO_VECENV = ['ddpg', 'dqn', 'gail', 'her', 'ppo1', 'sac']
 
 @train_ex.main
 def train(_run, root_dir, exp_name, num_env, rl_algo, learning_rate,
-          log_output_formats, lookback_params):
+          log_output_formats, embed_path, embed_type,
+          embed_paths, embed_types, adv_noise_params):
+    resolved_adv_noise_params = dict(adv_noise_params)
+    if embed_type is None:
+        embed_type = "zoo"
+        resolved_adv_noise_params['base_type'] = embed_type
+    if embed_path is None:
+        embed_path = "1"
+        resolved_adv_noise_params['base_path'] = embed_path
+    if embed_types is None and embed_paths is None:
+        embed_types = [embed_type]
+        embed_paths = [embed_path]
+
     scheduler = Scheduler(annealer_dict={'lr': ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
     log_callbacks, save_callbacks = [], []
-    pylog.info(f"Log output formats: {logger.output_formats}")
 
     if rl_algo in NO_VECENV and num_env > 1:
         raise ValueError(f"'{rl_algo}' needs 'num_env' set to 1.")
 
-    multi_venv, our_idx = build_env(out_dir)
+    multi_venv, our_idx = build_env(out_dir, embed_types=embed_types)
     multi_venv = multi_wrappers(multi_venv, log_callbacks=log_callbacks)
-    multi_venv = maybe_embed_victim(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks)
-
+    multi_venv = maybe_embed_agent(multi_venv, our_idx, scheduler, log_callbacks=log_callbacks,
+                                   embed_types=embed_types,
+                                   embed_paths=embed_paths,
+                                   adv_noise_params=resolved_adv_noise_params)
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(single_venv, scheduler, our_idx, log_callbacks=log_callbacks,
-                                  save_callbacks=save_callbacks)
+                                  save_callbacks=save_callbacks,
+                                  embed_paths=embed_paths,
+                                  embed_types=embed_types)
 
     train_fn = RL_ALGOS[rl_algo]
     res = train_fn(env=single_venv, out_dir=out_dir, learning_rate=scheduler.get_annealer('lr'),

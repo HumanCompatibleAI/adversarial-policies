@@ -16,7 +16,9 @@ logger = logging.getLogger('scripts.highest_win_rate')
 
 def event_files(path):
     for root, dirs, files in os.walk(path, followlinks=True):
-        if root.endswith('tb'):  # looking for paths of form */data/baselines/*/rl/tb
+        # checkpoint directories never contain TF events files, and will slow down search
+        dirs[:] = list(filter(lambda x: x != 'checkpoint', dirs))
+        if root.split(os.path.sep)[-2:] == ['rl', 'tb']:
             for name in files:
                 if 'tfevents' in name:
                     yield os.path.join(root, name)
@@ -39,6 +41,8 @@ def get_stats(event_path, episode_window):
 
 def _strip_up_to(path, dirname):
     path_components = path.split(os.path.sep)
+    if path_components[0] == '':
+        path_components[0] = os.path.sep
     try:
         path_index = len(path_components) - 1 - path_components[::-1].index(dirname)
     except ValueError as e:
@@ -55,7 +59,14 @@ def get_sacred_config(event_path):
 
 def get_final_model_path(event_path):
     root = _strip_up_to(event_path, 'rl')
-    return os.path.join(root, 'final_model')
+    abs_path = os.path.join(root, 'final_model')
+    components = abs_path.split(os.path.sep)
+    try:
+        multi_train_start = components.index('multi_train')
+        components = components[multi_train_start:]
+    except ValueError:
+        pass
+    return os.path.sep.join(components)
 
 
 def unstack(d):
@@ -78,14 +89,18 @@ def find_best(logdirs, episode_window):
             stats = get_stats(event_path=event_path, episode_window=episode_window)
             config = get_sacred_config(event_path)
             env_name = str(config['env_name'])
-            opp_index = int(config['victim_index'])
-            opp_type = str(config['victim_type'])
-            # multi_score is not set up to handle multiple victim types
-            assert opp_type == 'zoo'
-            opp_path = str(config['victim_path'])
-
+            opp_index = int(config['embed_index'])
+            opp_type = str(config['embed_type'])
+            # multi_score is not set up to handle multiple embedded agent types
+            if opp_type != 'zoo' and config['load_policy']['type'] == 'zoo':
+                # Assuming that this case corresponds to a situation where we're finetuning a
+                # zoo policy, and that we still want the resulting dictionary indexed by the
+                # integer zoo policy we finetuned, rather than the full path of its adversary
+                zoo_path = str(config['load_policy']['path'])
+            else:
+                zoo_path = str(config['embed_path'])
             our_index = 1 - opp_index
-            key = (env_name, opp_index, opp_path)
+            key = (env_name, opp_index, zoo_path)
             our_winrate = stats[f'game_win{our_index}']
 
             if our_winrate > best_winrate[key]:
@@ -108,18 +123,31 @@ def directory_type(path):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--logdir', nargs='*', type=directory_type)
+    parser.add_argument('logdir', nargs="+", type=directory_type)
     parser.add_argument('--episode-window', type=int, default=50)
-    parser.add_argument('output_path')
+    parser.add_argument('--output_path')
     return parser.parse_args()
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    args = get_args()
+    parsed_args = get_args()
+    output_path = parsed_args.output_path
+    # If no output path is given, default to saving it in the first logdir under a fixed name
+    if output_path is None:
+        if len(parsed_args.logdir) > 1:
+            raise ValueError("Must specify --output_path when using multiple log directories.")
+        output_path = os.path.join(parsed_args.logdir[0], 'highest_win_policies_and_rates.json')
 
-    with open(args.output_path, 'w') as f:  # fail fast if output_path inaccessible
-        result = find_best(args.logdir, args.episode_window)
+    for logdir in parsed_args.logdir:
+        if 'multi_train' not in logdir.split(os.path.sep):
+            logger.warning(f"logdir '{logdir}' does not contain 'multi_train'."
+                           "Falling back to absolute paths, JSON may not be portable.")
+
+    logger.info(f"Output path: {output_path}")
+    logger.info(f"Log dir: {parsed_args.logdir}")
+    with open(output_path, 'w') as f:  # fail fast if output_path inaccessible
+        result = find_best(parsed_args.logdir, parsed_args.episode_window)
         json.dump(result, f)
 
 
