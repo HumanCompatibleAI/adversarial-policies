@@ -133,25 +133,23 @@ def make_configs(multi_score_ex):
     # Accuracy
 
     @multi_score_ex.named_config
-    def high_accuracy(exp_name, score):
+    def high_accuracy(score):
         score = dict(score)
         score['episodes'] = 1000
         score['num_env'] = 16
-        exp_name = 'high_accuracy_' + exp_name
+        exp_prefix = {'high_accuracy': 'high_accuracy'}  # noqa: F841
 
     @multi_score_ex.named_config
-    def medium_accuracy(exp_name, score):
+    def medium_accuracy(score):
         score = dict(score)
         score['episodes'] = 100
         score['num_env'] = 16
-        exp_name = 'medium_accuracy_' + exp_name
-        _ = locals()
-        del _
+        exp_prefix = {'medium_accuracy': 'medium_accuracy'}  # noqa: F841
 
     # Artifacts: activations and/or videos
 
     @multi_score_ex.named_config
-    def save_activations(exp_name, score, spec):
+    def save_activations(score):
         score = dict(score)
         score['episodes'] = None
         # Trajectory length varies a lot between environments and opponents; make sure we have
@@ -162,15 +160,19 @@ def make_configs(multi_score_ex):
         score['record_traj_params'] = {
             'save_dir': 'data/trajectories',
         }
-        spec['config']['record_traj_params'] = {
-            'agent_indices': tune.sample_from(
-                lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
-            ),
+        spec = {  # noqa: F841
+            'config': {
+                'record_traj_params': {
+                    'agent_indices': tune.sample_from(
+                        lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+                    ),
+                }
+            }
         }
-        exp_name = 'activations_' + exp_name
+        exp_prefix = {'activations': 'activations'}  # noqa: F841
 
     @multi_score_ex.named_config
-    def video(exp_name, score):
+    def video(score):
         score = dict(score)
         score['videos'] = True
         score['num_env'] = 1
@@ -182,79 +184,98 @@ def make_configs(multi_score_ex):
                 'font_size': 70,
             }
         }
-        exp_name = 'video_' + exp_name  # noqa: F401
+        exp_prefix = {'video': 'video'}  # noqa: F841
 
     # Observation masking
 
     @multi_score_ex.named_config
-    def mask_observations_of_victim(exp_name, spec):
-        spec['config']['mask_agent_index'] = tune.sample_from(
-            lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
-        )
-        exp_name = 'victim_mask_' + exp_name
+    def mask_observations_of_victim():
+        spec = {  # noqa: F841
+            'config': {
+                'mask_agent_index': tune.sample_from(
+                    lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+                ),
+            }
+        }
+        exp_prefix = {'victim_mask': 'victim_mask'}  # noqa: F841
 
     @multi_score_ex.named_config
-    def mask_observations_of_adversary(exp_name, spec):
-        spec['config']['mask_agent_index'] = tune.sample_from(
-            lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
-        )
-        exp_name = 'adversary_mask_' + exp_name
+    def mask_observations_of_adversary():
+        spec = {  # noqa: F841
+            'config': {
+                'mask_agent_index': tune.sample_from(
+                    lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+                ),
+            }
+        }
+        exp_prefix = {'adversary_mask': 'adversary_mask'}  # noqa: F841
 
     @multi_score_ex.named_config
-    def mask_observations_with_zeros(exp_name, score):
+    def mask_observations_with_zeros(score):
         score = dict(score)
         score['mask_agent_masking_type'] = 'zeros'
-        exp_name = 'zero_' + exp_name
+        exp_prefix = {'zero': 'zero'}  # noqa: F841
 
-    def _mask_observations_with_additive_noise(score, spec):
+    def _mask_observations_with_additive_noise(score, agent_noise):
         score['index_keys'] = ['mask_agent_masking_type', 'mask_agent_noise']
         score['mask_agent_masking_type'] = 'additive_noise'
-        spec['num_samples'] = 25
+        return {
+            'num_samples': 25,
+            'mask_agent_noise': agent_noise,
+        }
 
     @multi_score_ex.named_config
-    def mask_observations_with_additive_noise(exp_name, score, spec):
+    def mask_observations_with_additive_noise(score):
         score = dict(score)
-        _mask_observations_with_additive_noise(score, spec)
-        spec['config']['mask_agent_noise'] = tune.sample_from(
-            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
+        spec = _mask_observations_with_additive_noise(  # noqa: F841
+            score=score,
+            agent_noise=tune.sample_from(
+                lambda _: np.random.lognormal(mean=0.5, sigma=1.5)
+            )
         )
-        exp_name = 'additive_noise_' + exp_name
+        exp_prefix = {'additive_noise': 'additive_noise'}  # noqa: F841
 
     @multi_score_ex.named_config
-    def mask_observations_with_smaller_additive_noise(exp_name, score, spec):
+    def mask_observations_with_smaller_additive_noise(score):
         score = dict(score)
-        _mask_observations_with_additive_noise(score, spec)
-        spec['config']['mask_agent_noise'] = tune.sample_from(
-            lambda spec: np.random.exponential(scale=1.0)
+        spec = _mask_observations_with_additive_noise(  # noqa: F841
+            score=score,
+            agent_noise=tune.sample_from(
+                lambda _: np.random.exponential(scale=1.0)
+            )
         )
-        exp_name = 'smaller_additive_noise_' + exp_name
+        exp_prefix = {'smaller_additive_noise': 'smaller_additive_noise'}  # noqa: F841
 
     # Adding noise to actions
 
-    def _noise_actions(score, spec):
+    def _noise_actions(score):
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
-        spec['num_samples'] = 25
-        spec['config']['noisy_agent_magnitude'] = tune.sample_from(
-            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
-        )
+        return {
+            'num_samples': 25,
+            'config': {
+                'noisy_agent_magnitude': tune.sample_from(
+                    lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
+                )
+            }
+        }
 
     @multi_score_ex.named_config
-    def noise_adversary_actions(exp_name, score, spec):
+    def noise_adversary_actions(score):
         score = dict(score)
-        _noise_actions(score, spec)
+        spec = _noise_actions(score)
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-        exp_name = 'adversary_action_noise_' + exp_name
+        exp_prefix = {'adversary_action_noise': 'adversary_action_noise'}  # noqa: F841
 
     @multi_score_ex.named_config
-    def noise_victim_actions(exp_name, score, spec):
+    def noise_victim_actions(score):
         score = dict(score)
-        _noise_actions(score, spec)
+        spec = _noise_actions(score)
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-        exp_name = 'victim_action_noise_' + exp_name
+        exp_prefix = {'victim_action_noise': 'victim_action_noise'}  # noqa: F841
 
     # ### Experimental Configs ###
     # These specify which agents to compare in which environments
@@ -311,12 +332,13 @@ def make_configs(multi_score_ex):
         envs = None
         victims = {}
         opponents = {}
+        exp_prefix = {}
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_score_ex.config
-    def default_spec(spec, victims, opponents, envs):
+    def default_spec(spec, envs, victims, opponents, exp_prefix):
         """Compare victims to opponents."""
         if spec is None:
             if not victims:
@@ -333,7 +355,8 @@ def make_configs(multi_score_ex):
                     ),
                 }
             }
-            exp_name = f"{':'.join(victims.keys())}_vs_{':'.join(opponents.keys())}"
+            exp_name = ((f"{':'.join(sorted(exp_prefix.keys()))}_" if exp_prefix else '') +
+                        f"{':'.join(victims.keys())}_vs_{':'.join(opponents.keys())}")
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
