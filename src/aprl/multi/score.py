@@ -35,9 +35,7 @@ def default_config(score):
         },
         'config': {},
     }
-
     save_path = None      # path to save JSON results. If None, do not save.
-    exp_name = 'default'  # experiment name
 
     _ = locals()  # quieten flake8 unused variable warning
     del _

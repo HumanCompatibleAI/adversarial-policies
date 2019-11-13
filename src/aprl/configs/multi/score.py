@@ -1,5 +1,7 @@
 """Named configs for aprl.multi.score."""
 
+import itertools
+import json
 import logging
 import os.path
 from typing import Callable, Iterable, List, NamedTuple, Optional, Tuple
@@ -33,12 +35,12 @@ def _zoo(env, agent_index):
     return [('zoo', str(i)) for i in range(1, num_zoo + 1)]
 
 
-def _adversaries(adversary_paths):
-    """Returns a function that returns all adversaries in `adversary_paths`."""
+def _from_paths(policy_paths):
+    """Returns a function that returns policies from `policy_paths`."""
     def helper(env, agent_index):
-        """Returns all adversaries in `env` playing in index `agent_index`."""
+        """Returns all policies in `env` playing in index `agent_index`."""
         victim_index = 1 - agent_index
-        paths = adversary_paths.get(env, {}).get(str(victim_index))
+        paths = policy_paths.get(env, {}).get(str(victim_index))
         if paths is None:
             logger.warning(f"Missing adversary path in '{env}' for index '{agent_index}'")
             return []
@@ -48,20 +50,51 @@ def _adversaries(adversary_paths):
     return helper
 
 
+def _from_json(json_path):
+    """Returns a function that returns policies from the specified JSON."""
+    with open(json_path, 'r') as f:
+        policy_paths = json.load(f)['policies']
+    return _from_paths(policy_paths)
+
+
+def _adversary():
+    """Returns all adversaries from default JSON."""
+    return _from_paths(get_adversary_paths())
+
+
 def _fixed(env, agent_index):
     """Returns all baseline, environment-independent policies."""
     del env, agent_index
     return [('zero', 'none'), ('random', 'none')]
 
 
-def _gen_configs(victim_fn: AgentConfigGenFn,
-                 adversary_fn: AgentConfigGenFn,
+def _to_fn(cfg: str) -> AgentConfigGenFn:
+    """Converts config of form cfg_type[:path] into a configuration function."""
+    cfg_type, *rem = cfg.split(':')
+    if cfg_type == 'zoo':
+        assert not rem
+        return _zoo
+    elif cfg == 'fixed':
+        assert not rem
+        return _fixed
+    elif cfg_type == 'adversary':
+        assert not rem
+        return _adversary()
+    elif cfg_type == 'json':
+        assert len(rem) == 1
+        return _from_json(rem[0])
+    else:
+        raise ValueError(f"Unrecognized config type '{cfg_type}'")
+
+
+def _gen_configs(victim_fns: Iterable[AgentConfigGenFn],
+                 opponent_fns: Iterable[AgentConfigGenFn],
                  envs: Optional[Iterable[str]] = None,
                  ) -> List[EnvAgentConfig]:
     """Helper function to generate configs.
 
-    :param victim_fn: (callable) called with environment name and agent index.
-    :param adversary_fn: as above.
+    :param victim_fns: list of callables, taking environment name and agent index.
+    :param opponent_fns: as above.
     :param envs: optionally, a list of environments to generate configs for.
 
     :return A list of (env, agent_a_type, agent_a_path, agent_b_type, agent_b_path).
@@ -72,8 +105,8 @@ def _gen_configs(victim_fn: AgentConfigGenFn,
     configs = []
     for env in envs:
         victim_index = VICTIM_INDEX[env]
-        victims = victim_fn(env, victim_index)
-        opponents = adversary_fn(env, 1 - victim_index)
+        victims = list(itertools.chain(*[fn(env, victim_index) for fn in victim_fns]))
+        opponents = list(itertools.chain(*[fn(env, 1 - victim_index) for fn in opponent_fns]))
 
         for victim_type, victim_path in victims:
             for adversary_type, adversary_path in opponents:
@@ -237,11 +270,11 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    [cfg for cfg in _gen_configs(victim_fn=_zoo, adversary_fn=_zoo)
+                    [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_zoo])
                      if cfg.agent_a_path == '1' and cfg.agent_b_path == '1'] +
-                    [cfg for cfg in _gen_configs(victim_fn=_zoo, adversary_fn=_fixed)] +
+                    [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])] +
                     _gen_configs(
-                        victim_fn=_zoo, adversary_fn=_adversaries(get_adversary_paths()),
+                        victim_fns=[_zoo], opponent_fns=[_from_json(get_adversary_paths())],
                     )[0:1],
                 ),
             },
@@ -260,7 +293,7 @@ def make_configs(multi_score_ex):
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
                     [EnvAgentConfig('multicomp/KickAndDefend-v0', 'zoo', '1', 'zoo', '1')] +
-                    _gen_configs(victim_fn=_zoo, adversary_fn=_fixed)[0:1]
+                    _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])[0:1]
                 ),
             }
         }
@@ -271,55 +304,35 @@ def make_configs(multi_score_ex):
 
     # Standard experiments
 
-    @multi_score_ex.named_config
-    def zoo_victim():
-        victim_fn = _zoo  # noqa: F841
-        victim_name = 'zoo'  # noqa: F841
-
-    @multi_score_ex.named_config
-    def zoo_opponent():
-        opponent_fn = _zoo  # noqa: F841
-        opponent_name = 'zoo'  # noqa: F841
-
-    @multi_score_ex.named_config
-    def fixed_opponent():
-        opponent_fn = _fixed  # noqa: F841
-        opponent_name = 'fixed'  # noqa: F841
-
-    @multi_score_ex.named_config
-    def adversary_opponent():
-        # TODO(adam): different adversary paths?
-        opponent_fn = _adversaries(get_adversary_paths())  # noqa: F841
-        opponent_name = 'adversary'  # noqa: F841
-
     @multi_score_ex.config
     def default_placeholders():
         spec = None
-        victim_fn = None
-        victim_name = None
-        opponent_fn = None
-        opponent_name = None
+        envs = None
+        victims = {}
+        opponents = {}
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_score_ex.config
-    def default_spec(spec, victim_fn, victim_name, opponent_fn, opponent_name):
+    def default_spec(spec, victims, opponents, envs):
         """Compare victims to opponents."""
         if spec is None:
-            if victim_fn is None:
+            if not victims:
                 raise ValueError("You must specify the victims to compare with a modifier.")
-            if opponent_fn is None:
+            if not opponents:
                 raise ValueError("You must specify the opponents to compare with a modifier.")
 
             spec = {
                 'config': {
                     PATHS_AND_TYPES: tune.grid_search(
-                        _gen_configs(victim_fn=victim_fn, adversary_fn=opponent_fn),
+                        _gen_configs(victim_fns=[_to_fn(cfg) for cfg in victims.values()],
+                                     opponent_fns=[_to_fn(cfg) for cfg in opponents.values()],
+                                     envs=None if envs is None else envs.split(':'))
                     ),
                 }
             }
-            exp_name = f'{victim_name}_vs_{opponent_name}'
+            exp_name = f"{':'.join(victims.keys())}_vs_{':'.join(opponents.keys())}"
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
