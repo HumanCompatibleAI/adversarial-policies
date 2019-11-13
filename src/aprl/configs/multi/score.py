@@ -65,7 +65,7 @@ def _adversary():
 def _fixed(env, agent_index):
     """Returns all baseline, environment-independent policies."""
     del env, agent_index
-    return [('zero', 'none'), ('random', 'none')]
+    return [('random', 'none'), ('zero', 'none')]
 
 
 def _to_fn(cfg: str) -> AgentConfigGenFn:
@@ -293,7 +293,8 @@ def make_configs(multi_score_ex):
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
                     [EnvAgentConfig('multicomp/KickAndDefend-v0', 'zoo', '1', 'zoo', '1')] +
-                    _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])[0:1]
+                    _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed],
+                                 envs=['multicomp/KickAndDefend-v0'])[0:1]
                 ),
             }
         }
