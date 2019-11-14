@@ -127,6 +127,8 @@ FRIENDLY_AGENT_LABEL = {
     "Zero": "Lifeless",
     r"Zoo[VO]?[0-9]": "Normal",
     r"ZooM[VO]?[0-9]": "Masked",
+    r"ZooMS[VO]?[0-9]": "Masked Single Fine-Tuned",
+    r"ZooMD[VO]?[0-9]": "Masked Dual Fine-Tuned",
     r"ZooS[VO]?[0-9]": "Single Fine-Tuned",
     r"ZooD[VO]?[0-9]": "Dual Fine-Tuned",
     r"Adv([0-9])": "Adversary",
@@ -138,9 +140,9 @@ def friendly_agent_label(abbrev: str) -> str:
     matches = {pattern: label for pattern, label in FRIENDLY_AGENT_LABEL.items()
                if re.match(pattern, abbrev)}
     if len(matches) == 0:
-        raise ValueError("No friendly label for '{abbrev}'")
+        raise ValueError(f"No friendly label for '{abbrev}'")
     if len(matches) > 1:
-        raise ValueError("Ambiguous friendly label for '{abbrev}'")
+        raise ValueError(f"Ambiguous friendly label for '{abbrev}'")
     return list(matches.values())[0]
 
 
