@@ -23,19 +23,32 @@ def heatmap_opponent(single_env, cmap, row_starts, row_ends, col_ends):
                                 xlabel=xlabel, ylabel=ylabel, cbar=cbar)
 
 
-SMALL_TRANSFER_SCORE_PATHS = [
-    {'victim_suffix': '', 'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')},
-    {
-        'victim_suffix': 'M',
-        'path': os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
-    },
-]
+def _make_old_paths(timestamped_path, **kwargs):
+    """Paths in traditional format, before refactoring multi.score.
+
+    Specifically, expects a timestamped directory containing `adversary_transfer.json`.
+    In the same directory as the timestamped directory, there should be `fixed_baseline.json` and
+    `zoo_baseline.json`.
+    """
+    score_dir = os.path.dirname(timestamped_path)
+    paths = [os.path.join(timestamped_path, 'adversary_transfer.json'),
+             os.path.join(score_dir, 'fixed_baseline.json'),
+             os.path.join(score_dir, 'zoo_baseline.json')
+             ]
+    return [dict(path=path, **kwargs) for path in paths]
+
+
+SMALL_TRANSFER_SCORE_PATHS = (
+    _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00')) +
+    _make_old_paths(os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
+                    victim_suffix='M')
+)
 
 
 @visualize_score_ex.config
 def default_config():
     transfer_score_root = os.path.join('data', 'aws', 'score_agents')
-    transfer_score_paths = [{'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')}]
+    transfer_score_paths = _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00'))
 
     command = util.heatmap_full
     styles = ['paper', 'a4']
@@ -52,22 +65,20 @@ def default_config():
 
 @visualize_score_ex.named_config
 def full_masked_config():
-    transfer_score_paths = [  # noqa: F841
-        {'victim_suffix': 'N', 'path': os.path.join('normal', '2019-05-05T18:12:24+00:00')},
-        {
-            'victim_suffix': 'BI',
-            'path': os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00')
-        },
-        {
-            'victim_suffix': 'BZ',
-            'path': os.path.join('victim_masked_zero', '2019-05-05T18:12:24+00:00'),
-        },
-        {
+    transfer_score_paths = (  # noqa: F841
+        _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00'),
+                        victim_suffix='N', opponent_suffix='N') +
+        _make_old_paths(os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
+                        victim_suffix='BI', opponent_suffix='N') +
+        _make_old_paths(os.path.join('victim_masked_zero', '2019-05-05T18:12:24+00:00'),
+                        victim_suffix='BZ', opponent_suffix='N') +
+        [{
+            'path': os.path.join('adversary_masked_init', '2019-05-05T18:12:24+00:00',
+                                 'adversary_transfer.json'),
             'victim_suffix': 'N',
             'opponent_suffix': 'BI',
-            'path': os.path.join('adversary_masked_init', '2019-05-05T18:12:24+00:00'),
-        },
-    ]
+        }]
+    )
 
 
 @visualize_score_ex.named_config
