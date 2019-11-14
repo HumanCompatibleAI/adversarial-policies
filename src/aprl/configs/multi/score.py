@@ -136,6 +136,12 @@ def _gen_configs(victim_fns: Iterable[AgentConfigGenFn],
     return configs
 
 
+def _make_default_exp_suffix(victims, opponents):
+    victims = [x.replace('/', '_') for x in victims]
+    opponents = [x.replace('/', '_') for x in opponents]
+    return f"{':'.join(victims)}_vs_{':'.join(opponents)}"
+
+
 def make_configs(multi_score_ex):
 
     # ### Modifiers ###
@@ -316,7 +322,7 @@ def make_configs(multi_score_ex):
                 ),
             },
         }
-        exp_name = 'debug_one_each_type'
+        exp_suffix = 'debug_one_each_type'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -335,47 +341,55 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_name = 'debug_two_agents'
+        exp_suffix = 'debug_two_agents'
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_score_ex.named_config
     def normal():
-        victims = ["zoo"]  # noqa: F841
-        opponents = ["zoo", "fixed", "adversary"]  # noqa: F841
+        victims = ["zoo"]
+        opponents = ["zoo", "fixed", "adversary"]
+        exp_suffix = 'normal'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
 
     @multi_score_ex.named_config
     def defenses():
-        victims = [  # noqa: F841
+        victims = [
             "zoo",
             "json:multi_train/finetune_defense_single_mlp/",
             "json:multi_train/finetune_defense_dual_mlp/"
         ]
-        opponents = [  # noqa: F841
+        opponents = [
             "zoo",
             "fixed",
             "json:multi_train/paper/",
             "json:multi_train/adv_from_scratch_against_finetune_defense_single_mlp/",
             "json:multi_train/adv_from_scratch_against_finetune_defense_dual_mlp/"
         ]
-        envs = ["multicomp/YouShallNotPassHumans-v0"]  # noqa: F841
+        envs = ["multicomp/YouShallNotPassHumans-v0"]
+        exp_suffix = 'defense'
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
 
     # Standard experiments
 
     @multi_score_ex.config
     def default_placeholders():
         spec = None
+        exp_name = None
         envs = None
         victims = []
         opponents = []
         exp_prefix = {}
+        exp_suffix = None
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_score_ex.config
-    def default_spec(spec, envs, victims, opponents, exp_prefix):
+    def default_spec(spec, exp_suffix, envs, victims, opponents, exp_prefix):
         """Compare victims to opponents."""
         if spec is None and not victims:
             raise ValueError("You must use a modifier config to specify the "
@@ -394,8 +408,14 @@ def make_configs(multi_score_ex):
                     ),
                 }
             }
-            exp_name = ((f"{':'.join(sorted(exp_prefix.keys()))}_" if exp_prefix else '') +
-                        f"{':'.join(victims)}_vs_{':'.join(opponents)}")
+
+            if exp_suffix is None:
+                exp_suffix = _make_default_exp_suffix(victims, opponents)
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
+
+    @multi_score_ex.config
+    def prefix_exp_name(exp_suffix, exp_prefix):
+        exp_name = ((f"{':'.join(sorted(exp_prefix.keys()))}-" if exp_prefix else '')  # noqa: F841
+                    + exp_suffix)
