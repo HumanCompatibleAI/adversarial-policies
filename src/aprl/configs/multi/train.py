@@ -8,7 +8,8 @@ import os
 import numpy as np
 from ray import tune
 
-from aprl.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, get_adversary_paths
+from aprl.configs.multi.common import (BANSAL_ENVS, BANSAL_GOOD_ENVS, DATA_LOCATION,
+                                       get_adversary_paths)
 from aprl.envs import VICTIM_INDEX, gym_compete
 
 MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
@@ -41,8 +42,6 @@ HYPERPARAM_SEARCH_VALUES = {
     'learning_rate': tune.sample_from(
         lambda spec: 10 ** (-2 + -3 * np.random.random())),
 }
-
-DATA_LOCATION = os.path.abspath(os.environ.get('DATA_LOC', 'data'))
 
 
 def _env_victim(envs=None):

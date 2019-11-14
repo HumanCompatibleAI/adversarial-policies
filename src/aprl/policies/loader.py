@@ -147,6 +147,7 @@ def load_backward_compatible_model(cls, root_dir, denv=None, **kwargs):
     """Backwards compatibility hack to load old pickled policies
     which still expect modelfree.* to exist.
     """
+    import aprl.training.scheduling  # noqa: F401
     mock_modules = {
         'modelfree': 'aprl',
         'modelfree.scheduling': 'aprl.training.scheduling',

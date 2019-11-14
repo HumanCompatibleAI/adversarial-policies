@@ -7,7 +7,7 @@ OUT_ROOT=data/aws/score_agents
 TIMESTAMP=`date --iso-8601=seconds`
 
 function multi_score {
-  python -m aprl.multi.score with adversary_transfer "$@" high_accuracy
+  python -m aprl.multi.score with victims="[zoo]" opponents="[adversary]" "$@" high_accuracy
 }
 
 if [[ $# -eq 0 ]]; then

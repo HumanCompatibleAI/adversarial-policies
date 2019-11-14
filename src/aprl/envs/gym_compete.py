@@ -42,6 +42,9 @@ SYMMETRIC_ENV = OrderedDict([
 def game_outcome(info):
     draw = True
     for i, agent_info in info.items():
+        if not isinstance(i, int):
+            # can have non-agent info keys, like 'terminal_observation'; skip
+            continue
         if 'winner' in agent_info:
             return i
     if draw:

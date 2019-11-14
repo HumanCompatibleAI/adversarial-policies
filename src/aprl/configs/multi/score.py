@@ -1,51 +1,128 @@
 """Named configs for aprl.multi.score."""
 
+import itertools
+import json
 import logging
 import os.path
+from typing import Callable, Iterable, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 from ray import tune
 
-from aprl.configs.multi.common import BANSAL_GOOD_ENVS, get_adversary_paths
+from aprl.configs.multi.common import BANSAL_GOOD_ENVS, DATA_LOCATION, get_adversary_paths
 from aprl.envs import VICTIM_INDEX, gym_compete
+
+AgentConfigGenFn = Callable[[str, int], Iterable[Tuple[str, str]]]
+
+
+class EnvAgentConfig(NamedTuple):
+    env_name: str
+    agent_a_type: str
+    agent_a_path: str
+    agent_b_type: str
+    agent_b_path: str
+
+
+PATHS_AND_TYPES = ':'.join(EnvAgentConfig._fields)
 
 logger = logging.getLogger('aprl.configs.multi.score')
 
 
-def _gen_configs(victim_fn, adversary_fn, agents=None):
+def _zoo(env, agent_index):
+    """Returns all Zoo policies in `env`."""
+    del agent_index
+    num_zoo = gym_compete.num_zoo_policies(env)
+    return [('zoo', str(i)) for i in range(1, num_zoo + 1)]
+
+
+def _from_paths(policy_paths):
+    """Returns a function that returns policies from `policy_paths`."""
+    def helper(env, agent_index):
+        """Returns all policies in `env` playing in index `agent_index`."""
+        victim_index = 1 - agent_index
+        paths = policy_paths.get(env, {}).get(str(victim_index))
+        if paths is None:
+            logger.warning(f"Missing adversary path in '{env}' for index '{agent_index}'")
+            return []
+        else:
+            return [('ppo2', os.path.join(DATA_LOCATION, path)) for path in paths.values()]
+
+    return helper
+
+
+def _from_json(json_path):
+    """Returns a function that returns policies from the specified JSON."""
+    with open(json_path, 'r') as f:
+        policy_paths = json.load(f)['policies']
+    return _from_paths(policy_paths)
+
+
+def _adversary():
+    """Returns all adversaries from default JSON."""
+    return _from_paths(get_adversary_paths())
+
+
+def _fixed(env, agent_index):
+    """Returns all baseline, environment-independent policies."""
+    del env, agent_index
+    return [('random', 'none'), ('zero', 'none')]
+
+
+def _to_fn(cfg: str) -> AgentConfigGenFn:
+    """Converts config of form cfg_type[:path] into a configuration function.
+
+    Supported `cfg`'s are of the format:
+        zoo
+        fixed
+        adversary
+        json:/path/to/json
+    """
+    cfg_type, *rem = cfg.split(':')
+    if cfg_type == 'zoo':
+        assert not rem
+        return _zoo
+    elif cfg == 'fixed':
+        assert not rem
+        return _fixed
+    elif cfg_type == 'adversary':
+        assert not rem
+        return _adversary()
+    elif cfg_type == 'json':
+        assert len(rem) == 1
+        return _from_json(rem[0])
+    else:
+        raise ValueError(f"Unrecognized config type '{cfg_type}'")
+
+
+def _gen_configs(victim_fns: Iterable[AgentConfigGenFn],
+                 opponent_fns: Iterable[AgentConfigGenFn],
+                 envs: Optional[Iterable[str]] = None,
+                 ) -> List[EnvAgentConfig]:
     """Helper function to generate configs.
 
-    :param victim_fn: (callable) called with environment name, victim index, victim id,
-                      and adversary ID. Should return a victim_type, victim_path tuple.
-    :param adversary_fn: (callable) analogous to victim_fn.
-    :param agents: (dict or None) optional dict of environments to (victim_ids, adversary_ids)
-                   where victim_ids and adversary_ids are iterables. If None, then defaults to
-                   {victim,adversary}_ids = range(num_zoo_policies) for each
-                   env in BANSAL_GOOD_ENVS.
+    :param victim_fns: list of callables, taking environment name and agent index.
+    :param opponent_fns: as above.
+    :param envs: optionally, a list of environments to generate configs for.
 
     :return A list of (env, agent_a_type, agent_a_path, agent_b_type, agent_b_path).
     """
-    if agents is None:
-        agents = {}
-        for env in BANSAL_GOOD_ENVS:
-            num_zoo = gym_compete.num_zoo_policies(env)
-            agents[env] = (range(1, num_zoo + 1), range(1, num_zoo + 1))
+    if envs is None:
+        envs = BANSAL_GOOD_ENVS
 
     configs = []
-    for env, (victim_ids, adversary_ids) in agents.items():
+    for env in envs:
         victim_index = VICTIM_INDEX[env]
-        for victim_id in victim_ids:
-            for adversary_id in adversary_ids:
-                victim_type, victim_path = victim_fn(env, victim_index, victim_id, adversary_id)
-                adversary = adversary_fn(env, victim_index, adversary_id, victim_id)
-                if adversary is None:
-                    continue
-                adversary_type, adversary_path = adversary
+        victims = list(itertools.chain(*[fn(env, victim_index) for fn in victim_fns]))
+        opponents = list(itertools.chain(*[fn(env, 1 - victim_index) for fn in opponent_fns]))
 
+        for victim_type, victim_path in victims:
+            for adversary_type, adversary_path in opponents:
                 if victim_index == 0:
-                    cfg = (env, victim_type, victim_path, adversary_type, adversary_path)
+                    cfg = EnvAgentConfig(env, victim_type, victim_path,
+                                         adversary_type, adversary_path)
                 elif victim_index == 1:
-                    cfg = (env, adversary_type, adversary_path, victim_type, victim_path)
+                    cfg = EnvAgentConfig(env, adversary_type, adversary_path,
+                                         victim_type, victim_path)
                 else:
                     raise ValueError(f"Victim index '{victim_index}' out of range")
 
@@ -55,84 +132,35 @@ def _gen_configs(victim_fn, adversary_fn, agents=None):
     return configs
 
 
-def _zoo_identity(_env, _victim_index, our_id, _opponent_id):
-    return 'zoo', str(our_id)
-
-
-def _env_agents(**kwargs):
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=_zoo_identity, **kwargs)
-
-
-def _fixed_vs_victim(fixed_type, envs=None):
-    def adversary_fn(_env, _victim_index, _our_id, _opponent_id):
-        return fixed_type, 'none'
-
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, agents=envs)
-
-
-def _adversary_vs_victims(adversary_type, adversary_paths, no_transfer=False, **kwargs):
-    """Generates configs for adversaries.
-
-    :param adversary_type: (str) the policy type of the adversary.
-    :param adversary_paths: (dict) paths to adversaries, loaded by _get_adversary_paths
-    :param no_transfer: (bool) when True, only return the adversary trained against that victim;
-                                otherwise, returns all adversaries (useful for testing transfer).
-    :param kwargs: (dict) passed through to `gen_configs`.
-    """
-    def adversary_fn(env, victim_index, our_id, opponent_id):
-        if no_transfer and our_id != opponent_id:
-            return None
-
-        victim_index = str(victim_index)
-        our_id = str(our_id)
-
-        path = adversary_paths.get(env, {}).get(victim_index, {}).get(our_id)
-        if path is None:
-            logger.warning(f"Missing adversary path {env} {victim_index} {our_id}")
-            return None
-        else:
-            return adversary_type, os.path.abspath(path)
-
-    return _gen_configs(victim_fn=_zoo_identity, adversary_fn=adversary_fn, **kwargs)
-
-
-PATHS_AND_TYPES = 'env_name:agent_a_type:agent_a_path:agent_b_type:agent_b_path'
-
-
-def _summary_paths():
-    summary_agents = {
-        # ([median victim Zoo id], [best Zoo opponent ID]) -- note 0-indexed
-        'multicomp/KickAndDefend-v0': ([2], [2]),
-        'multicomp/YouShallNotPassHumans-v0': ([1], [1]),
-        'multicomp/SumoHumansAutoContact-v0': ([2], [3]),
-    }
-    adversary_agents = {env: (victim_ids, victim_ids)
-                        for env, (victim_ids, _opponent_ids) in summary_agents.items()}
-    adversaries = _adversary_vs_victims('ppo2', get_adversary_paths(),
-                                        no_transfer=True, agents=adversary_agents)
-    zoo = _env_agents(agents=summary_agents)
-    return adversaries + zoo
-
-
 def make_configs(multi_score_ex):
+
+    # ### Modifiers ###
+    # You can use these with other configs.
+    # Note: these set singleton dictionaries `exp_prefix = {k: None}`, where k is the
+    # name of the named_config. These dictionaries are then merged by Sacred.
+    # The prefixes are then sorted and concatenated to be used as part of the experiment name.
+    # Note: only the keys are ever used, the values are ignored.
+
+    # Accuracy
+
     @multi_score_ex.named_config
-    def high_accuracy(exp_name, score):
+    def high_accuracy(score):
         score = dict(score)
         score['episodes'] = 1000
         score['num_env'] = 16
-        exp_name = 'high_accuracy_' + exp_name
+        exp_prefix = {'high_accuracy': None}  # noqa: F841
 
     @multi_score_ex.named_config
-    def medium_accuracy(exp_name, score):
+    def medium_accuracy(score):
         score = dict(score)
         score['episodes'] = 100
         score['num_env'] = 16
-        exp_name = 'medium_accuracy_' + exp_name
-        _ = locals()
-        del _
+        exp_prefix = {'medium_accuracy': None}  # noqa: F841
+
+    # Artifacts: activations and/or videos
 
     @multi_score_ex.named_config
-    def save_activations(exp_name, score, spec):
+    def save_activations(score):
         score = dict(score)
         score['episodes'] = None
         # Trajectory length varies a lot between environments and opponents; make sure we have
@@ -143,15 +171,19 @@ def make_configs(multi_score_ex):
         score['record_traj_params'] = {
             'save_dir': 'data/trajectories',
         }
-        spec['config']['record_traj_params'] = {
-            'agent_indices': tune.sample_from(
-                lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
-            ),
+        spec = {  # noqa: F841
+            'config': {
+                'record_traj_params': {
+                    'agent_indices': tune.sample_from(
+                        lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+                    ),
+                }
+            }
         }
-        exp_name = 'activations_' + exp_name
+        exp_prefix = {'activations': None}  # noqa: F841
 
     @multi_score_ex.named_config
-    def video(exp_name, score):
+    def video(score):
         score = dict(score)
         score['videos'] = True
         score['num_env'] = 1
@@ -163,75 +195,103 @@ def make_configs(multi_score_ex):
                 'font_size': 70,
             }
         }
-        exp_name = 'video_' + exp_name  # noqa: F401
+        exp_prefix = {'video': None}  # noqa: F841
+
+    # Observation masking
 
     @multi_score_ex.named_config
-    def mask_observations_of_victim(exp_name, spec):
-        spec['config']['mask_agent_index'] = tune.sample_from(
-            lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
-        )
-        exp_name = 'victim_mask_' + exp_name
+    def mask_observations_of_victim():
+        spec = {  # noqa: F841
+            'config': {
+                'mask_agent_index': tune.sample_from(
+                    lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+                ),
+            }
+        }
+        exp_prefix = {'victim_mask': None}  # noqa: F841
 
     @multi_score_ex.named_config
-    def mask_observations_of_adversary(exp_name, spec):
-        spec['config']['mask_agent_index'] = tune.sample_from(
-            lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
-        )
-        exp_name = 'adversary_mask_' + exp_name
+    def mask_observations_of_adversary():
+        spec = {  # noqa: F841
+            'config': {
+                'mask_agent_index': tune.sample_from(
+                    lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
+                ),
+            }
+        }
+        exp_prefix = {'adversary_mask': None}  # noqa: F841
 
     @multi_score_ex.named_config
-    def mask_observations_with_zeros(exp_name, score):
+    def mask_observations_with_zeros(score):
         score = dict(score)
         score['mask_agent_masking_type'] = 'zeros'
-        exp_name = 'zero_' + exp_name
+        exp_prefix = {'zero': None}  # noqa: F841
 
-    def _mask_obserations_with_additive_noise(score, spec):
+    def _mask_observations_with_additive_noise(score, agent_noise):
         score['index_keys'] = ['mask_agent_masking_type', 'mask_agent_noise']
         score['mask_agent_masking_type'] = 'additive_noise'
-        spec['num_samples'] = 25
+        return {
+            'num_samples': 25,
+            'mask_agent_noise': agent_noise,
+        }
 
     @multi_score_ex.named_config
-    def mask_observations_with_additive_noise(exp_name, score, spec):
+    def mask_observations_with_additive_noise(score):
         score = dict(score)
-        _mask_obserations_with_additive_noise(score, spec)
-        spec['config']['mask_agent_noise'] = tune.sample_from(
-            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
+        spec = _mask_observations_with_additive_noise(  # noqa: F841
+            score=score,
+            agent_noise=tune.sample_from(
+                lambda _: np.random.lognormal(mean=0.5, sigma=1.5)
+            )
         )
-        exp_name = 'additive_noise_' + exp_name
+        exp_prefix = {'additive_noise': None}  # noqa: F841
 
     @multi_score_ex.named_config
-    def mask_observations_with_smaller_additive_noise(exp_name, score, spec):
+    def mask_observations_with_smaller_additive_noise(score):
         score = dict(score)
-        _mask_obserations_with_additive_noise(score, spec)
-        spec['config']['mask_agent_noise'] = tune.sample_from(
-            lambda spec: np.random.exponential(scale=1.0)
+        spec = _mask_observations_with_additive_noise(  # noqa: F841
+            score=score,
+            agent_noise=tune.sample_from(
+                lambda _: np.random.exponential(scale=1.0)
+            )
         )
-        exp_name = 'smaller_additive_noise_' + exp_name
+        exp_prefix = {'smaller_additive_noise': None}  # noqa: F841
 
-    def _noise_actions(score, spec):
+    # Adding noise to actions
+
+    def _noise_actions(score):
         score['index_keys'] = ['noisy_agent_magnitude', 'noisy_agent_index']
-        spec['num_samples'] = 25
-        spec['config']['noisy_agent_magnitude'] = tune.sample_from(
-            lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
-        )
+        return {
+            'num_samples': 25,
+            'config': {
+                'noisy_agent_magnitude': tune.sample_from(
+                    lambda spec: np.random.lognormal(mean=0.5, sigma=1.5)
+                )
+            }
+        }
 
     @multi_score_ex.named_config
-    def noise_adversary_actions(exp_name, score, spec):
+    def noise_adversary_actions(score):
         score = dict(score)
-        _noise_actions(score, spec)
+        spec = _noise_actions(score)
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-        exp_name = 'adversary_action_noise_' + exp_name
+        exp_prefix = {'adversary_action_noise': None}  # noqa: F841
 
     @multi_score_ex.named_config
-    def noise_victim_actions(exp_name, score, spec):
+    def noise_victim_actions(score):
         score = dict(score)
-        _noise_actions(score, spec)
+        spec = _noise_actions(score)
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-        exp_name = 'victim_action_noise_' + exp_name
+        exp_prefix = {'victim_action_noise': None}  # noqa: F841
+
+    # ### Experimental Configs ###
+    # These specify which agents to compare in which environments
+
+    # Debugging
 
     @multi_score_ex.named_config
     def debug_one_each_type(score):
@@ -242,12 +302,14 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _env_agents(agents={env: ([1], [1]) for env in BANSAL_GOOD_ENVS}) +
-                    _fixed_vs_victim('zero')[0:1] +
-                    _fixed_vs_victim('random')[0:1] +
-                    _adversary_vs_victims('ppo2', get_adversary_paths())[0:1]
+                    [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_zoo])
+                     if cfg.agent_a_path == '1' and cfg.agent_b_path == '1'] +
+                    [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])] +
+                    _gen_configs(
+                        victim_fns=[_zoo], opponent_fns=[_from_json(get_adversary_paths())],
+                    )[0:1],
                 ),
-            }
+            },
         }
         exp_name = 'debug_one_each_type'
 
@@ -262,8 +324,9 @@ def make_configs(multi_score_ex):
         spec = {
             'config': {
                 PATHS_AND_TYPES: tune.grid_search(
-                    _env_agents(agents={BANSAL_GOOD_ENVS[0]: ([1], [1])}) +
-                    _fixed_vs_victim('random')[0:1],
+                    [EnvAgentConfig('multicomp/KickAndDefend-v0', 'zoo', '1', 'zoo', '1')] +
+                    _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed],
+                                 envs=['multicomp/KickAndDefend-v0'])[0:1]
                 ),
             }
         }
@@ -272,85 +335,41 @@ def make_configs(multi_score_ex):
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    @multi_score_ex.named_config
-    def zoo_baseline():
-        """Try all pre-trained policies from Bansal et al's gym_compete zoo against each other."""
-        spec = {
-            'config': {
-                PATHS_AND_TYPES: tune.grid_search(_env_agents()),
-            },
-        }
-        exp_name = 'zoo_baseline'
+    # Standard experiments
+
+    @multi_score_ex.config
+    def default_placeholders():
+        spec = None
+        envs = None
+        victims = []
+        opponents = []
+        exp_prefix = {}
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
-    @multi_score_ex.named_config
-    def fixed_baseline():
-        """Try zero-agent and random-agent against pre-trained zoo policies."""
-        spec = {
-            'config': {
-                PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random') +
-                                                  _fixed_vs_victim('zero')),
+    @multi_score_ex.config
+    def default_spec(spec, envs, victims, opponents, exp_prefix):
+        """Compare victims to opponents."""
+        if spec is None:
+            if not victims:
+                raise ValueError("You must use a modifier config to specify the "
+                                 "victim policies to compare.")
+            if not opponents:
+                raise ValueError("You must use a modifier config to specify the "
+                                 "opponent policies to compare.")
+
+            spec = {
+                'config': {
+                    PATHS_AND_TYPES: tune.grid_search(
+                        _gen_configs(victim_fns=[_to_fn(cfg) for cfg in victims],
+                                     opponent_fns=[_to_fn(cfg) for cfg in opponents],
+                                     envs=None if envs is None else envs.split(':'))
+                    ),
+                }
             }
-        }
-        exp_name = 'fixed_baseline'
-
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_score_ex.named_config
-    def random_baseline():
-        """Try random-agent against pre-trained zoo policies."""
-        spec = {
-            'config': {
-                PATHS_AND_TYPES: tune.grid_search(_fixed_vs_victim('random')),
-            }
-        }
-        exp_name = 'random_baseline'
-
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_score_ex.named_config
-    def adversary_transfer():
-        """Do adversarial policies trained on victim X transfer to victim Y?"""
-        spec = {
-            'config': {
-                PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', get_adversary_paths())
-                ),
-            }
-        }
-        exp_name = 'adversary_transfer'
-
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_score_ex.named_config
-    def adversary_trained():
-        """Try adversaries against the victim they were trained against."""
-        spec = {
-            'config': {
-                PATHS_AND_TYPES: tune.grid_search(
-                    _adversary_vs_victims('ppo2', get_adversary_paths(), no_transfer=True)
-                ),
-            }
-        }
-        exp_name = 'adversary_trained'
-
-        _ = locals()  # quieten flake8 unused variable warning
-        del _
-
-    @multi_score_ex.named_config
-    def summary():
-        """Try adversaries against the victim they were trained against."""
-        spec = {
-            'config': {
-                PATHS_AND_TYPES: tune.grid_search(_summary_paths()),
-            }
-        }
-        exp_name = 'summary'
+            exp_name = ((f"{':'.join(sorted(exp_prefix.keys()))}_" if exp_prefix else '') +
+                        f"{':'.join(victims)}_vs_{':'.join(opponents)}")
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
