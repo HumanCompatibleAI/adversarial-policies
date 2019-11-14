@@ -352,20 +352,20 @@ def make_configs(multi_score_ex):
     @multi_score_ex.config
     def default_spec(spec, envs, victims, opponents, exp_prefix):
         """Compare victims to opponents."""
-        if spec is None:
-            if not victims:
-                raise ValueError("You must use a modifier config to specify the "
-                                 "victim policies to compare.")
-            if not opponents:
-                raise ValueError("You must use a modifier config to specify the "
-                                 "opponent policies to compare.")
+        if spec is None and not victims:
+            raise ValueError("You must use a modifier config to specify the "
+                             "victim policies to compare.")
+        if spec is None and not opponents:
+            raise ValueError("You must use a modifier config to specify the "
+                             "opponent policies to compare.")
 
+        if victims and opponents:
             spec = {
                 'config': {
                     PATHS_AND_TYPES: tune.grid_search(
                         _gen_configs(victim_fns=[_to_fn(cfg) for cfg in victims],
                                      opponent_fns=[_to_fn(cfg) for cfg in opponents],
-                                     envs=None if envs is None else envs.split(':'))
+                                     envs=None if envs is None else envs)
                     ),
                 }
             }
