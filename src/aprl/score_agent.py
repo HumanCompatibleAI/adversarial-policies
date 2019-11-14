@@ -76,10 +76,10 @@ def get_empirical_score(venv, agents, episodes, timesteps, render, record_traj, 
                 else:
                     result[f'win{winner}'] += 1
 
-        if episodes is not None and completed_episodes >= episodes:
-            break
-        if timesteps is not None and completed_timesteps >= timesteps:
-            break
+            if episodes is not None and completed_episodes >= episodes:
+                break
+            if timesteps is not None and completed_timesteps >= timesteps:
+                break
 
     return result
 
