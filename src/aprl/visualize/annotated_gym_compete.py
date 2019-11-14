@@ -86,7 +86,7 @@ def pretty_policy_type(env_name: str, short: bool, is_victim: bool, is_masked: b
     abbrev = util.abbreviate_agent_config(env_name, policy_type, policy_path,
                                           suffix='M' if is_masked else '',
                                           victim=is_victim)
-    friendly = util.friendly_agent_label(abbrev)
+    friendly = util.friendly_agent_label(abbrev, short=True)
 
     if short:
         return friendly

@@ -121,23 +121,34 @@ def opponent_abbrev(x, suffix) -> str:
                                    suffix=suffix, victim=False)
 
 
-# Longer description: included in videos and on website
-FRIENDLY_AGENT_LABEL = {
+# Longer description: for website
+FRIENDLY_AGENT_LABEL_LONG = {
     "Rand": "Random",
     "Zero": "Lifeless",
     r"Zoo[VO]?[0-9]": "Normal",
     r"ZooM[VO]?[0-9]": "Masked",
-    r"ZooMS[VO]?[0-9]": "Masked Single Fine-Tuned",
-    r"ZooMD[VO]?[0-9]": "Masked Dual Fine-Tuned",
-    r"ZooS[VO]?[0-9]": "Single Fine-Tuned",
-    r"ZooD[VO]?[0-9]": "Dual Fine-Tuned",
+    r"ZooMS[VO]?[0-9]": "Masked Single Fine-tuned",
+    r"ZooMD[VO]?[0-9]": "Masked Dual Fine-tuned",
+    r"ZooS[VO]?[0-9]": "Single Fine-tuned",
+    r"ZooD[VO]?[0-9]": "Dual Fine-tuned",
     r"Adv([0-9])": "Adversary",
     r"Adv[SD]([0-9])": "Retrained Adversary",
 }
 
+# Shorter description: for videos
+FRIENDLY_AGENT_LABEL_SHORT = {
+    "Rand": "Random",
+    "Zero": "Lifeless",
+    r"Zoo[VO]?[0-9]": "Normal",
+    r"ZooM[SD]?[VO]?[0-9]": "Masked",
+    r"Zoo[SD][VO]?[0-9]": "Fine-tuned",
+    r"Adv[SD]?([0-9])": "Adversary",
+}
 
-def friendly_agent_label(abbrev: str) -> str:
-    matches = {pattern: label for pattern, label in FRIENDLY_AGENT_LABEL.items()
+
+def friendly_agent_label(abbrev: str, short: bool = False) -> str:
+    labels = FRIENDLY_AGENT_LABEL_SHORT if short else FRIENDLY_AGENT_LABEL_LONG
+    matches = {pattern: label for pattern, label in labels.items()
                if re.match(pattern, abbrev)}
     if len(matches) == 0:
         raise ValueError(f"No friendly label for '{abbrev}'")
