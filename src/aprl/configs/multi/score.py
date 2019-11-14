@@ -305,9 +305,10 @@ def make_configs(multi_score_ex):
                 PATHS_AND_TYPES: tune.grid_search(
                     [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_zoo])
                      if cfg.agent_a_path == '1' and cfg.agent_b_path == '1'] +
-                    [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])] +
+                    [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])
+                     if cfg.agent_a_path == '1' or cfg.agent_b_path == '1'] +
                     _gen_configs(
-                        victim_fns=[_zoo], opponent_fns=[_from_json(get_adversary_paths())],
+                        victim_fns=[_zoo], opponent_fns=[_from_paths(get_adversary_paths())],
                     )[0:1],
                 ),
             },
