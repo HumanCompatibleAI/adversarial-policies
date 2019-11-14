@@ -38,17 +38,21 @@ def _make_old_paths(timestamped_path, **kwargs):
     return [dict(path=path, **kwargs) for path in paths]
 
 
-SMALL_TRANSFER_SCORE_PATHS = (
+SMALL_score_paths = (
     _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00')) +
     _make_old_paths(os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
                     victim_suffix='M')
 )
+DEFENSE_SCORE_PATHS = [
+    {'path': os.path.join('defenses', 'normal.json')},
+    {'path': os.path.join('defenses', 'victim_masked_init.json'), 'victim_suffix': 'M'},
+]
 
 
 @visualize_score_ex.config
 def default_config():
-    transfer_score_root = os.path.join('data', 'aws', 'score_agents')
-    transfer_score_paths = _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00'))
+    score_root = os.path.join('data', 'aws', 'score_agents')
+    score_paths = _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00'))
 
     command = util.heatmap_full
     styles = ['paper', 'a4']
@@ -65,7 +69,7 @@ def default_config():
 
 @visualize_score_ex.named_config
 def full_masked_config():
-    transfer_score_paths = (  # noqa: F841
+    score_paths = (  # noqa: F841
         _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00'),
                         victim_suffix='N', opponent_suffix='N') +
         _make_old_paths(os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
@@ -82,18 +86,8 @@ def full_masked_config():
 
 
 @visualize_score_ex.named_config
-def defense_config():
-    transfer_score_paths = [{'path': os.path.join('defense', 'dual.json')}]
-    styles = ['paper', 'scores_monolithic']
-    publication = True
-
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
-
-
-@visualize_score_ex.named_config
 def paper_config():
-    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+    score_paths = SMALL_score_paths
 
     styles = ['paper', 'scores_twocol']
     row_starts = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0']
@@ -110,7 +104,7 @@ def paper_config():
 
 @visualize_score_ex.named_config
 def supplementary_config():
-    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+    score_paths = SMALL_score_paths
 
     styles = ['paper', 'scores_monolithic']
     publication = True
@@ -122,8 +116,43 @@ def supplementary_config():
 
 
 @visualize_score_ex.named_config
+def defense_paper_config():
+    score_paths = [
+        {'path': os.path.join('defenses', 'normal.json')},
+        {'path': os.path.join('defenses', 'victim_masked_init.json'), 'victim_suffix': 'M'},
+    ]
+    styles = ['paper', 'scores_twocol']
+    row_starts = []
+    row_ends = ['multicomp/YouShallNotPassHumans-v0']
+    col_ends = []
+    command = heatmap_opponent
+    publication = True
+
+    fig_dir = os.path.expanduser("~/dev/adversarial-policies-paper/figs/scores_defense_single")
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
+def defense_supplementary_config():
+    score_paths = [
+        {'path': os.path.join('defenses', 'normal.json')},
+        {'path': os.path.join('defenses', 'victim_masked_init.json'), 'victim_suffix': 'M'},
+    ]
+    # can use short as currently just YSNP environment
+    styles = ['paper', 'scores_monolithic_short']
+    publication = True
+
+    fig_dir = os.path.expanduser("~/dev/adversarial-policies-paper/figs/scores_defense")
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
 def poster_config():
-    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+    score_paths = SMALL_score_paths
 
     styles = ['poster', 'scores_poster_threecol']
     row_starts = ['multicomp/KickAndDefend-v0']
@@ -140,12 +169,11 @@ def poster_config():
 
 
 @visualize_score_ex.main
-def visualize_score(command, styles, palette, publication, fig_dir,
-                    transfer_score_root, transfer_score_paths):
-    datasets = [util.load_datasets(os.path.join(transfer_score_root, item['path']),
+def visualize_score(command, styles, palette, publication, fig_dir, score_root, score_paths):
+    datasets = [util.load_datasets(os.path.join(score_root, item['path']),
                                    victim_suffix=item.get('victim_suffix', ''),
                                    opponent_suffix=item.get('opponent_suffix', ''))
-                for item in transfer_score_paths]
+                for item in score_paths]
     dataset = pd.concat(datasets)
 
     for style in styles:

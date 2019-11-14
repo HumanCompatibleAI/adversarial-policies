@@ -264,7 +264,7 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
     gridspec_kw.update({
         'width_ratios': num_matches['cols'],
         'height_ratios': num_matches['rows'],
-        'bottom': gridspec_kw['bottom'] + (0.02 if xlabel else 0.0),
+        'bottom': gridspec_kw['bottom'] + (0.03 if xlabel else 0.01),
         'left': gridspec_kw['left'] + (0.05 if ylabel else 0.0),
     })
     nrows = len(num_matches['rows'])

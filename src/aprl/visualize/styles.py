@@ -56,6 +56,9 @@ STYLES = {
     'scores_monolithic': {
         'figure.figsize': (5.5, 1.4),
     },
+    'scores_monolithic_short': {
+        'figure.figsize': (5.5, 1.3),
+    },
     'scores_twocol': {
         'figure.figsize': (2.7, 1.6),
         'font.size': 8,
