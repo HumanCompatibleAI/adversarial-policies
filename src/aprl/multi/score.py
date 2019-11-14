@@ -176,11 +176,17 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
                 with open(opponent_sacred, 'r') as f:
                     opponent_cfg = json.load(f)
 
-                opponent_path = opponent_cfg['victim_path']
+                if 'embed_path' in opponent_cfg:
+                    opponent_path = opponent_cfg['embed_path']
+                elif 'victim_path' in opponent_cfg:
+                    # TODO(adam): remove backwards compatibility when all policies retrained
+                    opponent_path = opponent_cfg['victim_path']
+                else:
+                    raise KeyError("'embed_path' and 'victim_path' not present in 'opponen_cfg'")
 
             src_path, new_name, suffix = path_generator(trial_root=trial_root,
                                                         cfg=cfg,
-                                                        env_name=env_name,
+                                                        env_sanitized=env_name,
                                                         victim_index=victim_index,
                                                         victim_type=victim_type,
                                                         victim_path=victim_path,

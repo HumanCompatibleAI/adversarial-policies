@@ -27,10 +27,11 @@ def activation_storing_config():
     del _
 
 
-def _activations_path_generator(trial_root, cfg, env_name, victim_index,
+def _activations_path_generator(trial_root, cfg, env_sanitized, victim_index,
                                 victim_type, victim_path, opponent_type, opponent_path):
+    del cfg
     src_path = osp.join(trial_root, 'data', 'trajectories', f'agent_{victim_index}.npz')
-    new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
+    new_name = (f'{env_sanitized}_victim_{victim_type}_{victim_path}'
                 f'_opponent_{opponent_type}_{opponent_path}')
     return src_path, new_name, 'npz'
 

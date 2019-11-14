@@ -88,20 +88,26 @@ def generate_videos(score_configs, multi_score, adversary_path):
 
 @make_videos_ex.capture
 def extract_videos(out_dir, video_dirs, ray_upload_dir):
-    def path_generator(trial_root, env_name, victim_index, victim_type, victim_path,
+    def path_generator(trial_root, env_sanitized, victim_index, victim_type, victim_path,
                        opponent_type, opponent_path, cfg):
         src_path = osp.join(trial_root, 'data', 'sacred', 'score', '1',
                             'videos', 'env_0_episode_0_recording.mp4')
 
+        victim_suffix = ''
+        opponent_suffix = ''
         mask_index = cfg['mask_agent_index']
         if mask_index is not None:
             if mask_index == victim_index:
-                victim_type += '-masked'
+                victim_suffix = 'M'
             else:
-                opponent_type += '-masked'
+                opponent_suffix == 'M'
 
-        new_name = (f'{env_name}_victim_{victim_type}_{victim_path}'
-                    f'_opponent_{opponent_type}_{opponent_path}')
+        victim = util.abbreviate_agent_config(cfg['env_name'], victim_type, victim_path,
+                                              victim_suffix, victim=True)
+        opponent = util.abbreviate_agent_config(cfg['env_name'], opponent_type, opponent_path,
+                                                opponent_suffix, victim=False)
+
+        new_name = f'{env_sanitized}_victim_{victim}_opponent_{opponent}'
         return src_path, new_name, 'mp4'
 
     return extract_data(path_generator, out_dir, video_dirs, ray_upload_dir)
