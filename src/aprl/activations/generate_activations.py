@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import os.path as osp
@@ -31,6 +32,22 @@ def _activations_path_generator(trial_root, cfg, env_sanitized, victim_index,
                                 victim_type, victim_path, opponent_type, opponent_path):
     del cfg
     src_path = osp.join(trial_root, 'data', 'trajectories', f'agent_{victim_index}.npz')
+
+    if opponent_path.startswith('/'):  # is path name
+        opponent_root = osp.sep.join(opponent_path.split(osp.sep)[:-3])
+        opponent_sacred = osp.join(opponent_root, 'sacred', 'train', '1', 'config.json')
+
+        with open(opponent_sacred, 'r') as f:
+            opponent_cfg = json.load(f)
+
+        if 'embed_path' in opponent_cfg:
+            opponent_path = opponent_cfg['embed_path']
+        elif 'victim_path' in opponent_cfg:
+            # TODO(adam): remove backwards compatibility when all policies retrained
+            opponent_path = opponent_cfg['victim_path']
+        else:
+            raise KeyError("'embed_path' and 'victim_path' not present in 'opponent_cfg'")
+
     new_name = (f'{env_sanitized}_victim_{victim_type}_{victim_path}'
                 f'_opponent_{opponent_type}_{opponent_path}')
     return src_path, new_name, 'npz'

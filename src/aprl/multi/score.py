@@ -169,21 +169,6 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
                 env_name = env_name_to_canonical(env_name)
             env_name = env_name.replace('/', '-')  # sanitize
 
-            if opponent_path.startswith('/'):  # is path name
-                opponent_root = osp.sep.join(opponent_path.split(osp.sep)[:-3])
-                opponent_sacred = osp.join(opponent_root, 'sacred', 'train', '1', 'config.json')
-
-                with open(opponent_sacred, 'r') as f:
-                    opponent_cfg = json.load(f)
-
-                if 'embed_path' in opponent_cfg:
-                    opponent_path = opponent_cfg['embed_path']
-                elif 'victim_path' in opponent_cfg:
-                    # TODO(adam): remove backwards compatibility when all policies retrained
-                    opponent_path = opponent_cfg['victim_path']
-                else:
-                    raise KeyError("'embed_path' and 'victim_path' not present in 'opponen_cfg'")
-
             src_path, new_name, suffix = path_generator(trial_root=trial_root,
                                                         cfg=cfg,
                                                         env_sanitized=env_name,
