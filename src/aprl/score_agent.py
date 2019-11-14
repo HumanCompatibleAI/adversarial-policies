@@ -77,11 +77,11 @@ def get_empirical_score(venv, agents, episodes, timesteps, render, record_traj, 
                     result[f'win{winner}'] += 1
 
             if episodes is not None and completed_episodes >= episodes:
-                break
+                return result
             if timesteps is not None and completed_timesteps >= timesteps:
-                break
+                return result
 
-    return result
+    assert False, "Simulation terminated before reaching max episodes/timesteps."
 
 
 def _clean_video_directory_structure(observer_obj):
