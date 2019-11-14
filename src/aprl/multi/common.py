@@ -62,7 +62,7 @@ def make_sacred(ex, worker_name, worker_fn):
         platform = None       # hosting: 'baremetal' or 'ec2'
         s3_bucket = None      # results storage on 'ec2' platform
         baremetal = {}        # config options for 'baremetal' platform
-        local_dir = None  # results storage on 'local' platform
+        local_dir = None      # results storage on 'local' platform
         ray_server = None     # if None, start cluster on local machine
         upload_root = None    # root of upload_dir
         exp_name = 'default'  # experiment name

@@ -377,7 +377,6 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.config
     def default_placeholders():
-        spec = None
         exp_name = None
         envs = None
         victims = []
@@ -391,10 +390,10 @@ def make_configs(multi_score_ex):
     @multi_score_ex.config
     def default_spec(spec, exp_suffix, envs, victims, opponents, exp_prefix):
         """Compare victims to opponents."""
-        if spec is None and not victims:
+        if 'config' not in spec and not victims:
             raise ValueError("You must use a modifier config to specify the "
                              "victim policies to compare.")
-        if spec is None and not opponents:
+        if 'config' not in spec and not opponents:
             raise ValueError("You must use a modifier config to specify the "
                              "opponent policies to compare.")
 
