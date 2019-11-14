@@ -129,6 +129,10 @@ def make_configs(multi_score_ex):
 
     # ### Modifiers ###
     # You can use these with other configs.
+    # Note: these set singleton dictionaries `exp_prefix = {k: None}`, where k is the
+    # name of the named_config. These dictionaries are then merged by Sacred.
+    # The prefixes are then sorted and concatenated to be used as part of the experiment name.
+    # Note: only the keys are ever used, the values are ignored.
 
     # Accuracy
 
@@ -137,14 +141,14 @@ def make_configs(multi_score_ex):
         score = dict(score)
         score['episodes'] = 1000
         score['num_env'] = 16
-        exp_prefix = {'high_accuracy': 'high_accuracy'}  # noqa: F841
+        exp_prefix = {'high_accuracy': None}  # noqa: F841
 
     @multi_score_ex.named_config
     def medium_accuracy(score):
         score = dict(score)
         score['episodes'] = 100
         score['num_env'] = 16
-        exp_prefix = {'medium_accuracy': 'medium_accuracy'}  # noqa: F841
+        exp_prefix = {'medium_accuracy': None}  # noqa: F841
 
     # Artifacts: activations and/or videos
 
@@ -169,7 +173,7 @@ def make_configs(multi_score_ex):
                 }
             }
         }
-        exp_prefix = {'activations': 'activations'}  # noqa: F841
+        exp_prefix = {'activations': None}  # noqa: F841
 
     @multi_score_ex.named_config
     def video(score):
@@ -184,7 +188,7 @@ def make_configs(multi_score_ex):
                 'font_size': 70,
             }
         }
-        exp_prefix = {'video': 'video'}  # noqa: F841
+        exp_prefix = {'video': None}  # noqa: F841
 
     # Observation masking
 
@@ -197,7 +201,7 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_prefix = {'victim_mask': 'victim_mask'}  # noqa: F841
+        exp_prefix = {'victim_mask': None}  # noqa: F841
 
     @multi_score_ex.named_config
     def mask_observations_of_adversary():
@@ -208,13 +212,13 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_prefix = {'adversary_mask': 'adversary_mask'}  # noqa: F841
+        exp_prefix = {'adversary_mask': None}  # noqa: F841
 
     @multi_score_ex.named_config
     def mask_observations_with_zeros(score):
         score = dict(score)
         score['mask_agent_masking_type'] = 'zeros'
-        exp_prefix = {'zero': 'zero'}  # noqa: F841
+        exp_prefix = {'zero': None}  # noqa: F841
 
     def _mask_observations_with_additive_noise(score, agent_noise):
         score['index_keys'] = ['mask_agent_masking_type', 'mask_agent_noise']
@@ -233,7 +237,7 @@ def make_configs(multi_score_ex):
                 lambda _: np.random.lognormal(mean=0.5, sigma=1.5)
             )
         )
-        exp_prefix = {'additive_noise': 'additive_noise'}  # noqa: F841
+        exp_prefix = {'additive_noise': None}  # noqa: F841
 
     @multi_score_ex.named_config
     def mask_observations_with_smaller_additive_noise(score):
@@ -244,7 +248,7 @@ def make_configs(multi_score_ex):
                 lambda _: np.random.exponential(scale=1.0)
             )
         )
-        exp_prefix = {'smaller_additive_noise': 'smaller_additive_noise'}  # noqa: F841
+        exp_prefix = {'smaller_additive_noise': None}  # noqa: F841
 
     # Adding noise to actions
 
@@ -266,7 +270,7 @@ def make_configs(multi_score_ex):
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: 1 - VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-        exp_prefix = {'adversary_action_noise': 'adversary_action_noise'}  # noqa: F841
+        exp_prefix = {'adversary_action_noise': None}  # noqa: F841
 
     @multi_score_ex.named_config
     def noise_victim_actions(score):
@@ -275,7 +279,7 @@ def make_configs(multi_score_ex):
         spec['config']['noisy_agent_index'] = tune.sample_from(
             lambda spec: VICTIM_INDEX[spec.config[PATHS_AND_TYPES][0]]
         )
-        exp_prefix = {'victim_action_noise': 'victim_action_noise'}  # noqa: F841
+        exp_prefix = {'victim_action_noise': None}  # noqa: F841
 
     # ### Experimental Configs ###
     # These specify which agents to compare in which environments
