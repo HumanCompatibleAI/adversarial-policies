@@ -16,19 +16,23 @@ make_videos_ex = Experiment('make_videos')
 make_videos_logger = logging.getLogger('make_videos')
 
 
-BASIC_CONFIGS = ['adversary_transfer', 'zoo_baseline', 'fixed_baseline']
-
-
 @make_videos_ex.config
 def default_config():
     adversary_path = osp.join(DATA_LOCATION, 'multi_train', 'paper',
                               'highest_win_policies_and_rates.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on baremetal
-    score_configs = [(x, ) for x in BASIC_CONFIGS]
-    score_configs += [(x, 'mask_observations_of_victim') for x in BASIC_CONFIGS]
+    score_configs = [('normal', ), ('normal', 'mask_observation_of_victim')]
     multi_score = {}
     root_dir = 'data/videos'
     exp_name = 'default'
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@make_videos_ex.named_config
+def defense_config():
+    score_configs = [('defenses', ), ('defenses', 'mask_observations_of_victim')]
+    exp_name = 'defense'
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

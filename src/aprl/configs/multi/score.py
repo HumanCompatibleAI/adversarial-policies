@@ -53,6 +53,9 @@ def _from_paths(policy_paths):
 
 def _from_json(json_path):
     """Returns a function that returns policies from the specified JSON."""
+    json_path = os.path.join(DATA_LOCATION, json_path)
+    if os.path.isdir(json_path):
+        json_path = os.path.join(json_path, 'highest_win_policies_and_rates.json')
     with open(json_path, 'r') as f:
         policy_paths = json.load(f)['policies']
     return _from_paths(policy_paths)
@@ -336,6 +339,27 @@ def make_configs(multi_score_ex):
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
+
+    @multi_score_ex.named_config
+    def normal():
+        victims = ["zoo"]  # noqa: F841
+        opponents = ["zoo", "fixed", "adversary"]  # noqa: F841
+
+    @multi_score_ex.named_config
+    def defenses():
+        victims = [  # noqa: F841
+            "zoo",
+            "json:multi_train/finetune_defense_single_mlp/",
+            "json:multi_train/finetune_defense_dual_mlp/"
+        ]
+        opponents = [  # noqa: F841
+            "zoo",
+            "fixed",
+            "json:multi_train/paper/",
+            "json:multi_train/adv_from_scratch_against_finetune_defense_single_mlp/",
+            "json:multi_train/adv_from_scratch_against_finetune_defense_dual_mlp/"
+        ]
+        envs = ["multicomp/YouShallNotPassHumans-v0"]  # noqa: F841
 
     # Standard experiments
 
