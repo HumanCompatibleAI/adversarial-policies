@@ -111,14 +111,14 @@ def _clean_video_directory_structure(observer_obj):
         os.rename(metadata_file, os.path.join(new_video_metadata_dir, base_file_name))
 
 
-def _save_video_or_metadata(env_dir, saved_video_path):
+def _save_video_or_metadata(env_dir: str, saved_video_path: str) -> bool:
     """
     A helper method to pull the logic for pattern matching certain kinds of video and metadata
     files and storing them as sacred artifacts with clearer names
 
     :param env_dir: The path to a per-environment folder where videos are stored
     :param saved_video_path: The video file to be reformatted and saved as a sacred artifact
-    :return: None
+    :return: True if added an artifact, False otherwise.
     """
     env_number = env_dir.split("/")[-1]
     video_ptn = re.compile(r'video.(\d*).mp4')
@@ -133,10 +133,11 @@ def _save_video_or_metadata(env_dir, saved_video_path):
         episode_id = metadata_search_result.groups()[0]
         sacred_name = "env_{}_episode_{}_metadata.json".format(env_number, int(episode_id))
     else:
-        return
+        return False
 
     score_ex.add_artifact(filename=os.path.join(env_dir, saved_video_path),
                           name=sacred_name)
+    return True
 
 
 @score_ex.config
@@ -196,8 +197,8 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     if videos:
         if save_dir is None:
             score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
-                                 "but videos will be saved to Sacred run directory")
-            tmp_dir = tempfile.TemporaryDirectory()
+                                 " but videos will be saved to Sacred run directory")
+            tmp_dir = tempfile.TemporaryDirectory(prefix='score-videos')
             save_dir = tmp_dir.name
         else:
             tmp_dir = None
@@ -265,13 +266,11 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
 
     if videos:
         for env_video_dir in video_dirs:
-            try:
-                for file_path in os.listdir(env_video_dir):
-                    _save_video_or_metadata(env_video_dir, file_path)
-
-            except FileNotFoundError:
-                warnings.warn("Can't find path {}; no videos from that path added as artifacts"
-                              .format(env_video_dir))
+            added = False
+            for file_path in os.listdir(env_video_dir):
+                added |= _save_video_or_metadata(env_video_dir, file_path)
+            if not added:
+                raise FileNotFoundError(f"No video artifacts found in path {env_video_dir}.")
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
