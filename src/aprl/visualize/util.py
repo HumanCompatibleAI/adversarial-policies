@@ -121,6 +121,29 @@ def opponent_abbrev(x, suffix) -> str:
                                    suffix=suffix, victim=False)
 
 
+# Longer description: included in videos and on website
+FRIENDLY_AGENT_LABEL = {
+    "Rand": "Random",
+    "Zero": "Lifeless",
+    r"Zoo[VO]?[0-9]": "Normal",
+    r"ZooM[VO]?[0-9]": "Masked",
+    r"ZooS[VO]?[0-9]": "Single Fine-Tuned",
+    r"ZooD[VO]?[0-9]": "Dual Fine-Tuned",
+    r"Adv([0-9])": "Adversary",
+    r"Adv[SD]([0-9])": "Retrained Adversary",
+}
+
+
+def friendly_agent_label(abbrev: str) -> str:
+    matches = {pattern: label for pattern, label in FRIENDLY_AGENT_LABEL.items()
+               if re.match(pattern, abbrev)}
+    if len(matches) == 0:
+        raise ValueError("No friendly label for '{abbrev}'")
+    if len(matches) > 1:
+        raise ValueError("Ambiguous friendly label for '{abbrev}'")
+    return list(matches.values())[0]
+
+
 def load_datasets(path: str, victim_suffix: str = '', opponent_suffix: str = '') -> pd.DataFrame:
     """Loads scores from path, using `abbreviate_agent_config` to pretty-print agents.
 
