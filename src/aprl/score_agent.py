@@ -166,9 +166,9 @@ def default_score_config():
         'annotation_params': {
             'camera_config': 'default',
             'short_labels': False,
-            'resolution': (640, 480),
+            'resolution': (1920, 1080),
+            'font_size': 70,
             'font': 'times',
-            'font_size': 24,
         },
     }
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
