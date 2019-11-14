@@ -12,16 +12,19 @@ OUT_DIR=data/aws/score_agents
 mkdir -p ${OUT_DIR}
 for kind in zoo fixed; do
     mkdir -p ${OUT_DIR}/normal
-    multi_score victims.zoo=zoo opponents.${kind}=${kind} save_path=${OUT_DIR}/normal/${kind}_baseline.json&
+    multi_score victims="[zoo]" opponents="[${kind}]" \
+                save_path=${OUT_DIR}/normal/${kind}_baseline.json&
     wait_proc
 
     mkdir -p ${OUT_DIR}/victim_masked_init
-    multi_score ${kind}_opponent mask_observations_of_victim \
+    multi_score victims="[zoo]" opponents="[${kind}]" \
+                mask_observations_of_victim \
                 save_path=${OUT_DIR}/victim_masked_init/${kind}_baseline.json&
     wait_proc
 
     mkdir -p ${OUT_DIR}/victim_masked_zero
-    multi_score ${kind}_opponent mask_observations_of_victim mask_observations_with_zeros \
+    multi_score victims="[zoo]" opponents="[${kind}]" \
+                mask_observations_of_victim mask_observations_with_zeros \
                 save_path=${OUT_DIR}/victim_masked_zero/${kind}_baseline.json&
     wait_proc
 done

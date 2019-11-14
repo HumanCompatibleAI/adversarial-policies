@@ -330,8 +330,8 @@ def make_configs(multi_score_ex):
     def default_placeholders():
         spec = None
         envs = None
-        victims = {}
-        opponents = {}
+        victims = []
+        opponents = []
         exp_prefix = {}
 
         _ = locals()  # quieten flake8 unused variable warning
@@ -349,14 +349,14 @@ def make_configs(multi_score_ex):
             spec = {
                 'config': {
                     PATHS_AND_TYPES: tune.grid_search(
-                        _gen_configs(victim_fns=[_to_fn(cfg) for cfg in victims.values()],
-                                     opponent_fns=[_to_fn(cfg) for cfg in opponents.values()],
+                        _gen_configs(victim_fns=[_to_fn(cfg) for cfg in victims],
+                                     opponent_fns=[_to_fn(cfg) for cfg in opponents],
                                      envs=None if envs is None else envs.split(':'))
                     ),
                 }
             }
             exp_name = ((f"{':'.join(sorted(exp_prefix.keys()))}_" if exp_prefix else '') +
-                        f"{':'.join(victims.keys())}_vs_{':'.join(opponents.keys())}")
+                        f"{':'.join(victims)}_vs_{':'.join(opponents)}")
 
         _ = locals()  # quieten flake8 unused variable warning
         del _

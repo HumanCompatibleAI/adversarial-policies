@@ -8,7 +8,7 @@ OUT_ROOT=${AWS_ROOT}/score_agents
 TIMESTAMP=`date --iso-8601=seconds`
 
 # Format: multi_score <opponent_type> <noise_type> ["extra_config1 ..."]
-# opponent_type: one of opponents.zoo=zoo or opponents.adversary=adversary
+# opponent_type: one of zoo or adversary
 # noise_type: one of ${NOISE_TYPES}
 # extra_config: a string with a list of space-separated named configs for aprl.multi.score
 # Saves to ${noise_type}/${TIMESTMAP}/${opponent_type}.json
@@ -17,8 +17,9 @@ function multi_score {
     noise_type=$2
     extra_configs=$3
 
-    python -m aprl.multi.score with victims.zoo=zoo ${opponent_type} ${noise_type} ${extra_configs} \
-              medium_accuracy save_path=${OUT_ROOT}/${noise_type}/${TIMESTAMP}/${opponent_type}.json
+    python -m aprl.multi.score with victims="[zoo]" opponents="[${opponent_type}]" \
+              ${noise_type} ${extra_configs} medium_accuracy \
+              save_path=${OUT_ROOT}/${noise_type}/${TIMESTAMP}/${opponent_type}.json
     wait_proc
 }
 
@@ -42,21 +43,21 @@ done
 
 export ADVERSARY_PATHS=${OUT_ROOT}/normal/2019-05-05T18:12:24+00:00/best_adversaries.json
 
-multi_score opponents.zoo=zoo noise_adversary_actions
+multi_score zoo noise_adversary_actions
 echo "Zoo baseline noisy actions completed"
 
-multi_score opponents.adversary=adversary noise_adversary_actions
+multi_score adversary noise_adversary_actions
 echo "Noisy actions completed"
 
-multi_score opponents.adversary=adversary noise_victim_actions
+multi_score adversary noise_victim_actions
 echo "Noisy victim actions completed"
 
-multi_score opponents.zoo=zoo mask_observations_with_additive_noise mask_observations_of_victim
-multi_score opponents.adversary=adversary mask_observations_with_additive_noise mask_observations_of_victim
+multi_score zoo mask_observations_with_additive_noise mask_observations_of_victim
+multi_score adversary mask_observations_with_additive_noise mask_observations_of_victim
 echo "Additive noise masking baseline complete"
 
-multi_score opponents.zoo=zoo mask_observations_with_smaller_additive_noise mask_observations_of_victim
-multi_score opponents.adversary=adversary mask_observations_with_smaller_additive_noise mask_observations_of_victim
+multi_score zoo mask_observations_with_smaller_additive_noise mask_observations_of_victim
+multi_score adversary mask_observations_with_smaller_additive_noise mask_observations_of_victim
 echo "Additive noise masking baseline complete"
 
 wait
