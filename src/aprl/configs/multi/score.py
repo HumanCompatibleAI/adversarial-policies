@@ -69,7 +69,14 @@ def _fixed(env, agent_index):
 
 
 def _to_fn(cfg: str) -> AgentConfigGenFn:
-    """Converts config of form cfg_type[:path] into a configuration function."""
+    """Converts config of form cfg_type[:path] into a configuration function.
+
+    Supported `cfg`'s are of the format:
+        zoo
+        fixed
+        adversary
+        json:/path/to/json
+    """
     cfg_type, *rem = cfg.split(':')
     if cfg_type == 'zoo':
         assert not rem
@@ -346,9 +353,11 @@ def make_configs(multi_score_ex):
         """Compare victims to opponents."""
         if spec is None:
             if not victims:
-                raise ValueError("You must specify the victims to compare with a modifier.")
+                raise ValueError("You must use a modifier config to specify the "
+                                 "victim policies to compare.")
             if not opponents:
-                raise ValueError("You must specify the opponents to compare with a modifier.")
+                raise ValueError("You must use a modifier config to specify the "
+                                 "opponent policies to compare.")
 
             spec = {
                 'config': {
