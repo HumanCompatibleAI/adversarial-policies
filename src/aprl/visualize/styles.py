@@ -53,6 +53,11 @@ STYLES = {
     'threecol': {
         'figure.figsize': (1.83, 1.7),
     },
+    'scores': {
+        'font.size': 8,
+        'ytick.labelsize': 8,
+        'xtick.labelsize': 8,
+    },
     'scores_monolithic': {
         'figure.figsize': (5.5, 1.4),
     },
@@ -61,8 +66,6 @@ STYLES = {
     },
     'scores_twocol': {
         'figure.figsize': (2.7, 1.61),
-        'font.size': 8,
-        'ytick.labelsize': 8,
     },
     'scores_threecol': {
         'figure.figsize': (1.76, 1.6),

@@ -89,7 +89,7 @@ def full_masked_config():
 def paper_config():
     score_paths = SMALL_score_paths
 
-    styles = ['paper', 'scores_twocol']
+    styles = ['paper', 'scores', 'scores_twocol']
     row_starts = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0']
     row_ends = ['multicomp/YouShallNotPassHumans-v0', 'multicomp/SumoAntsAutoContact-v0']
     col_ends = ['multicomp/SumoHumansAutoContact-v0', 'multicomp/SumoAntsAutoContact-v0']
@@ -106,7 +106,7 @@ def paper_config():
 def supplementary_config():
     score_paths = SMALL_score_paths
 
-    styles = ['paper', 'scores_monolithic']
+    styles = ['paper', 'scores', 'scores_monolithic']
     publication = True
 
     fig_dir = os.path.expanduser('~/dev/adversarial-policies-paper/figs/scores')
@@ -121,7 +121,7 @@ def defense_paper_config():
         {'path': os.path.join('defenses', 'normal.json')},
         {'path': os.path.join('defenses', 'victim_masked_init.json'), 'victim_suffix': 'M'},
     ]
-    styles = ['paper', 'scores_twocol']
+    styles = ['paper', 'scores', 'scores_twocol']
     row_starts = []
     row_ends = ['multicomp/YouShallNotPassHumans-v0']
     col_ends = []
@@ -141,7 +141,7 @@ def defense_supplementary_config():
         {'path': os.path.join('defenses', 'victim_masked_init.json'), 'victim_suffix': 'M'},
     ]
     # can use short as currently just YSNP environment
-    styles = ['paper', 'scores_monolithic_short']
+    styles = ['paper', 'scores', 'scores_monolithic_short']
     publication = True
 
     fig_dir = os.path.expanduser("~/dev/adversarial-policies-paper/figs/scores_defense")

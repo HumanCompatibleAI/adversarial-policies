@@ -327,7 +327,8 @@ def _pretty_heatmap(single_env, col, cmap, fig, gridspec_kw,
 
             # Plot heat map
             sns.heatmap(subset, cbar=cbar, cbar_ax=cbar_ax, norm=norm, cmap=cmap,
-                        vmin=0, vmax=100, annot=True, fmt='.0f', ax=ax)
+                        vmin=0, vmax=100, annot=True, fmt='.0f', ax=ax,
+                        xticklabels=True, yticklabels=True)
 
             # Red border around maximal entries
             if direction != 0:
