@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import functools
 import json
+import logging
 import os
 import re
 import sys
@@ -10,6 +11,8 @@ import boto3
 
 from aprl.visualize import util
 
+logger = logging.getLogger('aprl.visualize.generate_website_json')
+
 ENV_NAME_LOOKUP = {
     "KickAndDefend-v0": "Kick and Defend",
     "SumoHumans-v0": "Sumo Humans",
@@ -17,6 +20,8 @@ ENV_NAME_LOOKUP = {
     "SumoAnts-v0": "Sumo Ants"
 }
 BUCKET_NAME = 'adversarial-policies-public'
+
+EXCLUDE_ABBREV = [r'ZooM[SD].*']
 
 
 class NestedDict(OrderedDict):
@@ -36,6 +41,13 @@ def get_s3_files() -> Iterable[str]:
     return [os.path.basename(o.key) for o in objs]
 
 
+def is_excluded(abbrev: str) -> bool:
+    for exclude in EXCLUDE_ABBREV:
+        if re.match(exclude, abbrev):
+            return True
+    return False
+
+
 def get_videos(video_files: Iterable[str]) -> NestedDict:
     video_files = [path for path in video_files if path.endswith('.mp4')]
     stem_pattern = re.compile(r'(.*)_[0-9]+p.mp4')
@@ -45,7 +57,7 @@ def get_videos(video_files: Iterable[str]) -> NestedDict:
     for path in video_files:
         stem_match = stem_pattern.match(path)
         if stem_match is None:
-            print("No pattern match found for {}".format(path))
+            logger.info(f"Skipping path '{path}: malformed filename, cannot extract stem.")
             continue
 
         stem = stem_match.groups()[0]
@@ -53,10 +65,14 @@ def get_videos(video_files: Iterable[str]) -> NestedDict:
 
         agent_match = agent_pattern.match(stem)
         if agent_match is None:
-            print("No pattern match found for {}".format(path))
+            logger.info(f"Skipping path '{path}: malformed filename, cannot extract agent.")
             continue
 
         env_name, victim_abbrev, opponent_abbrev = agent_match.groups()
+        if is_excluded(victim_abbrev) or is_excluded(opponent_abbrev):
+            logger.info(f"Skipping path '{path}': explicitly excluded.")
+            continue
+
         env_name = ENV_NAME_LOOKUP.get(env_name)
         victim = f'{util.friendly_agent_label(victim_abbrev)} ({victim_abbrev})'
         opponent = f'{util.friendly_agent_label(opponent_abbrev)} ({opponent_abbrev})'
@@ -94,8 +110,8 @@ def sort_nested(nested: NestedDict) -> NestedDict:
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     paths = get_s3_files()
-    paths = os.listdir('data/videos/defense/20191114_160348/')
     nested = get_videos(paths)
     nested = sort_nested(nested)
 
@@ -106,7 +122,7 @@ def main():
     print(nested)
     with open(out_path, "w") as fp:
         json.dump(nested, fp, indent=4)
-    print(f"Saved files to '{out_path}'.")
+    logger.info(f"Saved files to '{out_path}'.")
 
 
 if __name__ == '__main__':
