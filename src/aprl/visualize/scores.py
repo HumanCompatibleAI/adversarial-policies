@@ -38,7 +38,7 @@ def _make_old_paths(timestamped_path, **kwargs):
     return [dict(path=path, **kwargs) for path in paths]
 
 
-SMALL_score_paths = (
+SMALL_SCORE_PATHS = (
     _make_old_paths(os.path.join('normal', '2019-05-05T18:12:24+00:00')) +
     _make_old_paths(os.path.join('victim_masked_init', '2019-05-05T18:12:24+00:00'),
                     victim_suffix='M')
@@ -87,7 +87,7 @@ def full_masked_config():
 
 @visualize_score_ex.named_config
 def paper_config():
-    score_paths = SMALL_score_paths
+    score_paths = SMALL_SCORE_PATHS
 
     styles = ['paper', 'scores', 'scores_twocol']
     row_starts = ['multicomp/KickAndDefend-v0', 'multicomp/SumoHumansAutoContact-v0']
@@ -104,7 +104,7 @@ def paper_config():
 
 @visualize_score_ex.named_config
 def supplementary_config():
-    score_paths = SMALL_score_paths
+    score_paths = SMALL_SCORE_PATHS
 
     styles = ['paper', 'scores', 'scores_monolithic']
     publication = True
@@ -152,7 +152,7 @@ def defense_supplementary_config():
 
 @visualize_score_ex.named_config
 def poster_config():
-    score_paths = SMALL_score_paths
+    score_paths = SMALL_SCORE_PATHS
 
     styles = ['poster', 'scores_poster_threecol']
     row_starts = ['multicomp/KickAndDefend-v0']

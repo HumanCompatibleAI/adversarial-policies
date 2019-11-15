@@ -20,6 +20,7 @@ ENV_NAME_LOOKUP = {
     "SumoAnts-v0": "Sumo Ants"
 }
 BUCKET_NAME = 'adversarial-policies-public'
+PREFIX = 'videos'
 
 EXCLUDE_ABBREV = [r'ZooM[SD].*']
 
@@ -37,7 +38,7 @@ class NestedDict(OrderedDict):
 def get_s3_files() -> Iterable[str]:
     s3 = boto3.resource('s3')
     adv_policies_bucket = s3.Bucket(BUCKET_NAME)
-    objs = adv_policies_bucket.objects.all()
+    objs = adv_policies_bucket.objects.filter(Prefix=PREFIX).all()
     return [os.path.basename(o.key) for o in objs]
 
 
