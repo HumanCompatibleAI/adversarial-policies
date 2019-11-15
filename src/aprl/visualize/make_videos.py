@@ -21,7 +21,7 @@ def default_config():
     adversary_path = osp.join(DATA_LOCATION, 'multi_train', 'paper',
                               'highest_win_policies_and_rates.json')
     ray_upload_dir = 'data'  # where Ray will upload multi.score outputs. 'data' works on baremetal
-    score_configs = [('normal', ), ('normal', 'mask_observation_of_victim')]
+    score_configs = [('normal', ), ('normal', 'mask_observations_of_victim')]
     multi_score = {}
     root_dir = 'data/videos'
     exp_name = 'default'
