@@ -60,7 +60,7 @@ STYLES = {
         'figure.figsize': (5.5, 1.3),
     },
     'scores_twocol': {
-        'figure.figsize': (2.7, 1.6),
+        'figure.figsize': (2.7, 1.61),
         'font.size': 8,
         'ytick.labelsize': 8,
     },

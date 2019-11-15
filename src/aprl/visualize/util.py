@@ -102,7 +102,7 @@ def abbreviate_agent_config(env_name: str, agent_type: str, agent_path: str,
             assert len(embed_types) == 1
             victim_abbv = abbreviate_agent_config(env_name, embed_types[0], embed_paths[0],
                                                   suffix='', victim=True)
-            victim_abbv = re.sub(r'Zoo[O|V]?(.*)', r'\1', victim_abbv)
+            victim_abbv = re.sub(r'Zoo([SD]?)[OV]?(.*)', r'\1\2', victim_abbv)
             prefix = 'F' if finetuned else ''
             return f'{prefix}Adv{suffix}{victim_abbv}'
     else:
