@@ -8,6 +8,7 @@ import os.path as osp
 import pickle
 import re
 import tempfile
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -264,10 +265,11 @@ def density_fitter(
 @fit_model_ex.main
 def fit_model(
     _run,
-    ray_server,
-    activation_glob,
-    output_root,
-    max_timesteps,
+    ray_server: str,
+    init_kwargs: Dict[str, Any],
+    activation_glob: str,
+    output_root: str,
+    max_timesteps: int,
     data_type,
     model_class,
     model_kwargs,
@@ -278,7 +280,7 @@ def fit_model(
        saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
        running in parallel via Ray."""
     try:
-        ray.init(redis_address=ray_server)
+        ray.init(redis_address=ray_server, **init_kwargs)
 
         # Find activation paths for each environment & victim-path tuple
         stem_pattern = re.compile(r"(.*)_opponent_.*\.npz")

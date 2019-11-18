@@ -199,7 +199,7 @@ def _test_multi(ex):
                 "sync_to_cloud": None,  # as above
             },
         },
-        "init_kwargs": {"num_cpus": 2},
+        "init_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
     }
 
     run = ex.run(config_updates=multi_config, named_configs=("debug_config",))
@@ -224,27 +224,33 @@ def test_multi_train():
     assert isinstance(exp_id, str)
 
 
-ACTIVATION_EXPERIMENTS = [density_ex, tsne_ex]
+ACTIVATION_EXPERIMENTS = [
+    (density_ex, "fit_density_model"),
+    (tsne_ex, "tsne_fit_model"),
+]
 
 
-@pytest.mark.parametrize("ex", ACTIVATION_EXPERIMENTS)
-def test_activation_pipeline(ex):
+@pytest.mark.parametrize("test_cfg", ACTIVATION_EXPERIMENTS)
+def test_activation_pipeline(test_cfg):
+    ex, inner_exp_name = test_cfg
     with tempfile.TemporaryDirectory(prefix="test_activation_pipeline") as tmpdir:
         config_updates = {
             "generate_activations": {
                 "score_update": {
                     "spec": {
                         "run_kwargs": {
-                            "resources_per_trial": {"cpu": 2},  # Travis only has 2 cores
+                            "resources_per_trial": {"cpu": 2},  # CI build only has 2 cores
                             "upload_dir": os.path.join(tmpdir, "ray"),
                             "sync_to_cloud": (
                                 "mkdir -p {target} && " "rsync -rlptv {source}/ {target}"
                             ),
                         },
                     },
+                    "init_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
                 },
                 "ray_upload_dir": os.path.join(tmpdir, "ray"),
             },
+            inner_exp_name: {"init_kwargs": {"num_cpus": 2}},  # CI build only has 2 cores
             "output_root": os.path.join(tmpdir, "main"),
         }
 
