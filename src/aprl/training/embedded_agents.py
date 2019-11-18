@@ -30,8 +30,9 @@ class CurryVecEnv(VecMultiWrapper):
         self.deterministic = deterministic
 
     def step_async(self, actions):
-        action, self._state = self._policy.predict(self._obs, state=self._state, mask=self._dones,
-                                                   deterministic=self.deterministic)
+        action, self._state = self._policy.predict(
+            self._obs, state=self._state, mask=self._dones, deterministic=self.deterministic
+        )
         actions.insert(self._agent_to_fix, action)
         self.venv.step_async(actions)
 
@@ -76,13 +77,14 @@ class CurryVecEnv(VecMultiWrapper):
             return self._obs[env_idx]
 
     def close(self):
-        if hasattr(self._policy, 'sess') and self._policy.sess is not None:
+        if hasattr(self._policy, "sess") and self._policy.sess is not None:
             self._policy.sess.close()
         super().close()
 
 
 class TransparentCurryVecEnv(CurryVecEnv):
     """CurryVecEnv that provides transparency data about its policy by updating infos dicts."""
+
     def __init__(self, venv, policy, agent_idx=0, deterministic=False):
         """
         :param venv (VecMultiEnv): the environments
@@ -91,14 +93,14 @@ class TransparentCurryVecEnv(CurryVecEnv):
         :return: a new VecMultiEnv with num_agents decremented. It behaves like env but
                  with all actions at index agent_idx set to those returned by agent."""
         super().__init__(venv, policy, agent_idx, deterministic)
-        if not hasattr(self._policy.policy, 'step_transparent'):
+        if not hasattr(self._policy.policy, "step_transparent"):
             raise TypeError("Error: policy must be transparent")
         self._action = None
 
     def step_async(self, actions):
-        policy_out = self._policy.predict_transparent(self._obs, state=self._state,
-                                                      mask=self._dones,
-                                                      deterministic=self.deterministic)
+        policy_out = self._policy.predict_transparent(
+            self._obs, state=self._state, mask=self._dones, deterministic=self.deterministic
+        )
         self._action, self._state, self._data = policy_out
         actions.insert(self._agent_to_fix, self._action)
         self.venv.step_async(actions)

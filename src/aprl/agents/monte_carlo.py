@@ -13,12 +13,14 @@ class MujocoResettableWrapper(ResettableEnv, gym.Wrapper):
     """Converts a MujocoEnv into a ResettableEnv.
 
     Note all MuJoCo environments are resettable."""
+
     def __init__(self, env):
         """Wraps a MujocoEnv, adding get_state and set_state methods.
         :param env: a MujocoEnv. NOTE: it must not be wrapped in a TimeLimit."""
-        if hasattr(env, '_max_episode_steps'):
-            raise TypeError('Environment must not have a time limit '
-                            '(try passing in env.unwrapped instead).')
+        if hasattr(env, "_max_episode_steps"):
+            raise TypeError(
+                "Environment must not have a time limit " "(try passing in env.unwrapped instead)."
+            )
         gym.Wrapper.__init__(self, env)
         self.sim = env.unwrapped.sim
 
@@ -45,6 +47,7 @@ class MonteCarlo(ABC):
     """Selects an action for a ResettableEnv by random search. Randomly samples
      fixed-length sequences of actions. Evaluates each trajectory in the
      environment, resetting the state to the original after each trajectory."""
+
     @abstractmethod
     def __init__(self, horizon, trajectories):
         """Constructs a MonteCarlo instance for env.
@@ -76,6 +79,7 @@ class MonteCarlo(ABC):
 class MonteCarloSingle(MonteCarlo):
     """Selects an action for a ResettableEnv by random search.
        See base class for details. This implementation is not parallelized."""
+
     def __init__(self, env, horizon, trajectories):
         """See base class."""
         super().__init__(horizon, trajectories)
@@ -116,24 +120,25 @@ def _worker(remote, parent_remote, dynamic_fn_wrapper, horizon, trajectories):
     try:
         while True:
             cmd, x = remote.recv()
-            if cmd == 'seed':
+            if cmd == "seed":
                 mc.seed(x)
-            elif cmd == 'search':
+            elif cmd == "search":
                 best_u, best_r = mc.best_action(x)
                 remote.send((best_u, best_r))
-            elif cmd == 'close':
+            elif cmd == "close":
                 remote.close()
                 break
             else:
                 raise NotImplementedError
     except KeyboardInterrupt:
-        print('MonteCarloParallel worker: got KeyboardInterrupt')
+        print("MonteCarloParallel worker: got KeyboardInterrupt")
     finally:
         dynamics.close()
 
 
 class MonteCarloParallel(MonteCarlo):
     """Like MonteCarlo, but performs the random search in parallel."""
+
     # This implementation is inspired by Baselines SubprocVecEnv.
     def __init__(self, env_fns, horizon, trajectories, seed=0):
         """Launch subprocess workers and store configuration parameters.
@@ -151,8 +156,7 @@ class MonteCarloParallel(MonteCarlo):
         worker_cfgs = zip(self.work_remotes, self.remotes, env_fns)
         self.ps = []
         for i, (work_remote, remote, dynamic_fn) in enumerate(worker_cfgs):
-            args = (work_remote, remote, CloudpickleWrapper(dynamic_fn),
-                    horizon, traj_per_worker)
+            args = (work_remote, remote, CloudpickleWrapper(dynamic_fn), horizon, traj_per_worker)
             process = Process(target=_worker, args=args)
             process.daemon = True
             # If the main process crashes, we should not cause things to hang
@@ -164,12 +168,12 @@ class MonteCarloParallel(MonteCarlo):
     def seed(self, seed):
         """See base class."""
         for i, remote in enumerate(self.remotes):
-            remote.send(('seed', seed + i))
+            remote.send(("seed", seed + i))
 
     def best_action(self, state):
         """Returns the best action out of a random search of action sequences."""
         for remote in self.remotes:
-            remote.send(('search', state))
+            remote.send(("search", state))
         results = [remote.recv() for remote in self.remotes]
         best = max(results, key=lambda x: x[1])
         return best
@@ -177,7 +181,7 @@ class MonteCarloParallel(MonteCarlo):
     def close(self):
         """Shuts down parallel workers."""
         for remote in self.remotes:
-            remote.send(('close', None))
+            remote.send(("close", None))
         for p in self.ps:
             p.join()
 

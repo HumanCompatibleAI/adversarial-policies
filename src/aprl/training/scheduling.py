@@ -6,13 +6,14 @@ import operator
 
 
 def _validate_func_type(func_type):
-    allowed_func_types = frozenset(['lr', 'rew_shape', 'noise'])
+    allowed_func_types = frozenset(["lr", "rew_shape", "noise"])
     if func_type not in allowed_func_types:
         raise KeyError("func_type not in allowed_func_types")
 
 
 class Scheduler(object):
     """Keep track of frac_remaining and return time-dependent values"""
+
     def __init__(self, annealer_dict=None):
         if annealer_dict is None:
             annealer_dict = {}
@@ -43,7 +44,7 @@ class Scheduler(object):
         """
         _validate_func_type(func_type)
         if not isinstance(annealer, Annealer):
-            raise TypeError('set_annealer_and_func requires an Annealer as input')
+            raise TypeError("set_annealer_and_func requires an Annealer as input")
         self.annealer_dict[func_type] = annealer
 
     def get_val(self, val_type, frac_remaining=None):
@@ -77,6 +78,7 @@ class Scheduler(object):
 
 class Annealer(ABC):
     """Abstract class for implementing Annealers."""
+
     def __init__(self, start_val, end_val, get_logs=None):
         """
         :param start_val: (int or float) starting value
@@ -92,7 +94,7 @@ class Annealer(ABC):
         """Custom pickler.
         Omits self.get_logs which may involve non-picklable objects such as tf.Session."""
         state = self.__dict__.copy()
-        state['get_logs'] = None
+        state["get_logs"] = None
         return state
 
     def set_get_logs(self, get_logs):
@@ -106,6 +108,7 @@ class Annealer(ABC):
 
 class ConstantAnnealer(Annealer):
     """Returns a constant value"""
+
     def __init__(self, const_val):
         self.const_val = const_val
         super().__init__(const_val, const_val)
@@ -116,6 +119,7 @@ class ConstantAnnealer(Annealer):
 
 class LinearAnnealer(Annealer):
     """Linearly anneals from start_val to end_val over end_frac fraction of training"""
+
     def __init__(self, start_val, end_val, end_frac):
         super().__init__(start_val, end_val)
         if not 0 <= end_frac <= 1:
@@ -132,8 +136,20 @@ class LinearAnnealer(Annealer):
 
 class ConditionalAnnealer(Annealer):
     """Anneal the value depending on some condition."""
-    def __init__(self, start_val, end_val, decay_factor, thresh, window_size,
-                 min_wait, max_wait, operator, metric, get_logs):
+
+    def __init__(
+        self,
+        start_val,
+        end_val,
+        decay_factor,
+        thresh,
+        window_size,
+        min_wait,
+        max_wait,
+        operator,
+        metric,
+        get_logs,
+    ):
         super().__init__(start_val, end_val, get_logs)
         self.decay_factor = decay_factor
         self.thresh = thresh
@@ -150,18 +166,18 @@ class ConditionalAnnealer(Annealer):
     def from_dict(cls, cond_config, get_logs=None):
         # provided to help keep track of arguments
         constructor_config = {
-            'decay_factor': 0.98,
-            'thresh': 0,
-            'start_val': 1,
-            'end_val': 0,
-            'window_size': 1,
-            'min_wait': 1,
-            'max_wait': 10000,
-            'operator': operator.gt,
-            'metric': 'sparse',  # dense, length
+            "decay_factor": 0.98,
+            "thresh": 0,
+            "start_val": 1,
+            "end_val": 0,
+            "window_size": 1,
+            "min_wait": 1,
+            "max_wait": 10000,
+            "operator": operator.gt,
+            "metric": "sparse",  # dense, length
         }
-        if 'operator' in cond_config:
-            cond_config['operator'] = getattr(operator, cond_config['operator'])
+        if "operator" in cond_config:
+            cond_config["operator"] = getattr(operator, cond_config["operator"])
 
         trimmed_config = {k: v for k, v in cond_config.items() if k in constructor_config}
         constructor_config.update(trimmed_config)
@@ -174,7 +190,7 @@ class ConditionalAnnealer(Annealer):
         current_data = self.get_logs()
         if current_data is None:  # if we have zero episodes thus far
             return self.current_param_val
-        current_wait = current_data['total_episodes'] - self.last_total_episodes
+        current_wait = current_data["total_episodes"] - self.last_total_episodes
         if current_wait < self.min_wait:
             return self.current_param_val
 
@@ -183,5 +199,5 @@ class ConditionalAnnealer(Annealer):
         avg_metric_val = float(sum(current_metric_data)) / len(current_metric_data)
         if self.operator(avg_metric_val, self.thresh) or current_wait > self.max_wait:
             self.current_param_val *= self.decay_factor
-            self.last_total_episodes = current_data['total_episodes']
+            self.last_total_episodes = current_data["total_episodes"]
         return self.current_param_val

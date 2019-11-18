@@ -6,7 +6,7 @@ import numpy as np
 
 
 # TODO: Cythonize
-class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
+class MujocoState(namedtuple("MujocoStateBase", "qpos qvel")):
     """Represents state from the MuJoCo simulator needed for planning,
        namely position and velocity."""
 
@@ -16,8 +16,8 @@ class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
 
     @staticmethod
     def from_flattened(flattened, sim):
-        qpos = flattened[0:sim.model.nq]
-        qvel = flattened[sim.model.nq:sim.model.nq + sim.model.nv]
+        qpos = flattened[0 : sim.model.nq]
+        qvel = flattened[sim.model.nq : sim.model.nq + sim.model.nv]
         return MujocoState(qpos, qvel)
 
     def set_mjdata(self, data):
@@ -34,6 +34,7 @@ class MujocoState(namedtuple('MujocoStateBase', 'qpos qvel')):
 
 class ResettableEnv(gym.Env, abc.ABC):
     """A Gym environment that can be reset to an arbitrary state."""
+
     @abc.abstractmethod
     def get_state(self):
         """Returns a serialized representation of the current state."""
