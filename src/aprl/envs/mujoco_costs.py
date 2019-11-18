@@ -11,6 +11,7 @@ from theano import tensor as T
 class ReacherCost(BatchAutoDiffCost):
     """Differentiable cost for the Reacher-v2 Gym environment.
        See base class for more details."""
+
     def __init__(self):
         def f(x, u, i, terminal):
             if terminal:
@@ -47,6 +48,7 @@ class InvertedPendulumCost(BatchAutoDiffCost):
        I use a cost function penalizing the square of the: angle from y-axis,
        velocity and control. (The control penalty seems to be unnecessary to get
        good performance, but the velocity term is needed.)"""
+
     def __init__(self):
         def f(x, u, i, terminal):
             if terminal:
@@ -77,6 +79,7 @@ class InvertedDoublePendulumCost(BatchAutoDiffCost):
     condition is just if height drops below y=1. In our implementation, we omit
     the alive bonus and represent termination condition as a quadratic penalty
     below a height of 1.1. We also introduce a control penalty."""
+
     def __init__(self, ctrl_coef=1e-1):
         def f(x, u, i, terminal):
             # Original Gym does not impose a control cost, but does clip it
@@ -111,8 +114,7 @@ class InvertedDoublePendulumCost(BatchAutoDiffCost):
             dist_below = T.max([T.zeros_like(tip_y), 1.1 - tip_y], axis=0)
             termination_cost = T.square(dist_below)
 
-            cost = (5 * termination_cost + dist_cost
-                    + vel_cost + ctrl_coef * ctrl_cost)
+            cost = 5 * termination_cost + dist_cost + vel_cost + ctrl_coef * ctrl_cost
             return cost
 
         super().__init__(f, state_size=6, action_size=1)
@@ -125,6 +127,7 @@ class HopperCost(BatchAutoDiffCost):
     is a living reward of +1, this loosely corresponds to a discontinuous
     penalty for violating these conditions. I approximate this by penalizing
     a low height, extreme angle, or extremely large state vectors."""
+
     def __init__(self):
         def f(x, u, i, terminal):
 
@@ -162,7 +165,7 @@ class HopperCost(BatchAutoDiffCost):
                 return T.square(T.max([T.zeros_like(x), x - target], axis=0))
 
             angle_penalty = 2000 * penalty_geq(abs_ang, 0.2 * 0.7)
-            height_penalty = 200 * penalty_geq(-height, -0.7*1.25)
+            height_penalty = 200 * penalty_geq(-height, -0.7 * 1.25)
             state_penalty = 1e-4 * T.sum(penalty_geq(abs(x[..., 2:]), 100), axis=-1)
             termination_penalty = angle_penalty + height_penalty + state_penalty
 
@@ -176,6 +179,7 @@ class SwimmerCost(BatchAutoDiffCost):
     """Differentiable cost for the Swimmer-v2 Gym environment. Cost function is
     as in Gym, except using velocity variable directly rather than taking
     finite difference."""
+
     def __init__(self):
         def f(x, u, i, terminal):
             # x: (batch_size, 10), concatenation of qpos & qvel
@@ -203,6 +207,7 @@ class HalfCheetahCost(BatchAutoDiffCost):
     """Differentiable cost for the HalfCheetah-v2 Gym environment. Cost function
     is as in Gym, except using velocity variable directly rather than taking
     finite difference."""
+
     def __init__(self):
         def f(x, u, i, terminal):
             # x: (batch_size, 18), concatenation of qpos and qvel
@@ -219,12 +224,12 @@ class HalfCheetahCost(BatchAutoDiffCost):
 
 
 COSTS = {
-    'Reacher-v2': ReacherCost,
-    'InvertedPendulum-v2': InvertedPendulumCost,
-    'InvertedDoublePendulum-v2': InvertedDoublePendulumCost,
-    'Hopper-v2': HopperCost,
-    'Swimmer-v2': SwimmerCost,
-    'HalfCheetah-v2': HalfCheetahCost,
+    "Reacher-v2": ReacherCost,
+    "InvertedPendulum-v2": InvertedPendulumCost,
+    "InvertedDoublePendulum-v2": InvertedDoublePendulumCost,
+    "Hopper-v2": HopperCost,
+    "Swimmer-v2": SwimmerCost,
+    "HalfCheetah-v2": HalfCheetahCost,
 }
 
 

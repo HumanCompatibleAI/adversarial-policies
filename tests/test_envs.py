@@ -5,9 +5,11 @@ import pytest
 
 from aprl.envs import multi_agent
 
-spec_list = [spec
-             for spec in sorted(gym.envs.registration.registry.all(), key=lambda x: x.id)
-             if spec.id.startswith('aprl/') or spec.id.startswith('multicomp/')]
+spec_list = [
+    spec
+    for spec in sorted(gym.envs.registration.registry.all(), key=lambda x: x.id)
+    if spec.id.startswith("aprl/") or spec.id.startswith("multicomp/")
+]
 
 
 def make_env(spec, i=0):
@@ -46,27 +48,28 @@ def test_env(env_from_spec):
     ob_space = env_from_spec.observation_space
     act_space = env_from_spec.action_space
     ob = env_from_spec.reset()
-    assert ob_space.contains(ob), 'Reset observation: {!r} not in space'.format(ob)
+    assert ob_space.contains(ob), "Reset observation: {!r} not in space".format(ob)
     a = act_space.sample()
     ob, reward, done, _info = env_from_spec.step(a)
-    assert ob_space.contains(ob), 'Step observation: {!r} not in space'.format(ob)
+    assert ob_space.contains(ob), "Step observation: {!r} not in space".format(ob)
     assert isinstance(done, bool), "Expected {} to be a boolean".format(done)
 
-    if hasattr(env_from_spec, 'num_agents'):  # multi agent environment
+    if hasattr(env_from_spec, "num_agents"):  # multi agent environment
         assert len(reward) == env_from_spec.num_agents
-        assert isinstance(env_from_spec.observation_space, Tuple), 'Observations should be Tuples'
-        assert isinstance(env_from_spec.action_space, Tuple), 'Actions should be Tuples'
+        assert isinstance(env_from_spec.observation_space, Tuple), "Observations should be Tuples"
+        assert isinstance(env_from_spec.action_space, Tuple), "Actions should be Tuples"
         assert len(env_from_spec.observation_space.spaces) == env_from_spec.num_agents
         assert len(env_from_spec.action_space.spaces) == env_from_spec.num_agents
     else:
         assert np.isscalar(reward), "{} is not a scalar for {}".format(reward, env_from_spec)
 
-    for mode in env_from_spec.metadata.get('render.modes', []):
+    for mode in env_from_spec.metadata.get("render.modes", []):
         env_from_spec.render(mode=mode)
 
     # Make sure we can render the environment after close.
-    for mode in env_from_spec.metadata.get('render.modes', []):
+    for mode in env_from_spec.metadata.get("render.modes", []):
         env_from_spec.render(mode=mode)
+
 
 # Test VecMultiEnv classes
 
@@ -125,6 +128,6 @@ def test_vec_env(spec):
     env_fns = [lambda: make_env(spec, i) for i in range(4)]
     venv1 = multi_agent.make_dummy_vec_multi_env(env_fns)
     venv2 = multi_agent.make_subproc_vec_multi_env(env_fns)
-    is_multicomp = spec.id.startswith('multicomp/')
+    is_multicomp = spec.id.startswith("multicomp/")
     # Can't easily compare info dicts returned by multicomp/ environments, so just skip that check
     assert_envs_equal(venv1, venv2, 100, check_info=not is_multicomp)

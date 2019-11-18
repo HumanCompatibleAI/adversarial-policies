@@ -10,12 +10,13 @@ class ExpertDatasetFromOurFormat(ExpertDataset):
     for more information.
 
     By contrast, our format consists of a list of NumPy arrays, one for each episode."""
+
     def __init__(self, expert_path, **kwargs):
         traj_data = np.load(expert_path, allow_pickle=True)
 
         # Add in episode starts
         episode_starts = []
-        for reward_dict in traj_data['rewards']:
+        for reward_dict in traj_data["rewards"]:
             ep_len = len(reward_dict)
             # used to index episodes since they are flattened in GAIL format.
             ep_starts = [True] + [False] * (ep_len - 1)
@@ -23,10 +24,10 @@ class ExpertDatasetFromOurFormat(ExpertDataset):
 
         # Flatten arrays
         traj_data = {k: np.concatenate(v) for k, v in traj_data.items()}
-        traj_data['episode_starts'] = np.concatenate(episode_starts)
+        traj_data["episode_starts"] = np.concatenate(episode_starts)
 
         # Rename observations->obs
-        traj_data['obs'] = traj_data['observations']
-        del traj_data['observations']
+        traj_data["obs"] = traj_data["observations"]
+        del traj_data["observations"]
 
         super().__init__(traj_data=traj_data, **kwargs)

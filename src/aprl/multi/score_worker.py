@@ -28,12 +28,15 @@ def score_worker(base_config, tune_config, reporter):
     # We're breaking the Sacred interface by running an experiment from within another experiment.
     # This is the best thing we can do, since we need to run the experiment with varying configs.
     # Just be careful: this could easily break things.
-    observer = observers.FileStorageObserver(osp.join('data', 'sacred', 'score'))
+    observer = observers.FileStorageObserver(osp.join("data", "sacred", "score"))
     score_ex.observers.append(observer)
     run = score_ex.run(config_updates=config)
     index_keys = config.get("index_keys", [])
 
-    idx = {k: v for k, v in config.items()
-           if k.startswith('agent') or k == 'env_name' or k in index_keys}
+    idx = {
+        k: v
+        for k, v in config.items()
+        if k.startswith("agent") or k == "env_name" or k in index_keys
+    }
 
     reporter(done=True, score=run.result, idx=idx)

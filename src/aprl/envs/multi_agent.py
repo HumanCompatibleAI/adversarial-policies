@@ -20,6 +20,7 @@ class MultiAgentEnv(Env):
        however it's very convenient to have it interoperate with the rest of the
        Gym infrastructure, so we'll abuse this. Sadly there is still no standard
        for multi-agent environments in Gym, issue #934 is working on it."""
+
     def __init__(self, num_agents):
         self.num_agents = num_agents
         assert len(self.action_space.spaces) == num_agents
@@ -46,7 +47,7 @@ class MultiAgentEnv(Env):
 class MultiWrapper(Wrapper, MultiAgentEnv):
     def __init__(self, env):
         Wrapper.__init__(self, env)
-        MultiAgentEnv.__init__(self, getattr_unwrapped(env, 'num_agents'))
+        MultiAgentEnv.__init__(self, getattr_unwrapped(env, "num_agents"))
 
 
 class FakeSingleSpaces(gym.Env):
@@ -54,6 +55,7 @@ class FakeSingleSpaces(gym.Env):
        those of agent_id in a MultiEnv env. This is useful for functions that construct
        policy or reward networks given an environment. It will throw an error if reset,
        step or other methods are called."""
+
     def __init__(self, env, agent_id=0):
         self.observation_space = env.observation_space.spaces[agent_id]
         self.action_space = env.action_space.spaces[agent_id]
@@ -63,6 +65,7 @@ class FakeSingleSpacesVec(VecEnv):
     """VecEnv equivalent of FakeSingleSpaces.
     :param venv(VecMultiEnv)
     :return a dummy VecEnv instance."""
+
     def __init__(self, venv, agent_id=0):
         observation_space = venv.observation_space.spaces[agent_id]
         action_space = venv.action_space.spaces[agent_id]
@@ -96,6 +99,7 @@ class FlattenSingletonEnv(Wrapper):
     """Adapts a single-agent MultiAgentEnv into a standard Gym Env.
 
     This is typically used after first applying CurryEnv until there is only one agent left."""
+
     def __init__(self, env):
         """
         :param env: a MultiAgentEnv.
@@ -142,9 +146,12 @@ def flatten_space(tuple_space):
             sizes = [np.prod(space.shape) for space in tuple_space.spaces]
             start = np.cumsum(sizes)
             end = start[1:] + len(x)
-            orig = [np.reshape(x[s:e], space.shape)
-                    for s, e, space in zip(start, end, tuple_space.spaces)]
+            orig = [
+                np.reshape(x[s:e], space.shape)
+                for s, e, space in zip(start, end, tuple_space.spaces)
+            ]
             return orig
+
     else:
         raise NotImplementedError("Unsupported type: f{type}")
     return flat_space, flatten, unflatten
@@ -155,12 +162,13 @@ class FlattenMultiEnv(Wrapper):
 
     This can be used if you wish to perform centralized training and execution
     in a multi-agent RL environment."""
+
     def __init__(self, env, reward_agg=sum):
-        '''
+        """
         :param env(MultiAgentEnv): a MultiAgentEnv with any number of agents.
         :param reward_agg(list<float>->float): a function reducing a list of rewards.
         :return a single-agent Gym environment.
-        '''
+        """
         self.observation_space, self._obs_flatten, _ = flatten_space(env.observation_space)
         self.action_space, _, self._act_unflatten = flatten_space(env.action_space)
         self.reward_agg = reward_agg
@@ -181,10 +189,11 @@ class SingleToMulti(Wrapper, MultiAgentEnv):
     Consequently observations, actions and rewards are singleton tuples.
     The observation action spaces are singleton Tuple spaces.
     The info dict is nested inside an outer with key 0."""
+
     def __init__(self, env: gym.Env):
         Wrapper.__init__(self, env)
-        self.action_space = gym.spaces.Tuple((self.action_space, ))
-        self.observation_space = gym.spaces.Tuple((self.observation_space, ))
+        self.action_space = gym.spaces.Tuple((self.action_space,))
+        self.observation_space = gym.spaces.Tuple((self.observation_space,))
         MultiAgentEnv.__init__(self, num_agents=1)
 
     def step(self, action_n):
@@ -205,6 +214,7 @@ class VecMultiEnv(VecEnv):
        Observations and actions are a num_agents-length tuple, with the i'th entry of shape
        (num_envs, ) + {observation,action}_space.spaces[i].shape. Rewards are a ndarray of shape
        (num_agents, num_envs)."""
+
     def __init__(self, num_envs, num_agents, observation_space, action_space):
         VecEnv.__init__(self, num_envs, observation_space, action_space)
         self.num_agents = num_agents
@@ -212,14 +222,16 @@ class VecMultiEnv(VecEnv):
 
 class VecMultiWrapper(VecEnvWrapper, VecMultiEnv):
     """Like VecEnvWrapper but for VecMultiEnv's."""
+
     def __init__(self, venv):
         VecEnvWrapper.__init__(self, venv)
-        VecMultiEnv.__init__(self, venv.num_envs, venv.num_agents,
-                             venv.observation_space, venv.action_space)
+        VecMultiEnv.__init__(
+            self, venv.num_envs, venv.num_agents, venv.observation_space, venv.action_space
+        )
 
 
 def tuple_transpose(xs):
-    '''Permutes environment and agent dimension.
+    """Permutes environment and agent dimension.
 
     Specifically, VecMultiEnv has an agent-major convention: actions and observations are
     num_agents-length tuples, with the i'th element a num_env-length tuple containing an
@@ -230,7 +242,7 @@ def tuple_transpose(xs):
     a num_envs-length tuple each containing a num_agents-length tuple. In particular, this is the
     most natural internal representation for VecEnv, and is also convenient when sampling from
     the action or observation space of an environment.
-    '''
+    """
     inner_len = len(xs[0])
     for x in xs:
         assert len(x) == inner_len
@@ -258,6 +270,7 @@ def _make_vec_multi_env(cls):
     def f(*args, **kwargs):
         venv = cls(*args, **kwargs)
         return _ActionTranspose(venv)
+
     return f
 
 
@@ -265,25 +278,29 @@ class _DummyVecMultiEnv(DummyVecEnv, VecMultiEnv):
     """Like DummyVecEnv but implements VecMultiEnv interface.
        Handles the larger reward size.
        Note SubprocVecEnv works out of the box."""
+
     def __init__(self, env_fns):
         DummyVecEnv.__init__(self, env_fns)
-        num_agents = getattr_unwrapped(self.envs[0], 'num_agents')
-        VecMultiEnv.__init__(self, self.num_envs, num_agents,
-                             self.observation_space, self.action_space)
+        num_agents = getattr_unwrapped(self.envs[0], "num_agents")
+        VecMultiEnv.__init__(
+            self, self.num_envs, num_agents, self.observation_space, self.action_space
+        )
         self.buf_rews = np.zeros((self.num_envs, self.num_agents), dtype=np.float32)
 
 
 class _SubprocVecMultiEnv(SubprocVecEnv, VecMultiEnv):
     """Stand-in for SubprocVecEnv when applied to MultiEnv's."""
+
     def __init__(self, env_fns, start_method=None):
         if start_method is None:
-            start_method = 'forkserver'  # thread safe by default
+            start_method = "forkserver"  # thread safe by default
         SubprocVecEnv.__init__(self, env_fns, start_method=start_method)
         env = env_fns[0]()
-        num_agents = getattr_unwrapped(env, 'num_agents')
+        num_agents = getattr_unwrapped(env, "num_agents")
         env.close()
-        VecMultiEnv.__init__(self, self.num_envs, num_agents,
-                             self.observation_space, self.action_space)
+        VecMultiEnv.__init__(
+            self, self.num_envs, num_agents, self.observation_space, self.action_space
+        )
 
 
 # TODO: This code is extremely hacky. The best approach is probably to add native support for
@@ -332,6 +349,7 @@ def _tuple_space_augment(tuple_space, augment_idx, augment_space):
 class MergeAgentVecEnv(VecMultiWrapper):
     """Allows merging of two agents into a pseudo-agent by merging their actions.
        The observation space is augmented with the actions of the fixed policy."""
+
     def __init__(self, venv, policy, replace_action_space, merge_agent_idx, deterministic=False):
         """Expands one of the players in a VecMultiEnv.
         :param venv(VecMultiEnv): the environments.
@@ -343,12 +361,14 @@ class MergeAgentVecEnv(VecMultiWrapper):
         super().__init__(venv)
 
         assert venv.num_agents >= 1  # same as in CurryVecEnv
-        self.observation_space = _tuple_space_augment(self.observation_space, merge_agent_idx,
-                                                      self.action_space.spaces[merge_agent_idx])
+        self.observation_space = _tuple_space_augment(
+            self.observation_space, merge_agent_idx, self.action_space.spaces[merge_agent_idx]
+        )
         if replace_action_space.shape != self.action_space.spaces[merge_agent_idx].shape:
             raise ValueError("Replacement action space has different shape than original.")
-        self.action_space = _tuple_space_replace(self.action_space, merge_agent_idx,
-                                                 replace_action_space)
+        self.action_space = _tuple_space_replace(
+            self.action_space, merge_agent_idx, replace_action_space
+        )
 
         self._agent_to_merge = merge_agent_idx
         self._policy = policy
@@ -377,8 +397,9 @@ class MergeAgentVecEnv(VecMultiWrapper):
         """Augments observations[self._agent_to_merge] with action that self._policy would take
         given its observations. Keeps track of these variables to use in next timestep."""
         self._obs = observations[self._agent_to_merge]
-        policy_out = self._policy.predict(self._obs, state=self._state, mask=self._dones,
-                                          deterministic=self.deterministic)
+        policy_out = self._policy.predict(
+            self._obs, state=self._state, mask=self._dones, deterministic=self.deterministic
+        )
         self._action, self._state = policy_out
         new_obs = np.concatenate([self._obs, self._action], axis=1)
         return _tuple_replace(observations, self._agent_to_merge, new_obs)
@@ -388,6 +409,7 @@ class FlattenSingletonVecEnv(VecEnvWrapper):
     """Adapts a single-agent VecMultiEnv into a standard Baselines VecEnv.
 
     This is typically used after first applying CurryVecEnv until there is only one agent left."""
+
     def __init__(self, venv):
         """
         :param venv: a VecMultiEnv.

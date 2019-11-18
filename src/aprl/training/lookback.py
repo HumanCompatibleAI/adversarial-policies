@@ -6,19 +6,36 @@ import numpy as np
 from stable_baselines.common.vec_env import VecEnvWrapper
 
 from aprl.common.mujoco import MujocoState, ResettableEnv
-from aprl.envs.multi_agent import (FlattenSingletonVecEnv, MultiWrapper, make_dummy_vec_multi_env,
-                                   make_subproc_vec_multi_env)
+from aprl.envs.multi_agent import (
+    FlattenSingletonVecEnv,
+    MultiWrapper,
+    make_dummy_vec_multi_env,
+    make_subproc_vec_multi_env,
+)
 from aprl.envs.wrappers import make_env
 from aprl.policies.loader import load_policy
 from aprl.training.embedded_agents import TransparentCurryVecEnv
 
-LookbackTuple = namedtuple('LookbackTuple', ['venv', 'data'])
+LookbackTuple = namedtuple("LookbackTuple", ["venv", "data"])
 
 
 class LookbackRewardVecWrapper(VecEnvWrapper):
     """Retains information about episodes and rollouts for use in k-lookback whitebox attacks"""
-    def __init__(self, venv, env_name, use_debug, victim_index, victim_path, victim_type,
-                 transparent_params, lb_mul, lb_num, lb_path, lb_type):
+
+    def __init__(
+        self,
+        venv,
+        env_name,
+        use_debug,
+        victim_index,
+        victim_path,
+        victim_type,
+        transparent_params,
+        lb_mul,
+        lb_num,
+        lb_path,
+        lb_type,
+    ):
         super().__init__(venv)
         self.lb_num = lb_num
         self.lb_mul = lb_mul
@@ -27,20 +44,27 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         self.transparent_params = transparent_params
         self.victim_index = victim_index
 
-        self._policy = load_policy(lb_type, lb_path, self.venv.unwrapped, env_name,
-                                   1 - victim_index, transparent_params=None)
+        self._policy = load_policy(
+            lb_type,
+            lb_path,
+            self.venv.unwrapped,
+            env_name,
+            1 - victim_index,
+            transparent_params=None,
+        )
         self._action = None
         self._obs = None
         self._state = None
         self._new_lb_state = None
         self._dones = [False] * self.num_envs
         self.ep_lens = np.zeros(self.num_envs).astype(int)
-        self.lb_tuples = self._create_lb_tuples(env_name, use_debug, victim_index,
-                                                victim_path, victim_type)
+        self.lb_tuples = self._create_lb_tuples(
+            env_name, use_debug, victim_index, victim_path, victim_type
+        )
         self.use_debug = use_debug
         if self.use_debug:
             # create a debug file for this venv and also every lookback venv ordinally
-            self.debug_files = [open(f'debug{i}.pkl', 'wb') for i in range(self.lb_num + 1)]
+            self.debug_files = [open(f"debug{i}.pkl", "wb") for i in range(self.lb_num + 1)]
             self.get_debug_venv().set_debug_file(self.debug_files[0])
 
     def _create_lb_tuples(self, env_name, use_debug, victim_index, victim_path, victim_type):
@@ -51,9 +75,12 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         :param use_debug (bool): Use DummyVecEnv instead of SubprocVecEnv
         :return: (list<LookbackTuple>) lb_tuples
         """
+
         def env_fn(i):
-            return make_env(env_name, 0, i, out_dir='data/lookbacks/',
-                            pre_wrappers=[OldMujocoResettableWrapper])
+            return make_env(
+                env_name, 0, i, out_dir="data/lookbacks/", pre_wrappers=[OldMujocoResettableWrapper]
+            )
+
         lb_tuples = []
         for _ in range(self.lb_num):
             make_vec_env = make_dummy_vec_multi_env if use_debug else make_subproc_vec_multi_env
@@ -61,15 +88,21 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             if use_debug:
                 multi_venv = DebugVenv(multi_venv)
 
-            victim = load_policy(policy_path=victim_path, policy_type=victim_type, env=multi_venv,
-                                 env_name=env_name, index=victim_index,
-                                 transparent_params=self.transparent_params)
+            victim = load_policy(
+                policy_path=victim_path,
+                policy_type=victim_type,
+                env=multi_venv,
+                env_name=env_name,
+                index=victim_index,
+                transparent_params=self.transparent_params,
+            )
 
-            multi_venv = TransparentCurryVecEnv(venv=multi_venv, policy=victim,
-                                                agent_idx=victim_index, deterministic=True)
+            multi_venv = TransparentCurryVecEnv(
+                venv=multi_venv, policy=victim, agent_idx=victim_index, deterministic=True
+            )
 
             single_venv = FlattenSingletonVecEnv(multi_venv)
-            data_dict = {'state': None, 'action': None, 'info': defaultdict(dict)}
+            data_dict = {"state": None, "action": None, "info": defaultdict(dict)}
             lb_tuples.append(LookbackTuple(venv=single_venv, data=data_dict))
         return lb_tuples
 
@@ -86,23 +119,25 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         # synchronize the observation of the victim in the new lookback venv.
         # then, synchronize the mujoco state (qpos, qvel, qacc) for each individual env.
         self._sync_curry_venvs(new_lb_tuple, env_idx=None)
-        current_states = self.venv.unwrapped.env_method('get_state')
+        current_states = self.venv.unwrapped.env_method("get_state")
         for env_idx in range(self.num_envs):
-            new_lb_tuple.venv.unwrapped.env_method('set_state', current_states[env_idx],
-                                                   indices=env_idx, forward=False)
+            new_lb_tuple.venv.unwrapped.env_method(
+                "set_state", current_states[env_idx], indices=env_idx, forward=False
+            )
 
         # the state of the lookback policy in the new lookback venv is the one from having
         # always seen the most recent observation
-        lb_action, self._new_lb_state = self._policy.predict(self._obs, state=self._new_lb_state,
-                                                             mask=self._dones, deterministic=True)
-        new_lb_tuple.data['state'] = self._new_lb_state
+        lb_action, self._new_lb_state = self._policy.predict(
+            self._obs, state=self._new_lb_state, mask=self._dones, deterministic=True
+        )
+        new_lb_tuple.data["state"] = self._new_lb_state
         # step_async the new lookback venv's action
         new_lb_tuple.venv.step_async(lb_action)
 
         # for all of the other lookback venvs, step_async their cached action
         # which was calculated in step_wait -> _process_lb_data in the prior timestep.
         for i, lb_tuple in enumerate(self.lb_tuples[1:]):
-            lb_tuple.venv.step_async(lb_tuple.data['action'])
+            lb_tuple.venv.step_async(lb_tuple.data["action"])
 
         # finally, step_async our own actions.
         self.venv.step_async(actions)
@@ -125,13 +160,13 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
                 self._reset_lb_data(observations, env_idx)
 
             # cannot have more lookback venvs than timesteps taken in episode
-            valid_lb_tuples = self.lb_tuples[:self.ep_lens[env_idx]]
+            valid_lb_tuples = self.lb_tuples[: self.ep_lens[env_idx]]
             victim_info = infos[env_idx][self.victim_index]
             env_diff_reward = 0
 
             # lookback comparison loop
             for i, lb_tuple in enumerate(valid_lb_tuples):
-                lb_victim_info = lb_tuple.data['info'][env_idx][self.victim_index]
+                lb_victim_info = lb_tuple.data["info"][env_idx][self.victim_index]
                 # reward our agent for producing differences between our venv and lookbacks
                 for key in self.transparent_params:
                     diff_ff = victim_info[key] - lb_victim_info[key]  # typically ff_policy
@@ -155,8 +190,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         :return: None
         """
         self._obs = self._get_truncated_obs(observations)
-        self._action, self._state = self._policy.predict(self._obs, state=self._state,
-                                                         mask=self._dones, deterministic=True)
+        self._action, self._state = self._policy.predict(
+            self._obs, state=self._state, mask=self._dones, deterministic=True
+        )
 
     def _process_lb_data(self, lb_data):
         """Record action and state of lookback policy
@@ -168,15 +204,16 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             # prepare observation and state and then get next timestep's action and state
             lb_obs = self._get_truncated_obs(lb_obs)
             lb_tuple = self.lb_tuples[idx]
-            input_state = lb_tuple.data['state']
-            lb_action, lb_state = self._policy.predict(lb_obs, state=input_state,
-                                                       mask=self._dones, deterministic=True)
+            input_state = lb_tuple.data["state"]
+            lb_action, lb_state = self._policy.predict(
+                lb_obs, state=input_state, mask=self._dones, deterministic=True
+            )
 
             # update lb_tuple[idx].data since this data will be used elsewhere
-            lb_tuple.data['action'] = lb_action
-            lb_tuple.data['state'] = lb_state
+            lb_tuple.data["action"] = lb_action
+            lb_tuple.data["state"] = lb_state
             for env_idx in range(self.num_envs):
-                lb_tuple.data['info'][env_idx].update(lb_info[env_idx])
+                lb_tuple.data["info"][env_idx].update(lb_info[env_idx])
 
     def _reset_lb_data(self, initial_observations, env_idx=None):
         """Reset lb_venv states when self.venv resets. Also reset data for baseline policy.
@@ -195,15 +232,15 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             if env_idx is None:
                 # this branch is only called in self.reset()
                 lb_tuple.venv.reset()
-                lb_tuple.data['action'] = action
-                lb_tuple.data['state'] = state
+                lb_tuple.data["action"] = action
+                lb_tuple.data["state"] = state
             else:
                 # this gets called when an episode ends in one of the environments
-                lb_tuple.data['action'][env_idx] = action[env_idx]
+                lb_tuple.data["action"][env_idx] = action[env_idx]
                 if state is None:
-                    lb_tuple.data['state'] = None
+                    lb_tuple.data["state"] = None
                 else:
-                    lb_tuple.data['state'][env_idx, :, :] = state[env_idx, :, :]
+                    lb_tuple.data["state"][env_idx, :, :] = state[env_idx, :, :]
 
             # synchronize environment states
             self._sync_curry_venvs(lb_tuple, env_idx)
@@ -211,9 +248,9 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
             for i, env_to_set in enumerate(envs_iter):
                 lb_venv = lb_tuple.venv.unwrapped
                 if radii is not None:
-                    lb_venv.env_method('set_radius', radii[i], indices=env_to_set)
-                lb_venv.env_method('set_state', mj_states[i], indices=env_to_set, forward=False)
-                lb_venv.env_method('set_sim_data', sim_data[i], indices=env_to_set)
+                    lb_venv.env_method("set_radius", radii[i], indices=env_to_set)
+                lb_venv.env_method("set_state", mj_states[i], indices=env_to_set, forward=False)
+                lb_venv.env_method("set_sim_data", sim_data[i], indices=env_to_set)
 
     def _sync_curry_venvs(self, lb_tuple, env_idx):
         """Synchronize observation of victim in lookback CurryVecEnv to that of our own victim."""
@@ -222,7 +259,7 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
 
     def _get_truncated_obs(self, obs):
         """Truncate the observation given to self._policy if we are using adversarial noise ball"""
-        return obs[:, :self._policy.observation_space.shape[0]]
+        return obs[:, : self._policy.observation_space.shape[0]]
 
     def _get_all_mujoco_state_data(self, env_idx):
         """Get qpos+qvel state, full MjData dictionary and environment radius if applicable
@@ -231,11 +268,11 @@ class LookbackRewardVecWrapper(VecEnvWrapper):
         :param env_idx (int, None) indices of environments to get data from
         :return: (list<[float]>, list<dict>, list<float> or None) mj_states, sim_data, radii
         """
-        env_methods = ['get_state', 'get_sim_data']
+        env_methods = ["get_state", "get_sim_data"]
         base_venv = self.venv.unwrapped
         all_data = [base_venv.env_method(s, indices=env_idx) for s in env_methods]
         try:
-            all_data.append(base_venv.env_method('get_radius', indices=env_idx))
+            all_data.append(base_venv.env_method("get_radius", indices=env_idx))
         except AttributeError:
             # this environment doesn't have a radius
             all_data.append(None)
@@ -249,6 +286,7 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
 
     Specifically designed to handle getting and setting states with Mujoco 1.31 / mujoco_py 0.5.7
     Note all MuJoCo environments are resettable."""
+
     def __init__(self, env):
         """Wraps a MujocoEnv, adding get_state and set_state methods.
         :param env: a MujocoEnv."""
@@ -261,8 +299,8 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
         :return: (dict<str, [float]) state_dict
         """
         state_dict = {}
-        for k, v in type(self.sim.data._wrapped.contents).__dict__['_fields_']:
-            if k not in ['contact', 'buffer']:
+        for k, v in type(self.sim.data._wrapped.contents).__dict__["_fields_"]:
+            if k not in ["contact", "buffer"]:
                 state_dict[k] = getattr(self.sim.data, k)
         return state_dict
 
@@ -271,7 +309,7 @@ class OldMujocoResettableWrapper(ResettableEnv, MultiWrapper):
 
         :return: (float) radius
         """
-        if hasattr(self.env.unwrapped, 'RADIUS'):
+        if hasattr(self.env.unwrapped, "RADIUS"):
             return self.env.unwrapped.RADIUS
         else:
             return None
@@ -323,6 +361,7 @@ class DebugVenv(VecEnvWrapper):
     :param venv (VecEnv) the environment to wrap
     :param dump_mujoco_state (bool) whether to dump all MjData information (memory intensive)
     """
+
     def __init__(self, venv, dump_mujoco_state=False):
         super().__init__(venv)
         self.num_agents = self.venv.num_agents
@@ -331,11 +370,11 @@ class DebugVenv(VecEnvWrapper):
         self.debug_dict = {}
 
     def step_async(self, actions):
-        self.debug_dict['actions'] = actions
+        self.debug_dict["actions"] = actions
         if self.dump_mujoco_state:
             state_data = self.unwrapped.envs[0].env.sim.data
-            fields = type(state_data._wrapped.contents).__dict__['_fields_']
-            keys = [t[0] for t in fields if t[0] != 'contact']
+            fields = type(state_data._wrapped.contents).__dict__["_fields_"]
+            keys = [t[0] for t in fields if t[0] != "contact"]
             for k in keys:
                 val = getattr(state_data, k)
                 if isinstance(val, np.ndarray) and val.size > 0:
@@ -346,7 +385,7 @@ class DebugVenv(VecEnvWrapper):
     def step_wait(self):
         obs, rew, dones, infos = self.venv.step_wait()
         if self.debug_file is not None:
-            self.debug_dict.update({'next_obs': obs, 'rewards': rew})
+            self.debug_dict.update({"next_obs": obs, "rewards": rew})
             pickle.dump(self.debug_dict, self.debug_file)
         self.debug_dict = {}
         return obs, rew, dones, infos
@@ -354,7 +393,7 @@ class DebugVenv(VecEnvWrapper):
     def reset(self):
         observations = self.venv.reset()
         if self.debug_file is not None:
-            self.debug_dict['prev_obs'] = observations
+            self.debug_dict["prev_obs"] = observations
         return observations
 
     def set_debug_file(self, f):
