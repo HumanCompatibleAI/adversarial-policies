@@ -80,7 +80,7 @@ jobs:
           name: run tests
           command: |
             pytest --cov=venv/lib/python3.7/site-packages/aprl --cov=tests \
-                   --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
+                   --junitxml=/tmp/test-reports/junit.xml \
                    --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
                     -n ${NUM_CPUS} -vv tests/
             mv .coverage .coverage.aprl
