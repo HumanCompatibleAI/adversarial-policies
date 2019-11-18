@@ -24,7 +24,7 @@ commands:
       # Download and cache dependencies
       - restore_cache:
           keys:
-            - v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
+            - v1-dependencies-{{ checksum "requirements-build.txt" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
       - run:
           name: install dependencies
@@ -33,12 +33,14 @@ commands:
           command: |
             curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
             md5sum /root/.mujoco/mjkey.txt
-            USE_MPI=True ./ci/build_venv.sh
+            # Only create venv if it's not been restored from cache
+            [[ -d venv ]] || USE_MPI=True ./ci/build_venv.sh
             python -c "import mujoco_py"
+
       - save_cache:
           paths:
             - ./venv
-          key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
+          key: v1-dependencies-{{ checksum "requirements-build.txt" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
       - run:
           name: install adversarial-policies
