@@ -80,7 +80,7 @@ jobs:
           name: run tests
           command: |
             # Some tests need to render, set up headless X
-            nohup /adversarial-policies/vendor/Xdummy 2>&1 >/dev/null&
+            nohup Xdummy 2>&1 >/dev/null&
             export DISPLAY=:0
             pytest --cov=venv/lib/python3.7/site-packages/aprl --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml \
