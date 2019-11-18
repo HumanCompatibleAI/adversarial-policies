@@ -46,6 +46,7 @@ commands:
           name: install adversarial-policies
           # Build a wheel then install to avoid copying whole directory (pip issue #2195)
           command: |
+            . ./venv/bin/activate
             python setup.py sdist bdist_wheel
             pip install --upgrade dist/aprl-*.whl
 jobs:
@@ -65,10 +66,6 @@ jobs:
       - run:
           name: codespell
           command: codespell -I .codespell.skip --skip='*.pyc' ${SRC_FILES}
-
-      - run:
-          name: pylint
-          command: pylint -j ${NUM_CPUS} ${SRC_FILES}
 
       - run:
           name: pytype

@@ -7,7 +7,6 @@ flake8-builtins
 flake8-debugger
 flake8-isort
 isort
-pylint
 pytype
 pytest
 pytest-cov
