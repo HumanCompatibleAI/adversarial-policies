@@ -4,12 +4,12 @@ import os
 import pickle
 import pkgutil
 
+from gym_compete import policy
 import tensorflow as tf
 
 from aprl.common.utils import make_session
 from aprl.envs import multi_agent
 from aprl.policies import base, transparent
-from gym_compete import policy
 
 pylog = logging.getLogger("aprl.envs.gym_compete")
 
