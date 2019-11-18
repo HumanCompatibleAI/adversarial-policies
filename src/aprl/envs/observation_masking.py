@@ -1,9 +1,10 @@
 import functools
 
 from gym.envs import registration
+import numpy as np
+
 from gym_compete.new_envs.agents.agent import Agent
 from gym_compete.new_envs.multi_agent_env import MultiAgentEnv
-import numpy as np
 
 
 def make_mask_from_class(cls):

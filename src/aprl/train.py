@@ -154,9 +154,9 @@ def _stable(
     last_checkpoint = 0
     last_log = 0
 
-    def callback(locals, globals):
+    def callback(local_vars, global_vars):
         nonlocal last_checkpoint, last_log
-        step = locals[callback_key] * callback_mul
+        step = local_vars[callback_key] * callback_mul
         if step - checkpoint_interval > last_checkpoint:
             checkpoint_dir = osp.join(out_dir, "checkpoint", f"{step:012}")
             _save(model, checkpoint_dir, save_callbacks)
@@ -164,7 +164,7 @@ def _stable(
 
         if step - log_interval > last_log:
             for f in log_callbacks:
-                f(logger, locals, globals)
+                f(logger, local_vars, global_vars)
             last_log = step
 
         return True  # keep training
