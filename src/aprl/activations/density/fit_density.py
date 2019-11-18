@@ -70,7 +70,7 @@ class PCAPreDensity(object):
         self.density_obj.fit(reduced_representation)
 
     def score_samples(self, X):
-        """Performs PCA transformation on X, and then scores samples using wraped density model."""
+        """Performs PCA transformation on X, then scores samples using wrapped density model."""
         reduced_test_representation = self.pca_obj.transform(X)
         return self.density_obj.score_samples(reduced_test_representation)
 

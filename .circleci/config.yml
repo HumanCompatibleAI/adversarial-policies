@@ -65,7 +65,7 @@ jobs:
 
       - run:
           name: codespell
-          command: codespell -I .codespell.skip --skip='*.pyc' ${SRC_FILES}
+          command: codespell -I .codespell.skip --skip='*.pyc,*.pkl,*.npz' ${SRC_FILES}
 
       - run:
           name: pytype
