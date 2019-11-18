@@ -76,10 +76,24 @@ jobs:
       - dependencies
 
       - run:
+          name: Memory Monitor
+          command: |
+            export FILE=/tmp/resource-usage/memory.txt
+            while true; do
+              ps -u ubuntu eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE
+              echo "----------" >> $FILE
+              sleep 1
+            done
+          background: true
+
+      - run:
+          name: Headless X Server
+          command: nohup Xdummy
+          background: true
+
+      - run:
           name: run tests
           command: |
-            # Some tests need to render, set up headless X
-            nohup Xdummy 2>&1 >/dev/null&
             export DISPLAY=:0
             pytest --cov=venv/lib/python3.7/site-packages/aprl --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml \
@@ -95,6 +109,9 @@ jobs:
       - store_test_results:
           path: /tmp/test-reports
           unit-test:
+      - store_artifacts:
+          path: /tmp/resource-usage
+          destination: resource-usage
 
 workflows:
   version: 2
