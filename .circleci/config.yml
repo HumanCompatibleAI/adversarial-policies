@@ -79,6 +79,9 @@ jobs:
       - run:
           name: run tests
           command: |
+            # Some tests need to render, set up headless X
+            nohup /adversarial-policies/vendor/Xdummy 2>&1 >/dev/null&
+            export DISPLAY=:0
             pytest --cov=venv/lib/python3.7/site-packages/aprl --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml \
                    --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
