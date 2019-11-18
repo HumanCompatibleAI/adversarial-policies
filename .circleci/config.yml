@@ -12,7 +12,6 @@ executors:
       # If you change these, also change scripts/code_checks.sh
       SRC_FILES: src/ tests/ setup.py
       TYPECHECK_FILES: src/ tests/ setup.py
-      NUM_CPUS: 2  # more CPUs visible but we're throttled to 2, which breaks auto-detect
 
 commands:
   dependencies:
@@ -85,7 +84,7 @@ jobs:
             pytest --cov=venv/lib/python3.7/site-packages/aprl --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml \
                    --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
-                    -n ${NUM_CPUS} -vv tests/
+                    -vv tests/
             mv .coverage .coverage.aprl
             coverage combine  # rewrite paths from virtualenv to src/
       - codecov/upload
