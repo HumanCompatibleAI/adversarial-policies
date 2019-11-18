@@ -11,16 +11,21 @@ import tensorflow as tf
 
 from aprl.envs.gym_compete import load_zoo_agent
 from aprl.envs.multi_agent import FakeSingleSpacesVec
-from aprl.policies.base import (ModelWrapper, OpenAIToStablePolicy, PolicyToModel, RandomPolicy,
-                                ZeroPolicy)
+from aprl.policies.base import (
+    ModelWrapper,
+    OpenAIToStablePolicy,
+    PolicyToModel,
+    RandomPolicy,
+    ZeroPolicy,
+)
 
-pylog = logging.getLogger('aprl.policy_loader')
+pylog = logging.getLogger("aprl.policy_loader")
 
 
 class NormalizeModel(ModelWrapper):
-    def __init__(self,
-                 model: stable_baselines.common.base_class.BaseRLModel,
-                 vec_normalize: VecNormalize):
+    def __init__(
+        self, model: stable_baselines.common.base_class.BaseRLModel, vec_normalize: VecNormalize
+    ):
         super().__init__(model=model)
         self.vec_normalize = vec_normalize
 
@@ -61,33 +66,40 @@ def load_old_ppo2(root_dir, env, env_name, index, transparent_params):
         raise ImportError(msg)
 
     denv = FakeSingleSpacesVec(env, agent_id=index)
-    possible_fnames = ['model.pkl', 'final_model.pkl']
+    possible_fnames = ["model.pkl", "final_model.pkl"]
     model_path = None
     for fname in possible_fnames:
         candidate_path = os.path.join(root_dir, fname)
         if os.path.exists(candidate_path):
             model_path = candidate_path
     if model_path is None:
-        raise FileNotFoundError(f"Could not find model at '{root_dir}' "
-                                f"under any filename '{possible_fnames}'")
+        raise FileNotFoundError(
+            f"Could not find model at '{root_dir}' " f"under any filename '{possible_fnames}'"
+        )
 
     graph = tf.Graph()
     sess = tf.Session(graph=graph)
     with sess.as_default():
         with graph.as_default():
             pylog.info(f"Loading Baselines PPO2 policy from '{model_path}'")
-            policy = ppo2_old.learn(network="mlp", env=denv,
-                                    total_timesteps=1, seed=0,
-                                    nminibatches=4, log_interval=1, save_interval=1,
-                                    load_path=model_path)
-    stable_policy = OpenAIToStablePolicy(policy,
-                                         ob_space=denv.observation_space,
-                                         ac_space=denv.action_space)
+            policy = ppo2_old.learn(
+                network="mlp",
+                env=denv,
+                total_timesteps=1,
+                seed=0,
+                nminibatches=4,
+                log_interval=1,
+                save_interval=1,
+                load_path=model_path,
+            )
+    stable_policy = OpenAIToStablePolicy(
+        policy, ob_space=denv.observation_space, ac_space=denv.action_space
+    )
     model = PolicyToModel(stable_policy)
 
     try:
-        normalize_path = os.path.join(root_dir, 'normalize.pkl')
-        with open(normalize_path, 'rb') as f:
+        normalize_path = os.path.join(root_dir, "normalize.pkl")
+        with open(normalize_path, "rb") as f:
             old_vec_normalize = pickle.load(f)
         vec_normalize = VecNormalize(denv, training=False)
         vec_normalize.obs_rms = old_vec_normalize.ob_rms
@@ -119,21 +131,22 @@ def mpi_unavailable_error(*args, **kwargs):
 
 # Lazy import for PPO1 and SAC, which have optional mpi dependency
 AGENT_LOADERS = {
-    'zoo': load_zoo_agent,
-    'ppo2': load_stable_baselines(stable_baselines.PPO2),
-    'old_ppo2': load_old_ppo2,
-    'zero': load_zero,
-    'random': load_random,
+    "zoo": load_zoo_agent,
+    "ppo2": load_stable_baselines(stable_baselines.PPO2),
+    "old_ppo2": load_old_ppo2,
+    "zero": load_zero,
+    "random": load_random,
 }
 
 try:
     # MPI algorithms -- only visible if mpi4py installed
     from stable_baselines import PPO1, SAC
-    AGENT_LOADERS['ppo1'] = load_stable_baselines(PPO1)
-    AGENT_LOADERS['sac'] = load_stable_baselines(SAC)
+
+    AGENT_LOADERS["ppo1"] = load_stable_baselines(PPO1)
+    AGENT_LOADERS["sac"] = load_stable_baselines(SAC)
 except ImportError:
-    AGENT_LOADERS['ppo1'] = mpi_unavailable_error
-    AGENT_LOADERS['sac'] = mpi_unavailable_error
+    AGENT_LOADERS["ppo1"] = mpi_unavailable_error
+    AGENT_LOADERS["sac"] = mpi_unavailable_error
 
 
 def load_policy(policy_type, policy_path, env, env_name, index, transparent_params=None):
@@ -148,17 +161,18 @@ def load_backward_compatible_model(cls, root_dir, denv=None, **kwargs):
     which still expect modelfree.* to exist.
     """
     import aprl.training.scheduling  # noqa: F401
+
     mock_modules = {
-        'modelfree': 'aprl',
-        'modelfree.scheduling': 'aprl.training.scheduling',
-        'modelfree.training.scheduling': 'aprl.training.scheduling',
+        "modelfree": "aprl",
+        "modelfree.scheduling": "aprl.training.scheduling",
+        "modelfree.training.scheduling": "aprl.training.scheduling",
     }
     for old, new in mock_modules.items():
         sys.modules[old] = sys.modules[new]
-    if 'env' in kwargs:
-        denv = kwargs['env']
-        del kwargs['env']
-    model_path = os.path.join(root_dir, 'model.pkl')
+    if "env" in kwargs:
+        denv = kwargs["env"]
+        del kwargs["env"]
+    model_path = os.path.join(root_dir, "model.pkl")
     model = cls.load(model_path, env=denv, **kwargs)
     for old in mock_modules:
         del sys.modules[old]

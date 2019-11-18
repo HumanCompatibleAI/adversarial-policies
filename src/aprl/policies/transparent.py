@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from aprl.envs.wrappers import _filter_dict
 
-TRANSPARENCY_KEYS = set(['obs', 'ff_policy', 'ff_value', 'hid'])
+TRANSPARENCY_KEYS = set(["obs", "ff_policy", "ff_value", "hid"])
 
 
 class TransparentPolicy(ABC):
@@ -18,6 +18,7 @@ class TransparentPolicy(ABC):
            If key is present, that data will be included in the transparency_dict
            returned in step_transparent.
     """
+
     def __init__(self, transparent_params):
         if transparent_params is None:
             transparent_params = set()
@@ -38,21 +39,52 @@ class TransparentPolicy(ABC):
             """Turn a list of activations into one array with shape (num_env,) + action_space"""
             return np.squeeze(np.concatenate(acts))
 
-        transparency_dict = {'obs': obs, 'hid': hid,
-                             'ff_policy': consolidate(ff['policy']),
-                             'ff_value': consolidate(ff['value'])}
+        transparency_dict = {
+            "obs": obs,
+            "hid": hid,
+            "ff_policy": consolidate(ff["policy"]),
+            "ff_value": consolidate(ff["value"]),
+        }
         transparency_dict = _filter_dict(transparency_dict, self.transparent_params)
         return transparency_dict
 
 
 class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
     """stable_baselines FeedForwardPolicy which is also transparent."""
-    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
-                 reuse=False, layers=None, net_arch=None, act_fun=tf.tanh,
-                 cnn_extractor=nature_cnn, feature_extraction="cnn", **kwargs):
-        FeedForwardPolicy.__init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
-                                   layers, net_arch, act_fun, cnn_extractor, feature_extraction,
-                                   **kwargs)
+
+    def __init__(
+        self,
+        sess,
+        ob_space,
+        ac_space,
+        n_env,
+        n_steps,
+        n_batch,
+        transparent_params,
+        reuse=False,
+        layers=None,
+        net_arch=None,
+        act_fun=tf.tanh,
+        cnn_extractor=nature_cnn,
+        feature_extraction="cnn",
+        **kwargs,
+    ):
+        FeedForwardPolicy.__init__(
+            self,
+            sess,
+            ob_space,
+            ac_space,
+            n_env,
+            n_steps,
+            n_batch,
+            reuse,
+            layers,
+            net_arch,
+            act_fun,
+            cnn_extractor,
+            feature_extraction,
+            **kwargs,
+        )
         TransparentPolicy.__init__(self, transparent_params)
 
     def step_transparent(self, obs, state=None, mask=None, deterministic=False):
@@ -64,8 +96,27 @@ class TransparentFeedForwardPolicy(TransparentPolicy, FeedForwardPolicy):
 
 
 class TransparentMlpPolicy(TransparentFeedForwardPolicy):
-    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, transparent_params,
-                 reuse=False, **_kwargs):
-        super(TransparentMlpPolicy, self).__init__(sess, ob_space, ac_space, n_env, n_steps,
-                                                   n_batch, transparent_params, reuse,
-                                                   feature_extraction="mlp", **_kwargs)
+    def __init__(
+        self,
+        sess,
+        ob_space,
+        ac_space,
+        n_env,
+        n_steps,
+        n_batch,
+        transparent_params,
+        reuse=False,
+        **_kwargs,
+    ):
+        super(TransparentMlpPolicy, self).__init__(
+            sess,
+            ob_space,
+            ac_space,
+            n_env,
+            n_steps,
+            n_batch,
+            transparent_params,
+            reuse,
+            feature_extraction="mlp",
+            **_kwargs,
+        )

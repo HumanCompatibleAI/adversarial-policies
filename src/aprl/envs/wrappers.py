@@ -15,6 +15,7 @@ from aprl.envs.multi_agent import SingleToMulti, VecMultiWrapper
 
 class VideoWrapper(Wrapper):
     """Creates videos from wrapped environment by called render after each timestep."""
+
     def __init__(self, env, directory, single_video=True):
         """
 
@@ -35,16 +36,18 @@ class VideoWrapper(Wrapper):
 
         # Make sure to not put multiple different runs in the same directory,
         # if the directory already exists
-        error_msg = "You're trying to use the same directory twice, " \
-                    "this would result in files being overwritten"
+        error_msg = (
+            "You're trying to use the same directory twice, "
+            "this would result in files being overwritten"
+        )
         assert not os.path.exists(self.directory), error_msg
         os.makedirs(self.directory, exist_ok=True)
 
     def _step(self, action):
         obs, rew, done, info = self.env.step(action)
         if done:
-            winners = [i for i, d in info.items() if 'winner' in d]
-            metadata = {'winners': winners}
+            winners = [i for i, d in info.items() if "winner" in d]
+            metadata = {"winners": winners}
             self.video_recorder.metadata.update(metadata)
         self.video_recorder.capture_frame()
         return obs, rew, done, info
@@ -69,8 +72,8 @@ class VideoWrapper(Wrapper):
             # No video recorder -- start a new one.
             self.video_recorder = VideoRecorder(
                 env=self.env,
-                base_path=osp.join(self.directory, 'video.{:06}'.format(self.episode_id)),
-                metadata={'episode_id': self.episode_id},
+                base_path=osp.join(self.directory, "video.{:06}".format(self.episode_id)),
+                metadata={"episode_id": self.episode_id},
             )
 
     def _close(self):
@@ -124,8 +127,9 @@ class TrajectoryRecorder(VecMultiWrapper):
         self.env_keys = env_keys
         self.info_keys = info_keys
 
-        self.traj_dicts = [[defaultdict(list) for _ in range(self.num_envs)]
-                           for _ in self.agent_indices]
+        self.traj_dicts = [
+            [defaultdict(list) for _ in range(self.num_envs)] for _ in self.agent_indices
+        ]
         self.full_traj_dicts = [defaultdict(list) for _ in self.agent_indices]
         self.prev_obs = None
         self.actions = None
@@ -176,9 +180,9 @@ class TrajectoryRecorder(VecMultiWrapper):
         :return: None
         """
         env_data = {
-            'observations': prev_obs,
-            'actions': actions,
-            'rewards': rewards,
+            "observations": prev_obs,
+            "actions": actions,
+            "rewards": rewards,
         }
         env_data = _filter_dict(env_data, self.env_keys)
 
@@ -197,8 +201,8 @@ class TrajectoryRecorder(VecMultiWrapper):
                 agent_dicts[env_idx][key].append(val)
 
             if dones[env_idx]:
-                ep_ret = sum(agent_dicts[env_idx]['rewards'])
-                self.full_traj_dicts[dict_idx]['episode_returns'].append(np.array([ep_ret]))
+                ep_ret = sum(agent_dicts[env_idx]["rewards"])
+                self.full_traj_dicts[dict_idx]["episode_returns"].append(np.array([ep_ret]))
 
                 for key, val in agent_dicts[env_idx].items():
                     # consolidate episode data and append to long-term data dict
@@ -222,7 +226,7 @@ class TrajectoryRecorder(VecMultiWrapper):
             agent_dicts = self.full_traj_dicts[dict_idx]
             dump_dict = {k: np.asarray(v) for k, v in agent_dicts.items()}
 
-            save_path = os.path.join(save_dir, f'agent_{agent_idx}.npz')
+            save_path = os.path.join(save_dir, f"agent_{agent_idx}.npz")
             np.savez(save_path, **dump_dict)
             save_paths.append(save_path)
         return save_paths
@@ -276,8 +280,16 @@ def _apply_wrappers(wrappers, multi_env):
     return multi_env
 
 
-def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrappers=None, post_wrappers=None,
-             agent_wrappers=None):
+def make_env(
+    env_name,
+    seed,
+    i,
+    out_dir,
+    our_idx=None,
+    pre_wrappers=None,
+    post_wrappers=None,
+    agent_wrappers=None,
+):
     multi_env = gym.make(env_name)
 
     if agent_wrappers is not None:
@@ -286,13 +298,13 @@ def make_env(env_name, seed, i, out_dir, our_idx=None, pre_wrappers=None, post_w
 
     multi_env = _apply_wrappers(pre_wrappers, multi_env)
 
-    if not hasattr(multi_env, 'num_agents'):
+    if not hasattr(multi_env, "num_agents"):
         multi_env = SingleToMulti(multi_env)
 
     if out_dir is not None:
-        mon_dir = osp.join(out_dir, 'mon')
+        mon_dir = osp.join(out_dir, "mon")
         os.makedirs(mon_dir, exist_ok=True)
-        multi_env = MultiMonitor(multi_env, osp.join(mon_dir, 'log{}'.format(i)), our_idx)
+        multi_env = MultiMonitor(multi_env, osp.join(mon_dir, "log{}".format(i)), our_idx)
 
     multi_env = _apply_wrappers(post_wrappers, multi_env)
 

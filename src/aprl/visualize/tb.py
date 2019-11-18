@@ -10,15 +10,15 @@ import traceback
 
 import tensorflow as tf
 
-logger = logging.getLogger('aprl.visualize.tb')
+logger = logging.getLogger("aprl.visualize.tb")
 
 
 def find_tfevents(log_dir):
     result = []
     for root, dirs, files in os.walk(log_dir, followlinks=True):
-        if root.endswith('rl/tb'):
+        if root.endswith("rl/tb"):
             for name in files:
-                if fnmatch.fnmatch(name, 'events.out.tfevents.*'):
+                if fnmatch.fnmatch(name, "events.out.tfevents.*"):
                     result.append(os.path.join(root, name))
     return result
 
@@ -33,7 +33,7 @@ def read_events_file(events_filename, keys=None):
     events = []
     try:
         for event in tf.train.summary_iterator(events_filename):
-            row = {'wall_time': event.wall_time, 'step': event.step}
+            row = {"wall_time": event.wall_time, "step": event.step}
             for value in event.summary.value:
                 if keys is not None and value.tag not in keys:
                     continue
@@ -45,8 +45,8 @@ def read_events_file(events_filename, keys=None):
 
 
 def read_sacred_config(exp_root, kind):
-    sacred_config_path = os.path.join(exp_root, 'data', 'sacred', kind, '1', 'config.json')
-    with open(sacred_config_path, 'r') as f:
+    sacred_config_path = os.path.join(exp_root, "data", "sacred", kind, "1", "config.json")
+    with open(sacred_config_path, "r") as f:
         return json.load(f)
 
 
@@ -63,8 +63,9 @@ def load_tb_data(log_dir, keys=None):
             events_by_dir[exp_root] = []
         events_by_dir[exp_root] += events
 
-    config_by_dir = {dirname: read_sacred_config(dirname, 'train')
-                     for dirname in events_by_dir.keys()}
+    config_by_dir = {
+        dirname: read_sacred_config(dirname, "train") for dirname in events_by_dir.keys()
+    }
 
     return config_by_dir, events_by_dir
 
@@ -74,11 +75,7 @@ def split_by_keys(configs, events, keys):
     for dirname, config in configs.items():
         event = events[dirname]
         cfg_vals = tuple(config[k] for k in keys)
-        res[cfg_vals].append({
-            'dir': dirname,
-            'config': config,
-            'events': event,
-        })
+        res[cfg_vals].append({"dir": dirname, "config": config, "events": event})
     return res
 
 

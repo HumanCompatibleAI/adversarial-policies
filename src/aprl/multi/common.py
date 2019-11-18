@@ -25,10 +25,10 @@ from aprl.common import utils
 def _detect_ec2():
     """Auto-detect if we are running on EC2."""
     try:
-        EC2_ID_URL = 'http://169.254.169.254/latest/dynamic/instance-identity/document'
+        EC2_ID_URL = "http://169.254.169.254/latest/dynamic/instance-identity/document"
         with urllib.request.urlopen(EC2_ID_URL, timeout=3) as f:
             response = f.read().decode()
-            if 'availabilityZone' in response:
+            if "availabilityZone" in response:
                 return True
             else:
                 raise ValueError(f"Received unexpected response from '{EC2_ID_URL}'")
@@ -42,30 +42,36 @@ def _rsync_func(local_dir, remote_uri):
     # If we instead specified a shell command, ray.tune._LogSyncer would run it asynchronously.
     # But we need to do a two-stage command, creating the directories first, because rsync will
     # balk if destination directory does not exist; so no easy way to do that.
-    remote_host, ssh_key, *remainder = remote_uri.split(':')
-    remote_dir = ':'.join(remainder)  # remote directory may contain :
+    remote_host, ssh_key, *remainder = remote_uri.split(":")
+    remote_dir = ":".join(remainder)  # remote directory may contain :
     remote_dir = shlex.quote(remote_dir)  # make safe for SSH/rsync call
 
-    ssh_command = ['ssh', '-o', 'StrictHostKeyChecking=no', '-i', ssh_key]
-    ssh_mkdir = ssh_command + [remote_host, 'mkdir', '-p', remote_dir]
+    ssh_command = ["ssh", "-o", "StrictHostKeyChecking=no", "-i", ssh_key]
+    ssh_mkdir = ssh_command + [remote_host, "mkdir", "-p", remote_dir]
     subprocess.run(ssh_mkdir, check=True)
 
-    rsync = ['rsync', '-rlptv', '-e', ' '.join(ssh_command),
-             f'{local_dir}/', f'{remote_host}:{remote_dir}']
+    rsync = [
+        "rsync",
+        "-rlptv",
+        "-e",
+        " ".join(ssh_command),
+        f"{local_dir}/",
+        f"{remote_host}:{remote_dir}",
+    ]
     subprocess.run(rsync)
 
 
 def make_sacred(ex, worker_name, worker_fn):
     @ex.config
     def default_config():
-        spec = {}             # Ray spec
-        platform = None       # hosting: 'baremetal' or 'ec2'
-        s3_bucket = None      # results storage on 'ec2' platform
-        baremetal = {}        # config options for 'baremetal' platform
+        spec = {}  # Ray spec
+        platform = None  # hosting: 'baremetal' or 'ec2'
+        s3_bucket = None  # results storage on 'ec2' platform
+        baremetal = {}  # config options for 'baremetal' platform
         local_dir = None  # results storage on 'local' platform
-        ray_server = None     # if None, start cluster on local machine
-        upload_root = None    # root of upload_dir
-        exp_name = 'default'  # experiment name
+        ray_server = None  # if None, start cluster on local machine
+        upload_root = None  # root of upload_dir
+        exp_name = "default"  # experiment name
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -77,15 +83,15 @@ def make_sacred(ex, worker_name, worker_fn):
         If you are not the authors of this project, you will need to override s3_bucket."""
         if platform is None:
             if _detect_ec2():
-                platform = 'ec2'
+                platform = "ec2"
 
-        if platform == 'ec2':
+        if platform == "ec2":
             # We're running on EC2
             if s3_bucket is None:
-                s3_bucket = 'adversarial-policies'
+                s3_bucket = "adversarial-policies"
 
-            spec['run_kwargs'] = {'upload_dir': f's3://{s3_bucket}/'}
-            ray_server = 'localhost:6379'
+            spec["run_kwargs"] = {"upload_dir": f"s3://{s3_bucket}/"}
+            ray_server = "localhost:6379"
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -98,25 +104,23 @@ def make_sacred(ex, worker_name, worker_fn):
         to the head node. The intended config is they run with an SSH key that allows login to
         the user from any machine in the cluster."""
         if platform is None:
-            if osp.exists(osp.expanduser('~/ray_bootstrap_config.yaml')):
-                platform = 'baremetal'
+            if osp.exists(osp.expanduser("~/ray_bootstrap_config.yaml")):
+                platform = "baremetal"
 
-        if platform == 'baremetal':
+        if platform == "baremetal":
             baremetal = dict(baremetal)
-            if 'ssh_key' not in baremetal:
-                baremetal['ssh_key'] = osp.expanduser('~/ray_bootstrap_key.pem')
-            if 'host' not in baremetal:
-                baremetal['host'] = f'{getpass.getuser()}@{socket.getfqdn()}'
-            if 'dir' not in baremetal:
-                baremetal['dir'] = osp.expanduser('~/adversarial-policies/data')
+            if "ssh_key" not in baremetal:
+                baremetal["ssh_key"] = osp.expanduser("~/ray_bootstrap_key.pem")
+            if "host" not in baremetal:
+                baremetal["host"] = f"{getpass.getuser()}@{socket.getfqdn()}"
+            if "dir" not in baremetal:
+                baremetal["dir"] = osp.expanduser("~/adversarial-policies/data")
 
-            spec['run_kwargs'] = {
-                'upload_dir': ':'.join([baremetal['host'],
-                                        baremetal['ssh_key'],
-                                        baremetal['dir']]),
-                'sync_to_cloud': tune.function(_rsync_func),
+            spec["run_kwargs"] = {
+                "upload_dir": ":".join([baremetal["host"], baremetal["ssh_key"], baremetal["dir"]]),
+                "sync_to_cloud": tune.function(_rsync_func),
             }
-            ray_server = 'localhost:6379'
+            ray_server = "localhost:6379"
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -125,15 +129,14 @@ def make_sacred(ex, worker_name, worker_fn):
     def local_config(platform, local_dir, spec):
         if platform is None:
             # No platform specified; assume local if no previous config autodetected.
-            platform = 'local'
+            platform = "local"
 
-        if platform == 'local':
+        if platform == "local":
             if local_dir is None:
-                local_dir = osp.abspath(osp.join(os.getcwd(), 'data'))
-            spec['run_kwargs'] = {
-                'sync_to_cloud': ('mkdir -p {target} && '
-                                  'rsync -rlptv {source}/ {target}'),
-                'upload_dir': local_dir,
+                local_dir = osp.abspath(osp.join(os.getcwd(), "data"))
+            spec["run_kwargs"] = {
+                "sync_to_cloud": ("mkdir -p {target} && " "rsync -rlptv {source}/ {target}"),
+                "upload_dir": local_dir,
             }
 
     @ex.capture
@@ -147,29 +150,31 @@ def make_sacred(ex, worker_name, worker_fn):
         # it registers using the function name (which may not be unique).
         cfg = {
             # ReadOnlyDict's aren't serializable: see sacred issue #499
-            'base_config': utils.sacred_copy(base_config),
-            'exp_name': exp_name
+            "base_config": utils.sacred_copy(base_config),
+            "exp_name": exp_name,
         }
         cfg_str = json.dumps(cfg)
         hasher = hashlib.md5()  # we are not worried about security here
-        hasher.update(cfg_str.encode('utf8'))
+        hasher.update(cfg_str.encode("utf8"))
         cfg_hash = hasher.hexdigest()
 
-        trainable_name = f'{worker_name}-{cfg_hash}'
+        trainable_name = f"{worker_name}-{cfg_hash}"
         base_config = utils.sacred_copy(base_config)
         trainable_fn = functools.partial(worker_fn, base_config)
         tune.register_trainable(trainable_name, trainable_fn)
 
-        exp_id = f'{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}'
+        exp_id = f"{ex.path}/{exp_name}/{utils.make_timestamp()}-{uuid.uuid4().hex}"
         spec = utils.sacred_copy(spec)
 
         try:
-            result = tune.run(trainable_name,
-                              name=exp_id,
-                              config=spec['config'],
-                              # TODO(adam): delete next line when ray #6126 merged
-                              checkpoint_freq=10000000,
-                              **spec['run_kwargs'])
+            result = tune.run(
+                trainable_name,
+                name=exp_id,
+                config=spec["config"],
+                # TODO(adam): delete next line when ray #6126 merged
+                checkpoint_freq=10000000,
+                **spec["run_kwargs"],
+            )
         finally:
             ray.shutdown()
 

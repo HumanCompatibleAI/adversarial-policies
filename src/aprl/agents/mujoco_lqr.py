@@ -17,13 +17,13 @@ from aprl.common.utils import getattr_unwrapped
 
 class MujocoFiniteDiff(object):
     def __init__(self, env):
-        if hasattr(env, '_max_episode_steps'):
+        if hasattr(env, "_max_episode_steps"):
             # We step multiple times, then reset to a previous state.
             # Timestep limit doesn't make much sense at this level.
             # (Instead, apply it outside of the controller.)
             raise TypeError("Environment must not have a timestep limit.")
         self.env = env
-        self.sim = getattr_unwrapped(env, 'sim')
+        self.sim = getattr_unwrapped(env, "sim")
         state = MujocoState.from_mjdata(self.sim.data).flatten()
         self._state_size = len(state)
         self._action_size = reduce(lambda x, y: x * y, env.action_space.shape)
@@ -40,9 +40,15 @@ class MujocoFiniteDiff(object):
 class MujocoFiniteDiffCost(MujocoFiniteDiff, FiniteDiffCost):
     def __init__(self, env, x_eps=None, u_eps=None):
         MujocoFiniteDiff.__init__(self, env)
-        FiniteDiffCost.__init__(self, self._mujoco_l, self._mujoco_l_terminal,
-                                self._state_size, self._action_size,
-                                x_eps=x_eps, u_eps=u_eps)
+        FiniteDiffCost.__init__(
+            self,
+            self._mujoco_l,
+            self._mujoco_l_terminal,
+            self._state_size,
+            self._action_size,
+            x_eps=x_eps,
+            u_eps=u_eps,
+        )
 
     def _mujoco_l(self, x, u, i):
         self.set_state(x)
@@ -69,6 +75,7 @@ class MujocoFiniteDiffDynamicsBasic(MujocoFiniteDiff, FiniteDiffDynamics):
     WARNING: assumes environment has no termination condition -- will ignore
     step returning done. (It's not clear what the correct thing to do here is.)
     """
+
     def __init__(self, env, x_eps=1e-6, u_eps=1e-6):
         """Inits MujocoFiniteDiffDynamicsBase with a MujocoEnv.
 
@@ -77,9 +84,9 @@ class MujocoFiniteDiffDynamicsBasic(MujocoFiniteDiff, FiniteDiffDynamics):
         :param u_eps (float): increment to use for finite difference on control.
         """
         MujocoFiniteDiff.__init__(self, env)
-        FiniteDiffDynamics.__init__(self, self._mujoco_f,
-                                    self.state_size, self.action_size,
-                                    x_eps=x_eps, u_eps=u_eps)
+        FiniteDiffDynamics.__init__(
+            self, self._mujoco_f, self.state_size, self.action_size, x_eps=x_eps, u_eps=u_eps
+        )
 
     def _mujoco_f(self, x, u, i):
         self.set_state(x)
@@ -183,7 +190,7 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
         dofpos = np.zeros(nv)
 
         # A ball joint is always a quaternion.
-        ball_joints = (jnt_types == JointTypes.BALL.value)
+        ball_joints = jnt_types == JointTypes.BALL.value
         quatadr[ball_joints] = jnt_qposadr[ball_joints]
         dofpos[ball_joints] = js[ball_joints] - dofadrs[ball_joints]
 
@@ -210,7 +217,7 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
 
             # unperturb
             if qa >= 0:  # quaternion perturbation
-                variable[qa:qa+4] = original[qa:qa+4]
+                variable[qa : qa + 4] = original[qa : qa + 4]
             else:
                 variable[ids[j]] = original[ids[j]]
     else:
@@ -232,6 +239,7 @@ def _consistent_solver(sim, niter=30):
 
 class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
     """Finite difference dynamics for a MuJoCo environment."""
+
     # TODO: assumes frame skip is 1. Can we generalize? Do we want to?
     NWARMUP = 3
 
@@ -282,8 +290,7 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
         self.sim.forward()  # run full computation
         for i in range(self.NWARMUP):
             # iterate several times to get a good qacc_warmstart
-            mjfunc.mj_forwardSkip(self.env.sim.model, self.env.sim.data,
-                                  SkipStages.VEL.value, 1)
+            mjfunc.mj_forwardSkip(self.env.sim.model, self.env.sim.data, SkipStages.VEL.value, 1)
         self.warmstart[:] = self.sim.data.qacc_warmstart
         self.warmstart_for = curr_state
 
@@ -302,10 +309,8 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
         with _consistent_solver(self.sim) as sim:
             self._set_state_action(x, u)
             self._warmstart()
-            jacob_vel = _finite_diff(sim, self.warmstart,
-                                     VaryValue.VEL, self._x_eps)
-            jacob_pos = _finite_diff(sim, self.warmstart,
-                                     VaryValue.POS, self._x_eps)
+            jacob_vel = _finite_diff(sim, self.warmstart, VaryValue.VEL, self._x_eps)
+            jacob_pos = _finite_diff(sim, self.warmstart, VaryValue.POS, self._x_eps)
 
             # This Jacobian is qacc differentiated w.r.t. (qpos, qvel).
             acc_jacobian = np.concatenate((jacob_pos, jacob_vel), axis=1)
@@ -321,12 +326,9 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
             dt = sim.model.opt.timestep
             A = np.eye(sim.model.nq)
             B = dt * np.eye(sim.model.nv)
-            C = dt * acc_jacobian[:, :sim.model.nq]
-            D = np.eye(sim.model.nv) + dt * acc_jacobian[:, sim.model.nq:]
-            state_jacobian = np.vstack([
-                np.hstack([A, B]),
-                np.hstack([C, D]),
-            ])
+            C = dt * acc_jacobian[:, : sim.model.nq]
+            D = np.eye(sim.model.nv) + dt * acc_jacobian[:, sim.model.nq :]
+            state_jacobian = np.vstack([np.hstack([A, B]), np.hstack([C, D])])
 
         return state_jacobian
 
@@ -341,18 +343,16 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
             self._warmstart()
             # Finite difference over control: skip = VEL
             # This Jacobian is qacc differentiated w.r.t. ctrl.
-            jacobian_acc = _finite_diff(sim, self.warmstart,
-                                        VaryValue.CTRL, self._u_eps)
+            jacobian_acc = _finite_diff(sim, self.warmstart, VaryValue.CTRL, self._u_eps)
             # But we want (qpos, qvel) differentiated w.r.t. ctrl.
             # \nabla_{u_t} \ddot{x}_t = acc_jacobian
             # \nabla_{u_t} \dot{x}_t = dt * \nabla_{u_t} \ddot{x}_t
             # \nabla_{u_t} x_t = 0
             # TODO: Could use an alternative linearization?
             dt = self.sim.model.opt.timestep
-            state_jacobian = np.vstack([
-                np.zeros((self.sim.model.nq, self.sim.model.nu)),
-                dt * jacobian_acc
-            ])
+            state_jacobian = np.vstack(
+                [np.zeros((self.sim.model.nq, self.sim.model.nu)), dt * jacobian_acc]
+            )
             return state_jacobian
 
     def f_xx(self, x, u, i):

@@ -28,7 +28,7 @@ def add_artifacts(run, dirname, ingredient=None):
     :return None"""
     prefix = ""
     if ingredient is not None:
-        exp_name = run.experiment_info['name']
+        exp_name = run.experiment_info["name"]
         ingredient_name = ingredient.path
         if exp_name != ingredient_name:
             prefix = ingredient_name + "_"
@@ -37,7 +37,7 @@ def add_artifacts(run, dirname, ingredient=None):
         for file in files:
             path = os.path.join(root, file)
             relroot = os.path.relpath(path, dirname)
-            name = prefix + relroot.replace('/', '_') + '_' + file
+            name = prefix + relroot.replace("/", "_") + "_" + file
             run.add_artifact(path, name=name)
 
 

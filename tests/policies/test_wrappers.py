@@ -8,8 +8,11 @@ import pytest
 from stable_baselines.common.policies import BasePolicy
 from stable_baselines.common.vec_env import DummyVecEnv
 
-from aprl.envs.multi_agent import (FakeSingleSpacesVec, FlattenSingletonVecEnv,
-                                   make_dummy_vec_multi_env)
+from aprl.envs.multi_agent import (
+    FakeSingleSpacesVec,
+    FlattenSingletonVecEnv,
+    make_dummy_vec_multi_env,
+)
 from aprl.envs.wrappers import make_env
 from aprl.policies.base import ConstantPolicy, PolicyToModel
 from aprl.policies.loader import load_policy
@@ -22,18 +25,20 @@ class ConstantStatefulPolicy(BasePolicy):
 
     def __init__(self, env, constant, state_shape):
         assert env.action_space.contains(constant)
-        super().__init__(sess=None,
-                         ob_space=env.observation_space,
-                         ac_space=env.action_space,
-                         n_env=env.num_envs,
-                         n_steps=1,
-                         n_batch=1)
+        super().__init__(
+            sess=None,
+            ob_space=env.observation_space,
+            ac_space=env.action_space,
+            n_env=env.num_envs,
+            n_steps=1,
+            n_batch=1,
+        )
         self.state_shape = state_shape
         self.constant = constant
 
     def step(self, obs, state=None, mask=None, deterministic=False):
         if state is None:
-            state = np.ones((obs.shape[0], ) + self.state_shape)
+            state = np.ones((obs.shape[0],) + self.state_shape)
         assert state.shape[0] == obs.shape[0], "state.shape[0] does not match num_env"
         error_text = f"A state of shape {state.shape[1:]} passed in, requires {self.state_shape}"
         assert state.shape[1:] == self.state_shape, error_text
@@ -61,9 +66,9 @@ def create_simple_policy_wrapper(env_name, num_envs, state_shapes):
     policies = []
     for i, state_shape in enumerate(state_shapes):
         constant_value = np.full(shape=vec_env.action_space.shape, fill_value=i % num_actions)
-        policy = _get_constant_policy(vec_env,
-                                      constant_value=constant_value,
-                                      state_shape=state_shape)
+        policy = _get_constant_policy(
+            vec_env, constant_value=constant_value, state_shape=state_shape
+        )
         policies.append(policy)
     policy_wrapper = MultiPolicyWrapper(policies=policies, num_envs=num_envs)
 
@@ -72,33 +77,40 @@ def create_simple_policy_wrapper(env_name, num_envs, state_shapes):
 
 
 @contextlib.contextmanager
-def create_multi_agent_curried_policy_wrapper(mon_dir, env_name, num_envs, embed_index, max_steps,
-                                              state_shape=None, add_zoo=False, num_zoo=5):
+def create_multi_agent_curried_policy_wrapper(
+    mon_dir, env_name, num_envs, embed_index, max_steps, state_shape=None, add_zoo=False, num_zoo=5
+):
     def episode_limit(env):
         return time_limit.TimeLimit(env, max_episode_steps=max_steps)
 
     def env_fn(i):
-        return make_env(env_name, seed=42, i=i, out_dir=mon_dir,
-                        pre_wrappers=[episode_limit])
+        return make_env(env_name, seed=42, i=i, out_dir=mon_dir, pre_wrappers=[episode_limit])
 
     vec_env = make_dummy_vec_multi_env([lambda: env_fn(i) for i in range(num_envs)])
 
-    zoo = load_policy(policy_path="1", policy_type="zoo", env=vec_env,
-                      env_name=env_name, index=1 - embed_index, transparent_params=None)
+    zoo = load_policy(
+        policy_path="1",
+        policy_type="zoo",
+        env=vec_env,
+        env_name=env_name,
+        index=1 - embed_index,
+        transparent_params=None,
+    )
     half_env = FakeSingleSpacesVec(vec_env, agent_id=embed_index)
-    policies = [_get_constant_policy(half_env,
-                                     constant_value=half_env.action_space.sample(),
-                                     state_shape=state_shape)
-                for _ in range(10)]
+    policies = [
+        _get_constant_policy(
+            half_env, constant_value=half_env.action_space.sample(), state_shape=state_shape
+        )
+        for _ in range(10)
+    ]
     if add_zoo:
         policies += [zoo] * num_zoo
 
     policy_wrapper = MultiPolicyWrapper(policies=policies, num_envs=num_envs)
 
-    vec_env = CurryVecEnv(venv=vec_env,
-                          policy=policy_wrapper,
-                          agent_idx=embed_index,
-                          deterministic=False)
+    vec_env = CurryVecEnv(
+        venv=vec_env, policy=policy_wrapper, agent_idx=embed_index, deterministic=False
+    )
     vec_env = FlattenSingletonVecEnv(vec_env)
 
     yield vec_env, policy_wrapper, zoo
@@ -137,8 +149,10 @@ def _check_switching(vec_env, num_steps, agent, policy_wrapper, extra_check=None
         dones = new_dones
 
     max_identical_ok = math.ceil(2 * num_switches / num_policies)
-    dont_match_msg = (f"Same policy {num_identical} > {max_identical_ok} threshold over "
-                      f"{num_switches} episodes")
+    dont_match_msg = (
+        f"Same policy {num_identical} > {max_identical_ok} threshold over "
+        f"{num_switches} episodes"
+    )
     # Expected # of identical policies is num_switches / num_policies
     # Allow 2x margin of error to avoid flaky tests from randomness
     assert num_identical < max_identical_ok, dont_match_msg
@@ -149,44 +163,48 @@ def test_simple_multi_policy_switching():
     num_steps = 5000
 
     def extra_check(vars):
-        assert np.all(vars['actions'] == [p.constant for p in vars['new_current_policies']])
+        assert np.all(vars["actions"] == [p.constant for p in vars["new_current_policies"]])
 
-    with create_simple_policy_wrapper(env_name="CartPole-v1",
-                                      num_envs=2,
-                                      state_shapes=[None, (5,), (10,)],
-                                      ) as (vec_env, policy_wrapper):
-        _check_switching(vec_env=vec_env,
-                         num_steps=num_steps,
-                         agent=policy_wrapper,
-                         policy_wrapper=policy_wrapper,
-                         extra_check=extra_check)
+    with create_simple_policy_wrapper(
+        env_name="CartPole-v1", num_envs=2, state_shapes=[None, (5,), (10,)],
+    ) as (vec_env, policy_wrapper):
+        _check_switching(
+            vec_env=vec_env,
+            num_steps=num_steps,
+            agent=policy_wrapper,
+            policy_wrapper=policy_wrapper,
+            extra_check=extra_check,
+        )
 
 
-MULTI_AGENT_CONFIGS = [dict(env_name="multicomp/YouShallNotPassHumans-v0",  # MLP Zoo
-                            num_envs=2,
-                            num_steps=200,
-                            ep_len=10),
-                       dict(env_name="multicomp/KickAndDefend-v0",  # LSTM Zoo
-                            num_envs=2,
-                            num_steps=200,
-                            ep_len=10)]
+MULTI_AGENT_CONFIGS = [
+    dict(
+        env_name="multicomp/YouShallNotPassHumans-v0",  # MLP Zoo
+        num_envs=2,
+        num_steps=200,
+        ep_len=10,
+    ),
+    dict(env_name="multicomp/KickAndDefend-v0", num_envs=2, num_steps=200, ep_len=10),  # LSTM Zoo
+]
 
 
 @pytest.mark.parametrize("test_config", MULTI_AGENT_CONFIGS)
 def test_multi_agent_policy_switching(test_config, tmpdir):
     """Checks policies switch when curried policy, for a mixture of Zoo and constant policies."""
 
-    with create_multi_agent_curried_policy_wrapper(str(tmpdir),
-                                                   env_name=test_config["env_name"],
-                                                   num_envs=test_config["num_envs"],
-                                                   embed_index=test_config.get("embed_index", 1),
-                                                   max_steps=test_config["ep_len"],
-                                                   state_shape=test_config.get("state_shape",
-                                                                               None),
-                                                   add_zoo=True,
-                                                   num_zoo=test_config.get("num_zoo", 5),
-                                                   ) as (vec_env, policy_wrapper, zoo_agent):
-        _check_switching(vec_env=vec_env,
-                         num_steps=test_config["num_steps"],
-                         agent=zoo_agent,
-                         policy_wrapper=policy_wrapper)
+    with create_multi_agent_curried_policy_wrapper(
+        str(tmpdir),
+        env_name=test_config["env_name"],
+        num_envs=test_config["num_envs"],
+        embed_index=test_config.get("embed_index", 1),
+        max_steps=test_config["ep_len"],
+        state_shape=test_config.get("state_shape", None),
+        add_zoo=True,
+        num_zoo=test_config.get("num_zoo", 5),
+    ) as (vec_env, policy_wrapper, zoo_agent):
+        _check_switching(
+            vec_env=vec_env,
+            num_steps=test_config["num_steps"],
+            agent=zoo_agent,
+            policy_wrapper=policy_wrapper,
+        )

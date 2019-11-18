@@ -10,9 +10,9 @@ def flatten_config(config):
        Example: _flatten_config({'a:b': (1, 2), 'c': 3}) -> {'a: 1, 'b': 2, 'c': 3}."""
     new_config = {}
     for ks, vs in config.items():
-        ks = ks.split(':')
+        ks = ks.split(":")
         if len(ks) == 1:
-            vs = (vs, )
+            vs = (vs,)
 
         for k, v in zip(ks, vs):
             assert k not in new_config, f"duplicate key '{k}'"
@@ -34,4 +34,4 @@ def update(d, u):
 def fix_sacred_capture():
     """Workaround for Sacred stdout capture issue #195 and Ray issue #5718."""
     # TODO(adam): remove once Sacred issue #195 is closed
-    sacred.SETTINGS.CAPTURE_MODE = 'sys'
+    sacred.SETTINGS.CAPTURE_MODE = "sys"
