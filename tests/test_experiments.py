@@ -143,6 +143,7 @@ TRAIN_CONFIGS = [
         # test TransparentMLPPolicyValue
         "env_name": "multicomp/YouShallNotPassHumans-v0",
         "transparent_params": ["ff_policy"],
+        "batch_size": 32,
     },
     {
         "env_name": "multicomp/SumoHumans-v0",
@@ -166,7 +167,7 @@ except ImportError:
     # skip GAIL test if algorithm not available
     pass
 TRAIN_CONFIGS += [
-    {"rl_algo": algo, "num_env": 1 if algo in NO_VECENV else 8}
+    {"rl_algo": algo, "num_env": 1 if algo in NO_VECENV else 2}
     for algo in RL_ALGOS.keys()
     if algo != "gail"
 ]
@@ -176,8 +177,10 @@ TRAIN_CONFIGS += [
 def test_train(config):
     config = dict(config)
     # Use a small number of steps to keep things quick
-    config["batch_size"] = 512
-    config["total_timesteps"] = 1024
+    config.setdefault("batch_size", 64)
+    config.setdefault("total_timesteps", 128)
+    # Limit # of parallel envs to avoid large memory consumption
+    config.setdefault("num_env", 2)
 
     run = train_ex.run(config_updates=config)
     assert run.status == "COMPLETED"
@@ -191,11 +194,12 @@ def _test_multi(ex):
     multi_config = {
         "spec": {
             "run_kwargs": {
-                "resources_per_trial": {"cpu": 2},  # Travis only has 2 cores
+                "resources_per_trial": {"cpu": 2},  # CI build only has 2 cores
                 "upload_dir": None,  # do not upload test results anywhere
                 "sync_to_cloud": None,  # as above
             },
         },
+        "init_kwargs": {"num_cpus": 2},
     }
 
     run = ex.run(config_updates=multi_config, named_configs=("debug_config",))
