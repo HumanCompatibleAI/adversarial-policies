@@ -7,7 +7,7 @@ from aprl.policies import base
 
 
 class NoisyAgentWrapper(base.ModelWrapper):
-    def __init__(self, model: BaseRLModel, noise_annealer, noise_type: str = 'gaussian'):
+    def __init__(self, model: BaseRLModel, noise_annealer, noise_type: str = "gaussian"):
         """
         Wrap an agent and add noise to its actions
         :param model: the agent to wrap
@@ -22,14 +22,12 @@ class NoisyAgentWrapper(base.ModelWrapper):
 
     @staticmethod
     def _get_noise_generator(noise_type):
-        noise_generators = {
-            'gaussian': lambda x, size: np.random.normal(scale=x, size=size)
-        }
+        noise_generators = {"gaussian": lambda x, size: np.random.normal(scale=x, size=size)}
         return noise_generators[noise_type]
 
     def log_callback(self, logger):
         current_noise_param = self.noise_annealer()
-        logger.logkv('shaping/victim_noise', current_noise_param)
+        logger.logkv("shaping/victim_noise", current_noise_param)
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         original_actions, states = self.model.predict(observation, state, mask, deterministic)
@@ -62,9 +60,9 @@ def _array_mask_assign(arr: List[T], mask: Sequence[bool], vals: Optional[List[T
     return arr
 
 
-def _standardize_state(state_arr: Sequence[np.ndarray],
-                       mask: Sequence[bool],
-                       filler_shape: Optional[Tuple[int, ...]]) -> Optional[np.ndarray]:
+def _standardize_state(
+    state_arr: Sequence[np.ndarray], mask: Sequence[bool], filler_shape: Optional[Tuple[int, ...]]
+) -> Optional[np.ndarray]:
     """Replaces values in state_arr[env_mask] with a filler value.
 
     The returned value should have entries of a consistent type, suitable to pass to a policy.
@@ -84,7 +82,7 @@ def _standardize_state(state_arr: Sequence[np.ndarray],
 
     # The policy is stateful, and expects entries of shape inferred_state_shape.
     num_env = len(state_arr)
-    standardized_arr = np.zeros(shape=(num_env, ) + filler_shape)
+    standardized_arr = np.zeros(shape=(num_env,) + filler_shape)
 
     if np.any(mask):
         # Copy over values from state_arr in mask. The others are OK to leave as zero:
@@ -128,8 +126,9 @@ class MultiPolicyWrapper(base.ModelWrapper):
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
         self._reset_current_policies(mask)
-        policy_actions = np.zeros((self.num_envs, ) + self.action_space.shape,
-                                  dtype=self.action_space.dtype)
+        policy_actions = np.zeros(
+            (self.num_envs,) + self.action_space.shape, dtype=self.action_space.dtype
+        )
         new_state_array = [None] * self.num_envs
 
         for i, policy in enumerate(self.policies):
@@ -152,19 +151,20 @@ class MultiPolicyWrapper(base.ModelWrapper):
                 # to `None`, which is always OK at the first time step. Inferred state shapes will
                 # be set for stateful policies as soon as they return a state vector.
                 retain = env_mask & ~np.array(mask)
-                standardized_state = _standardize_state(state, mask=retain,
-                                                        filler_shape=self.inferred_state_shapes[i])
+                standardized_state = _standardize_state(
+                    state, mask=retain, filler_shape=self.inferred_state_shapes[i]
+                )
 
-            predicted_actions, new_states = policy.predict(observation,
-                                                           state=standardized_state,
-                                                           mask=mask,
-                                                           deterministic=deterministic)
+            predicted_actions, new_states = policy.predict(
+                observation, state=standardized_state, mask=mask, deterministic=deterministic
+            )
             if new_states is not None and self.inferred_state_shapes[i] is None:
                 # If this is a policy that returns state, and its current inferred state
                 # is None, update the inferred state value to this shape
                 self.inferred_state_shapes[i] = new_states.shape[1:]
-            assert ((new_states is None and self.inferred_state_shapes[i] is None) or
-                    new_states.shape[1:] == self.inferred_state_shapes[i])
+            assert (
+                new_states is None and self.inferred_state_shapes[i] is None
+            ) or new_states.shape[1:] == self.inferred_state_shapes[i]
 
             policy_actions[env_mask] = predicted_actions[env_mask]
             new_state_array = _array_mask_assign(new_state_array, env_mask, new_states)

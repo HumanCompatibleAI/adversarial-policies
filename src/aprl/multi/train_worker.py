@@ -12,6 +12,7 @@ from aprl.multi import common_worker
 
 class ReporterOutputFormat(logger.KVWriter):
     """Key-value logging plugin for Stable Baselines that writes to a Ray Tune StatusReporter."""
+
     def __init__(self, reporter):
         self.last_kvs = dict()
         self.reporter = reporter
@@ -36,16 +37,16 @@ def train_rl(base_config, tune_config, reporter):
     config = dict(base_config)
     tune_config = common_worker.flatten_config(tune_config)
     common_worker.update(config, tune_config)
-    tune_kv_str = '-'.join([f'{k}={v}' for k, v in tune_config.items()])
-    config['exp_name'] = config['exp_name'] + '-' + tune_kv_str
+    tune_kv_str = "-".join([f"{k}={v}" for k, v in tune_config.items()])
+    config["exp_name"] = config["exp_name"] + "-" + tune_kv_str
 
     output_format = ReporterOutputFormat(reporter)
-    config['log_output_formats'] = [output_format]
+    config["log_output_formats"] = [output_format]
 
     # We're breaking the Sacred interface by running an experiment from within another experiment.
     # This is the best thing we can do, since we need to run the experiment with varying configs.
     # Just be careful: this could easily break things.
-    observer = observers.FileStorageObserver(osp.join('data', 'sacred', 'train'))
+    observer = observers.FileStorageObserver(osp.join("data", "sacred", "train"))
 
     train_ex.observers.append(observer)
     train_ex.run(config_updates=config)

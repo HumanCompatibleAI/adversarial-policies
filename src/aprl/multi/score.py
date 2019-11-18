@@ -18,11 +18,11 @@ from aprl.envs.gym_compete import env_name_to_canonical
 from aprl.multi import common, score_worker
 from aprl.score_agent import score_ex
 
-multi_score_ex = Experiment('multi_score', ingredients=[score_ex])
-pylog = logging.getLogger('aprl.multi.score')
+multi_score_ex = Experiment("multi_score", ingredients=[score_ex])
+pylog = logging.getLogger("aprl.multi.score")
 
 # Load common configs (e.g. upload directories) and define the run command
-run = common.make_sacred(multi_score_ex, 'score', score_worker.score_worker)
+run = common.make_sacred(multi_score_ex, "score", score_worker.score_worker)
 
 # Load named configs for individual experiments (these change a lot, so keep out of this file)
 make_configs(multi_score_ex)
@@ -31,12 +31,10 @@ make_configs(multi_score_ex)
 @multi_score_ex.config
 def default_config(score):
     spec = {  # experiment specification
-        'run_kwargs': {
-            'resources_per_trial': {'cpu': math.ceil(score['num_env'] / 2)},
-        },
-        'config': {},
+        "run_kwargs": {"resources_per_trial": {"cpu": math.ceil(score["num_env"] / 2)}},
+        "config": {},
     }
-    save_path = None      # path to save JSON results. If None, do not save.
+    save_path = None  # path to save JSON results. If None, do not save.
 
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -55,21 +53,17 @@ def score_config():
 def debug_config(score):
     """Try zero-agent and random-agent against pre-trained zoo policies."""
     score = dict(score)
-    score['episodes'] = 1
-    score['agent_a_type'] = 'zoo'
-    score['agent_b_type'] = 'zoo'
-    spec = {
-        'config': {
-            'agent_a_path': tune.grid_search(['1', '2']),
-        }
-    }
-    exp_name = 'debug'
+    score["episodes"] = 1
+    score["agent_a_type"] = "zoo"
+    score["agent_b_type"] = "zoo"
+    spec = {"config": {"agent_a_path": tune.grid_search(["1", "2"])}}
+    exp_name = "debug"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 def _remap_keys(d):
-    return [{'k': k, 'v': v} for k, v in d.items()]
+    return [{"k": k, "v": v} for k, v in d.items()]
 
 
 @multi_score_ex.main
@@ -78,32 +72,32 @@ def multi_score(score, save_path):
     try:
         tmp_path = None
         if save_path is not None:
-            f = open(save_path, 'w')  # open it now so we fail fast if file is unwriteable
+            f = open(save_path, "w")  # open it now so we fail fast if file is unwriteable
         else:
-            fd, tmp_path = tempfile.mkstemp(prefix='multi_score')
-            f = os.fdopen(fd, mode='w')
+            fd, tmp_path = tempfile.mkstemp(prefix="multi_score")
+            f = os.fdopen(fd, mode="w")
             save_path = tmp_path
 
         analysis, exp_id = run(base_config=score)
         trials = analysis.trials
-        additional_index_keys = score.get('index_keys', [])
+        additional_index_keys = score.get("index_keys", [])
         results = {}
         for trial in trials:
-            idx = trial.last_result['idx']
-            cols = ['env_name', 'agent_a_type', 'agent_a_path', 'agent_b_type', 'agent_b_path']
+            idx = trial.last_result["idx"]
+            cols = ["env_name", "agent_a_type", "agent_a_path", "agent_b_type", "agent_b_path"]
             cols += additional_index_keys
             key = tuple(idx[col] for col in cols)
-            results[key] = trial.last_result['score']
+            results[key] = trial.last_result["score"]
 
         json.dump(_remap_keys(results), f)
     finally:
         if f is not None:
             f.close()
-            multi_score_ex.add_artifact(save_path, name='scores.json')
+            multi_score_ex.add_artifact(save_path, name="scores.json")
         if tmp_path is not None:
             os.unlink(tmp_path)
 
-    return {'scores': results, 'exp_id': exp_id}
+    return {"scores": results, "exp_id": exp_id}
 
 
 def run_external(named_configs, post_named_configs, config_updates, adversary_path=None):
@@ -119,15 +113,14 @@ def run_external(named_configs, post_named_configs, config_updates, adversary_pa
     """
     # Sad workaround for Sacred config limitation,
     # see aprl.configs.multi.score:_get_adversary_paths
-    os.environ['ADVERSARY_PATHS'] = adversary_path
+    os.environ["ADVERSARY_PATHS"] = adversary_path
 
     output_dir = {}
     for trial_configs in named_configs:
         configs = list(trial_configs) + list(post_named_configs)
-        run = multi_score_ex.run(named_configs=configs,
-                                 config_updates=config_updates)
-        assert run.status == 'COMPLETED'
-        exp_id = run.result['exp_id']
+        run = multi_score_ex.run(named_configs=configs, config_updates=config_updates)
+        assert run.status == "COMPLETED"
+        exp_id = run.result["exp_id"]
         output_dir[tuple(trial_configs)] = exp_id
 
     return output_dir
@@ -149,45 +142,47 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
             # output will always be at score/1.
             trial_root = osp.join(experiment_root, trial_name)
 
-            sacred_config = osp.join(trial_root, 'data', 'sacred', 'score', '1', 'config.json')
-            with open(sacred_config, 'r') as f:
+            sacred_config = osp.join(trial_root, "data", "sacred", "score", "1", "config.json")
+            with open(sacred_config, "r") as f:
                 cfg = json.load(f)
 
             def agent_key(agent):
-                return cfg[agent + '_type'], cfg[agent + '_path']
+                return cfg[agent + "_type"], cfg[agent + "_path"]
 
-            env_name = cfg['env_name']
+            env_name = cfg["env_name"]
             victim_index = VICTIM_INDEX[env_name]
             if victim_index == 0:
-                victim_type, victim_path = agent_key('agent_a')
-                opponent_type, opponent_path = agent_key('agent_b')
+                victim_type, victim_path = agent_key("agent_a")
+                opponent_type, opponent_path = agent_key("agent_b")
             else:
-                victim_type, victim_path = agent_key('agent_b')
-                opponent_type, opponent_path = agent_key('agent_a')
+                victim_type, victim_path = agent_key("agent_b")
+                opponent_type, opponent_path = agent_key("agent_a")
 
-            if 'multicomp' in cfg['env_name']:
+            if "multicomp" in cfg["env_name"]:
                 env_name = env_name_to_canonical(env_name)
-            env_name = env_name.replace('/', '-')  # sanitize
+            env_name = env_name.replace("/", "-")  # sanitize
 
-            src_path, new_name, suffix = path_generator(trial_root=trial_root,
-                                                        cfg=cfg,
-                                                        env_sanitized=env_name,
-                                                        victim_index=victim_index,
-                                                        victim_type=victim_type,
-                                                        victim_path=victim_path,
-                                                        opponent_type=opponent_type,
-                                                        opponent_path=opponent_path)
-            dst_path = osp.join(out_dir, f'{new_name}.{suffix}')
+            src_path, new_name, suffix = path_generator(
+                trial_root=trial_root,
+                cfg=cfg,
+                env_sanitized=env_name,
+                victim_index=victim_index,
+                victim_type=victim_type,
+                victim_path=victim_path,
+                opponent_type=opponent_type,
+                opponent_path=opponent_path,
+            )
+            dst_path = osp.join(out_dir, f"{new_name}.{suffix}")
             shutil.copy(src_path, dst_path)
-            dst_config = osp.join(out_dir, f'{new_name}_sacred.json')
+            dst_config = osp.join(out_dir, f"{new_name}_sacred.json")
             shutil.copy(sacred_config, dst_config)
 
 
 def main():
-    observer = FileStorageObserver(osp.join('data', 'sacred', 'multi_score'))
+    observer = FileStorageObserver(osp.join("data", "sacred", "multi_score"))
     multi_score_ex.observers.append(observer)
     multi_score_ex.run_commandline()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

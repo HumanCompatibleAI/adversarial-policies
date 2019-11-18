@@ -16,47 +16,52 @@ from aprl.common import utils
 def gen_multiline_charts(cfg):
     charts = []
     for title, tags in cfg:
-        charts.append(layout_pb2.Chart(
-            title=title,
-            multiline=layout_pb2.MultilineChartContent(tag=tags)
-        ))
+        charts.append(
+            layout_pb2.Chart(title=title, multiline=layout_pb2.MultilineChartContent(tag=tags))
+        )
     return charts
 
 
 def tb_layout():
     episode_rewards = layout_pb2.Category(
-        title='Episode Reward',
-        chart=gen_multiline_charts([
-            ("Shaped Reward", [r'shaping/eprewmean_true']),
-            ("Episode Length", [r'eplenmean']),
-            ("Sparse Reward", [r'shaping/epsparsemean']),
-            ("Dense Reward", [r'shaping/epdensemean']),
-            ("Dense Reward Annealing", [r'shaping/rew_anneal_c']),
-            ("Unshaped Reward", [r'ep_rewmean']),
-            ("Victim Action Noise", [r'shaping/victim_noise'])
-        ]),
+        title="Episode Reward",
+        chart=gen_multiline_charts(
+            [
+                ("Shaped Reward", [r"shaping/eprewmean_true"]),
+                ("Episode Length", [r"eplenmean"]),
+                ("Sparse Reward", [r"shaping/epsparsemean"]),
+                ("Dense Reward", [r"shaping/epdensemean"]),
+                ("Dense Reward Annealing", [r"shaping/rew_anneal_c"]),
+                ("Unshaped Reward", [r"ep_rewmean"]),
+                ("Victim Action Noise", [r"shaping/victim_noise"]),
+            ]
+        ),
     )
 
     game_outcome = layout_pb2.Category(
         title="Game Outcomes",
-        chart=gen_multiline_charts([
-            ("Agent 0 Win Proportion", [r'game_win0']),
-            ("Agent 1 Win Proportion", [r'game_win1']),
-            ("Tie Proportion", [r'game_tie']),
-            ("# of games", [r'game_total']),
-        ]),
+        chart=gen_multiline_charts(
+            [
+                ("Agent 0 Win Proportion", [r"game_win0"]),
+                ("Agent 1 Win Proportion", [r"game_win1"]),
+                ("Tie Proportion", [r"game_tie"]),
+                ("# of games", [r"game_total"]),
+            ]
+        ),
     )
 
     training = layout_pb2.Category(
         title="Training",
-        chart=gen_multiline_charts([
-            ("Policy Loss", [r'policy_loss']),
-            ("Value Loss", [r'value_loss']),
-            ("Policy Entropy", [r'policy_entropy']),
-            ("Explained Variance", [r'explained_variance']),
-            ("Approx KL", [r'approxkl']),
-            ("Clip Fraction", [r'clipfrac']),
-        ])
+        chart=gen_multiline_charts(
+            [
+                ("Policy Loss", [r"policy_loss"]),
+                ("Value Loss", [r"value_loss"]),
+                ("Policy Entropy", [r"policy_entropy"]),
+                ("Explained Variance", [r"explained_variance"]),
+                ("Approx KL", [r"approxkl"]),
+                ("Clip Fraction", [r"clipfrac"]),
+            ]
+        ),
     )
 
     # Intentionally unused:
@@ -65,25 +70,21 @@ def tb_layout():
     # + nupdates (this is already logged as step)
     time = layout_pb2.Category(
         title="Time",
-        chart=gen_multiline_charts([
-            ("Total Timesteps", [r'total_timesteps']),
-            ("FPS", [r'fps']),
-        ])
+        chart=gen_multiline_charts([("Total Timesteps", [r"total_timesteps"]), ("FPS", [r"fps"])]),
     )
 
     categories = [episode_rewards, game_outcome, training, time]
     return summary_lib.custom_scalar_pb(layout_pb2.Layout(category=categories))
 
 
-def setup_logger(out_dir='results', exp_name='test', output_formats=None):
+def setup_logger(out_dir="results", exp_name="test", output_formats=None):
     timestamp = utils.make_timestamp()
-    exp_name = exp_name.replace('/', '_')  # environment names can contain /'s
-    filename = '{}-{}'.format(timestamp, exp_name)[0:255]  # Linux has filename limit of 255
+    exp_name = exp_name.replace("/", "_")  # environment names can contain /'s
+    filename = "{}-{}".format(timestamp, exp_name)[0:255]  # Linux has filename limit of 255
     out_dir = osp.join(out_dir, filename)
     os.makedirs(out_dir, exist_ok=True)
 
-    logger.configure(folder=osp.join(out_dir, 'rl'),
-                     format_strs=['tensorboard', 'stdout'])
+    logger.configure(folder=osp.join(out_dir, "rl"), format_strs=["tensorboard", "stdout"])
     logger_instance = logger.Logger.CURRENT
 
     if output_formats is not None:

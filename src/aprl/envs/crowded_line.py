@@ -11,9 +11,10 @@ class CrowdedLineEnv(MultiAgentEnv):
 
     """Agents live on a line in [-1,1]. States consist of a position and velocity
     for each agent, with actions consisting of acceleration."""
+
     def __init__(self, num_agents):
-        agent_action_space = Box(-1.0, 1.0, shape=(1, ), dtype=np.float32)
-        agent_observation_space = Box(-1.0, 1.0, shape=(2, ), dtype=np.float32)
+        agent_action_space = Box(-1.0, 1.0, shape=(1,), dtype=np.float32)
+        agent_observation_space = Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
         self.action_space = Tuple(tuple(agent_action_space for _ in range(num_agents)))
         self.observation_space = Tuple(tuple(agent_observation_space for _ in range(num_agents)))
         super().__init__(num_agents=num_agents)
@@ -59,5 +60,5 @@ class CrowdedLineEnv(MultiAgentEnv):
     def seed(self, seed):
         self.np_random.seed(seed)
 
-    def render(self, mode='human'):
-        return ', '.join(['{:3f} @ {:3f}'.format(pos, vel) for pos, vel in self.state])
+    def render(self, mode="human"):
+        return ", ".join(["{:3f} @ {:3f}".format(pos, vel) for pos, vel in self.state])

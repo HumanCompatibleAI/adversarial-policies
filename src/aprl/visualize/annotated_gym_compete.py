@@ -13,31 +13,32 @@ from aprl.envs.gym_compete import env_name_to_canonical, game_outcome
 from aprl.visualize import util
 
 VICTIM_OPPONENT_COLORS = {
-    'Victim': (55, 126, 184, 255),
-    'Opponent': (228, 26, 28, 255),
-    'Ties': (0, 0, 0, 255),
+    "Victim": (55, 126, 184, 255),
+    "Opponent": (228, 26, 28, 255),
+    "Ties": (0, 0, 0, 255),
 }
 
 
 def body_color(is_victim, is_masked, agent_type, agent_path):
-    key = 'Victim' if is_victim else 'Opponent'
+    key = "Victim" if is_victim else "Opponent"
     return VICTIM_OPPONENT_COLORS[key]
 
 
 GEOM_MAPPINGS = {
-    '*': body_color,
+    "*": body_color,
 }
 
 
 def set_geom_rgba(model, value):
     """Does what model.geom_rgba = ... should do, but doesn't because of a bug in mujoco-py."""
     val_ptr = np.array(value, dtype=np.float32).ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-    ctypes.memmove(model._wrapped.contents.geom_rgba, val_ptr,
-                   model.ngeom * 4 * ctypes.sizeof(ctypes.c_float))
+    ctypes.memmove(
+        model._wrapped.contents.geom_rgba, val_ptr, model.ngeom * 4 * ctypes.sizeof(ctypes.c_float)
+    )
 
 
 def set_geom_colors(model, patterns):
-    names = [name.decode('utf-8') for name in model.geom_names]
+    names = [name.decode("utf-8") for name in model.geom_names]
     patterns = {re.compile(k): tuple(x / 255 for x in v) for k, v in patterns.items()}
 
     modified = np.array(model.geom_rgba)
@@ -51,57 +52,92 @@ def set_geom_colors(model, patterns):
 
 CAMERA_CONFIGS = {
     # For website videos
-    'default': {
+    "default": {
         # From behind
-        'KickAndDefend-v0': {'azimuth': 0, 'distance': 10, 'elevation': -16.5},
+        "KickAndDefend-v0": {"azimuth": 0, "distance": 10, "elevation": -16.5},
         # From side, slightly behind (runner always goes forward, never back)
-        'YouShallNotPassHumans-v0': {'azimuth': 140, 'distance': 9, 'elevation': -21,
-                                     'lookat': [-1.5, 0.5, 0.0], 'trackbodyid': -1},
+        "YouShallNotPassHumans-v0": {
+            "azimuth": 140,
+            "distance": 9,
+            "elevation": -21,
+            "lookat": [-1.5, 0.5, 0.0],
+            "trackbodyid": -1,
+        },
         # From side, close up
-        'SumoHumans-v0': {'azimuth': 90, 'distance': 8, 'elevation': -23},
-        'SumoAnts-v0': {'azimuth': 90, 'distance': 10, 'elevation': -25},
+        "SumoHumans-v0": {"azimuth": 90, "distance": 8, "elevation": -23},
+        "SumoAnts-v0": {"azimuth": 90, "distance": 10, "elevation": -25},
     },
     # More closely cropped. May miss action, but easier to see on projector.
-    'close': {
-        'KickAndDefend-v0': {'azimuth': 0, 'distance': 10, 'elevation': -15},
-        'YouShallNotPassHumans-v0': {'azimuth': 150, 'distance': 9, 'elevation': -23,
-                                     'lookat': [-2.0, 1, 0.0], 'trackbodyid': -1},
-        'SumoHumans-v0': {'azimuth': 90, 'distance': 7.2, 'elevation': -22.5},
-        'SumoAnts-v0': {'azimuth': 90, 'distance': 10, 'elevation': -25},
+    "close": {
+        "KickAndDefend-v0": {"azimuth": 0, "distance": 10, "elevation": -15},
+        "YouShallNotPassHumans-v0": {
+            "azimuth": 150,
+            "distance": 9,
+            "elevation": -23,
+            "lookat": [-2.0, 1, 0.0],
+            "trackbodyid": -1,
+        },
+        "SumoHumans-v0": {"azimuth": 90, "distance": 7.2, "elevation": -22.5},
+        "SumoAnts-v0": {"azimuth": 90, "distance": 10, "elevation": -25},
     },
     # Camera tracks victim. Very tightly cropped. May miss what opponent is doing.
-    'track': {
-        'KickAndDefend-v0': {'azimuth': 0, 'distance': 7, 'elevation': -25,
-                             'trackbodyid': 'agent0/torso'},
-        'YouShallNotPassHumans-v0': {'azimuth': 140, 'distance': 5, 'elevation': -30,
-                                     'trackbodyid': 'agent1/torso'},
-        'SumoHumans-v0': {'azimuth': 90, 'distance': 7, 'elevation': -30},
-        'SumoAnts-v0': {'azimuth': 90, 'distance': 10, 'elevation': -25},
+    "track": {
+        "KickAndDefend-v0": {
+            "azimuth": 0,
+            "distance": 7,
+            "elevation": -25,
+            "trackbodyid": "agent0/torso",
+        },
+        "YouShallNotPassHumans-v0": {
+            "azimuth": 140,
+            "distance": 5,
+            "elevation": -30,
+            "trackbodyid": "agent1/torso",
+        },
+        "SumoHumans-v0": {"azimuth": 90, "distance": 7, "elevation": -30},
+        "SumoAnts-v0": {"azimuth": 90, "distance": 10, "elevation": -25},
     },
 }
 
 
-def pretty_policy_type(env_name: str, short: bool, is_victim: bool, is_masked: bool,
-                       policy_type: str, policy_path: str) -> str:
-    abbrev = util.abbreviate_agent_config(env_name, policy_type, policy_path,
-                                          suffix='M' if is_masked else '',
-                                          victim=is_victim)
+def pretty_policy_type(
+    env_name: str, short: bool, is_victim: bool, is_masked: bool, policy_type: str, policy_path: str
+) -> str:
+    abbrev = util.abbreviate_agent_config(
+        env_name, policy_type, policy_path, suffix="M" if is_masked else "", victim=is_victim
+    )
     friendly = util.friendly_agent_label(abbrev, short=True)
 
     if short:
         return friendly
     else:
-        return f'{friendly} ({abbrev})'
+        return f"{friendly} ({abbrev})"
 
 
 class AnnotatedGymCompete(gym.Wrapper):
     metadata = {
-        'video.frames_per_second': 60,  # MuJoCo env default FPS is 67, round down to be standard
+        "video.frames_per_second": 60,  # MuJoCo env default FPS is 67, round down to be standard
     }
 
-    def __init__(self, env, env_name, agent_a_type, agent_a_path, agent_b_type, agent_b_path,
-                 mask_agent_index, resolution, font, font_size, short_labels, camera_config,
-                 ypos=0.0, spacing=0.05, num_frames=120, draw=True):
+    def __init__(
+        self,
+        env,
+        env_name,
+        agent_a_type,
+        agent_a_path,
+        agent_b_type,
+        agent_b_path,
+        mask_agent_index,
+        resolution,
+        font,
+        font_size,
+        short_labels,
+        camera_config,
+        ypos=0.0,
+        spacing=0.05,
+        num_frames=120,
+        draw=True,
+    ):
         super(AnnotatedGymCompete, self).__init__(env)
 
         # Set agent colors
@@ -113,15 +149,23 @@ class AnnotatedGymCompete(gym.Wrapper):
         self.agent_b_type = agent_b_type
         self.agent_b_path = agent_b_path
         self.agent_mapping = {
-            0: (0 == self.victim_index, 0 == self.mask_agent_index,
-                self.agent_a_type, self.agent_a_path),
-            1: (1 == self.victim_index, 1 == self.mask_agent_index,
-                self.agent_b_type, self.agent_b_path),
+            0: (
+                0 == self.victim_index,
+                0 == self.mask_agent_index,
+                self.agent_a_type,
+                self.agent_a_path,
+            ),
+            1: (
+                1 == self.victim_index,
+                1 == self.mask_agent_index,
+                self.agent_b_type,
+                self.agent_b_path,
+            ),
         }
 
         # Text overlay
-        self.font = ImageFont.truetype(f'{font}.ttf', font_size)
-        self.font_bold = ImageFont.truetype(f'{font}bd.ttf', font_size)
+        self.font = ImageFont.truetype(f"{font}.ttf", font_size)
+        self.font_bold = ImageFont.truetype(f"{font}bd.ttf", font_size)
         self.short_labels = short_labels
         self.ypos = ypos
         self.spacing = spacing
@@ -150,29 +194,31 @@ class AnnotatedGymCompete(gym.Wrapper):
     def camera_setup(self):
         # Color mapping
         model = self.env.unwrapped.env_scene.model
-        color_patterns = {f'agent{agent_key}/{geom_key}': geom_fn(*agent_val)
-                          for geom_key, geom_fn in GEOM_MAPPINGS.items()
-                          for agent_key, agent_val in self.agent_mapping.items()}
+        color_patterns = {
+            f"agent{agent_key}/{geom_key}": geom_fn(*agent_val)
+            for geom_key, geom_fn in GEOM_MAPPINGS.items()
+            for agent_key, agent_val in self.agent_mapping.items()
+        }
         set_geom_colors(model, color_patterns)
 
         # Camera setup
         canonical_env_name = env_name_to_canonical(self.env_name)
         camera_cfg = self.camera_config[canonical_env_name]
 
-        if 'trackbodyid' in camera_cfg:
-            trackbodyid = camera_cfg['trackbodyid']
+        if "trackbodyid" in camera_cfg:
+            trackbodyid = camera_cfg["trackbodyid"]
             try:
                 trackbodyid = int(trackbodyid)
             except ValueError:
-                trackbodyid = str(trackbodyid).encode('utf-8')
+                trackbodyid = str(trackbodyid).encode("utf-8")
                 trackbodyid = model.body_names.index(trackbodyid)
-            camera_cfg['trackbodyid'] = trackbodyid
+            camera_cfg["trackbodyid"] = trackbodyid
 
-        if 'lookat' in camera_cfg:
+        if "lookat" in camera_cfg:
             DoubleArray3 = ctypes.c_double * 3
-            lookat = [float(x) for x in camera_cfg['lookat']]
+            lookat = [float(x) for x in camera_cfg["lookat"]]
             assert len(lookat) == 3
-            camera_cfg['lookat'] = DoubleArray3(*lookat)  # pytype:disable=not-callable
+            camera_cfg["lookat"] = DoubleArray3(*lookat)  # pytype:disable=not-callable
 
         viewer = self.env.unwrapped.env_scene.viewer
         for k, v in camera_cfg.items():
@@ -192,19 +238,19 @@ class AnnotatedGymCompete(gym.Wrapper):
             # TODO: code duplication
             winner = game_outcome(info)
             if winner is None:
-                k = 'ties'
+                k = "ties"
             else:
-                k = f'win{winner}'
+                k = f"win{winner}"
             self.result[k] += 1
             self.changed[k] = self.num_frames
             self.last_won = k
         self.changed[self.last_won] -= 1
         return obs, rew, done, info
 
-    def render(self, mode='human', close=False):
+    def render(self, mode="human", close=False):
         res = self.env.render(mode, close)
 
-        if mode == 'rgb_array':
+        if mode == "rgb_array":
             if not self.draw:
                 return res
 
@@ -214,19 +260,21 @@ class AnnotatedGymCompete(gym.Wrapper):
 
             width, height = img.size
             ypos = height * self.ypos
-            texts = collections.OrderedDict([
-                (f'win{1 - self.victim_index}', 'Opponent'),
-                ('ties', 'Ties'),
-                (f'win{self.victim_index}', 'Victim'),
-            ])
+            texts = collections.OrderedDict(
+                [
+                    (f"win{1 - self.victim_index}", "Opponent"),
+                    ("ties", "Ties"),
+                    (f"win{self.victim_index}", "Victim"),
+                ]
+            )
 
             to_draw = []
             for k, label in texts.items():
                 cur_agent = None
                 header = ""
-                if label == 'Opponent':
+                if label == "Opponent":
                     cur_agent = self.agent_mapping[1 - self.victim_index]
-                elif label == 'Victim':
+                elif label == "Victim":
                     cur_agent = self.agent_mapping[self.victim_index]
                 if cur_agent is not None:
                     header = pretty_policy_type(self.env_name, self.short_labels, *cur_agent)

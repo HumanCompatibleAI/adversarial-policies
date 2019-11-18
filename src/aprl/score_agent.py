@@ -22,8 +22,8 @@ from aprl.policies.loader import load_policy
 from aprl.policies.wrappers import NoisyAgentWrapper
 from aprl.visualize.annotated_gym_compete import AnnotatedGymCompete
 
-score_ex = Experiment('score')
-score_ex_logger = logging.getLogger('score_agent')
+score_ex = Experiment("score")
+score_ex_logger = logging.getLogger("score_agent")
 
 
 def announce_winner(sim_stream):
@@ -50,8 +50,8 @@ def get_empirical_score(venv, agents, episodes, timesteps, render, record_traj, 
     if episodes is None and timesteps is None:
         raise ValueError("At least one of 'max_episodes' and 'max_timesteps' must be non-None.")
 
-    result = {f'win{i}': 0 for i in range(len(agents))}
-    result['ties'] = 0
+    result = {f"win{i}": 0 for i in range(len(agents))}
+    result["ties"] = 0
 
     # This tells sacred about the intermediate computation so it
     # updates the result as the experiment is running
@@ -72,9 +72,9 @@ def get_empirical_score(venv, agents, episodes, timesteps, render, record_traj, 
 
                 winner = game_outcome(info)
                 if winner is None:
-                    result['ties'] += 1
+                    result["ties"] += 1
                 else:
-                    result[f'win{winner}'] += 1
+                    result[f"win{winner}"] += 1
 
             if episodes is not None and completed_episodes >= episodes:
                 return result
@@ -121,8 +121,8 @@ def _save_video_or_metadata(env_dir: str, saved_video_path: str) -> bool:
     :return: True if added an artifact, False otherwise.
     """
     env_number = env_dir.split("/")[-1]
-    video_ptn = re.compile(r'video.(\d*).mp4')
-    metadata_ptn = re.compile(r'video.(\d*).meta.json')
+    video_ptn = re.compile(r"video.(\d*).mp4")
+    metadata_ptn = re.compile(r"video.(\d*).meta.json")
     video_search_result = video_ptn.match(saved_video_path)
     metadata_search_result = metadata_ptn.match(saved_video_path)
 
@@ -135,51 +135,50 @@ def _save_video_or_metadata(env_dir: str, saved_video_path: str) -> bool:
     else:
         return False
 
-    score_ex.add_artifact(filename=os.path.join(env_dir, saved_video_path),
-                          name=sacred_name)
+    score_ex.add_artifact(filename=os.path.join(env_dir, saved_video_path), name=sacred_name)
     return True
 
 
 @score_ex.config
 def default_score_config():
-    env_name = 'multicomp/SumoAnts-v0'    # Gym env ID
-    agent_a_type = 'zoo'                  # type supported by aprl.policies.loader
-    agent_a_path = '1'                    # path or other unique identifier
-    agent_b_type = 'zoo'                  # type supported by aprl.policies.loader
-    agent_b_path = '2'                    # path or other unique identifier
-    record_traj = False                   # whether to record trajectories
-    record_traj_params = {                # parameters for recording trajectories
-        'save_dir': 'data/trajectories',  # directory to save trajectories to
-        'agent_indices': None,            # which agent trajectories to save
+    env_name = "multicomp/SumoAnts-v0"  # Gym env ID
+    agent_a_type = "zoo"  # type supported by aprl.policies.loader
+    agent_a_path = "1"  # path or other unique identifier
+    agent_b_type = "zoo"  # type supported by aprl.policies.loader
+    agent_b_path = "2"  # path or other unique identifier
+    record_traj = False  # whether to record trajectories
+    record_traj_params = {  # parameters for recording trajectories
+        "save_dir": "data/trajectories",  # directory to save trajectories to
+        "agent_indices": None,  # which agent trajectories to save
     }
 
-    transparent_params = None             # whether to make the agents transparent
-    num_env = 1                           # number of environments to run in parallel
-    episodes = 20                         # maximum number of episodes to evaluate
-    timesteps = None                      # maximum number of timesteps to evaluate
-    render = True                         # display on screen (warning: slow)
-    videos = False                        # generate videos
+    transparent_params = None  # whether to make the agents transparent
+    num_env = 1  # number of environments to run in parallel
+    episodes = 20  # maximum number of episodes to evaluate
+    timesteps = None  # maximum number of timesteps to evaluate
+    render = True  # display on screen (warning: slow)
+    videos = False  # generate videos
     video_params = {
-        'save_dir': None,                 # directory to store videos in.
-        'single_file': True,              # if False, stores one file per episode
-        'annotated': True,                # for gym_compete, color-codes the agents and adds scores
-        'annotation_params': {
-            'camera_config': 'default',
-            'short_labels': False,
-            'resolution': (1920, 1080),
-            'font_size': 70,
-            'font': 'times',
+        "save_dir": None,  # directory to store videos in.
+        "single_file": True,  # if False, stores one file per episode
+        "annotated": True,  # for gym_compete, color-codes the agents and adds scores
+        "annotation_params": {
+            "camera_config": "default",
+            "short_labels": False,
+            "resolution": (1920, 1080),
+            "font_size": 70,
+            "font": "times",
         },
     }
     # If video_params['save_dir'] is None, and videos set to true, videos will store in a
     # tempdir, but will be copied to Sacred run dir in either case
 
-    index_keys = []                       # Additional keys to add to the ray result file index
-    noisy_agent_index = None              # Agent to add add action noise to
-    noisy_agent_magnitude = 1.0           # Magnitude of action noise for agent being noised
-    mask_agent_index = None               # index of agent whose observations should be limited
-    mask_agent_masking_type = 'initialization'  # Type of masking to apply to a masked agent
-    mask_agent_noise = None               # Noise to apply to a noisy masked agent.
+    index_keys = []  # Additional keys to add to the ray result file index
+    noisy_agent_index = None  # Agent to add add action noise to
+    noisy_agent_magnitude = 1.0  # Magnitude of action noise for agent being noised
+    mask_agent_index = None  # index of agent whose observations should be limited
+    mask_agent_masking_type = "initialization"  # Type of masking to apply to a masked agent
+    mask_agent_noise = None  # Noise to apply to a noisy masked agent.
     # mask_agent_noise should be inside mask_agent_kwargs, but is being taken out to allow it to
     # be added to the ray results index (since mask_agent_kwargs isn't hashable)
 
@@ -189,16 +188,33 @@ def default_score_config():
 
 
 @score_ex.main
-def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type, agent_b_type,
-                record_traj, record_traj_params, transparent_params, num_env,
-                videos, video_params, mask_agent_index, noisy_agent_index,
-                noisy_agent_magnitude, mask_agent_noise):
-    save_dir = video_params['save_dir']
+def score_agent(
+    _run,
+    _seed,
+    env_name,
+    agent_a_path,
+    agent_b_path,
+    agent_a_type,
+    agent_b_type,
+    record_traj,
+    record_traj_params,
+    transparent_params,
+    num_env,
+    videos,
+    video_params,
+    mask_agent_index,
+    noisy_agent_index,
+    noisy_agent_magnitude,
+    mask_agent_noise,
+):
+    save_dir = video_params["save_dir"]
     if videos:
         if save_dir is None:
-            score_ex_logger.info("No directory provided for saving videos; using a tmpdir instead,"
-                                 " but videos will be saved to Sacred run directory")
-            tmp_dir = tempfile.TemporaryDirectory(prefix='score-videos')
+            score_ex_logger.info(
+                "No directory provided for saving videos; using a tmpdir instead,"
+                " but videos will be saved to Sacred run directory"
+            )
+            tmp_dir = tempfile.TemporaryDirectory(prefix="score-videos")
             save_dir = tmp_dir.name
         else:
             tmp_dir = None
@@ -208,26 +224,33 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
     if mask_agent_index is not None:
         mask_agent_kwargs = {}
         if mask_agent_noise is not None:
-            mask_agent_kwargs['noise_magnitude'] = mask_agent_noise
+            mask_agent_kwargs["noise_magnitude"] = mask_agent_noise
 
         agent_wrappers = make_mask_agent_wrappers(env_name, mask_agent_index, **mask_agent_kwargs)
 
     video_params = utils.sacred_copy(video_params)  # Sacred issue #499
 
     def env_fn(i):
-        env = make_env(env_name, _seed, i, None,
-                       agent_wrappers=agent_wrappers)
+        env = make_env(env_name, _seed, i, None, agent_wrappers=agent_wrappers)
         if videos:
-            if video_params['annotated']:
-                if 'multicomp' in env_name:
+            if video_params["annotated"]:
+                if "multicomp" in env_name:
                     assert num_env == 1, "pretty videos requires num_env=1"
-                    env = AnnotatedGymCompete(env, env_name, agent_a_type, agent_a_path,
-                                              agent_b_type, agent_b_path, mask_agent_index,
-                                              **video_params['annotation_params'])
+                    env = AnnotatedGymCompete(
+                        env,
+                        env_name,
+                        agent_a_type,
+                        agent_a_path,
+                        agent_b_type,
+                        agent_b_path,
+                        mask_agent_index,
+                        **video_params["annotation_params"],
+                    )
                 else:
                     warnings.warn(f"Annotated videos not supported for environment '{env_name}'")
-            env = VideoWrapper(env, video_dirs[i], video_params['single_file'])
+            env = VideoWrapper(env, video_dirs[i], video_params["single_file"])
         return env
+
     env_fns = [functools.partial(env_fn, i) for i in range(num_env)]
 
     if num_env > 1:
@@ -236,20 +259,23 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
         venv = make_dummy_vec_multi_env(env_fns)
 
     if record_traj:
-        venv = TrajectoryRecorder(venv, record_traj_params['agent_indices'])
+        venv = TrajectoryRecorder(venv, record_traj_params["agent_indices"])
 
-    if venv.num_agents == 1 and agent_b_path != 'none':
+    if venv.num_agents == 1 and agent_b_path != "none":
         raise ValueError("Set agent_b_path to 'none' if environment only uses one agent.")
 
     agent_paths = [agent_a_path, agent_b_path]
     agent_types = [agent_a_type, agent_b_type]
     zipped = list(zip(agent_types, agent_paths))
-    agents = [load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
-              for i, (policy_type, policy_path) in enumerate(zipped[:venv.num_agents])]
+    agents = [
+        load_policy(policy_type, policy_path, venv, env_name, i, transparent_params)
+        for i, (policy_type, policy_path) in enumerate(zipped[: venv.num_agents])
+    ]
 
     if noisy_agent_index is not None:
-        agents[noisy_agent_index] = NoisyAgentWrapper(agents[noisy_agent_index],
-                                                      noise_annealer=lambda: noisy_agent_magnitude)
+        agents[noisy_agent_index] = NoisyAgentWrapper(
+            agents[noisy_agent_index], noise_annealer=lambda: noisy_agent_magnitude
+        )
 
     score = get_empirical_score(venv, agents)
 
@@ -258,7 +284,7 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             agent.sess.close()
 
     if record_traj:
-        save_paths = venv.save(save_dir=record_traj_params['save_dir'])
+        save_paths = venv.save(save_dir=record_traj_params["save_dir"])
         for save_path in save_paths:
             score_ex.add_artifact(save_path, name="victim_activations.npz")
 
@@ -276,18 +302,18 @@ def score_agent(_run, _seed, env_name, agent_a_path, agent_b_path, agent_a_type,
             tmp_dir.cleanup()
 
     for observer in score_ex.observers:
-        if hasattr(observer, 'dir'):
+        if hasattr(observer, "dir"):
             _clean_video_directory_structure(observer)
 
     return score
 
 
 def main():
-    observer = FileStorageObserver(osp.join('data', 'sacred', 'score'))
+    observer = FileStorageObserver(osp.join("data", "sacred", "score"))
     score_ex.observers.append(observer)
     score_ex.run_commandline()
     score_ex_logger.info("Sacred run completed, files stored at {}".format(observer.dir))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
