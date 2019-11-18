@@ -1,6 +1,9 @@
 # Based on OpenAI's mujoco-py Dockerfile
 
+ARG USE_MPI=True
+
 FROM nvidia/cuda:10.0-runtime-ubuntu18.04 AS base
+ARG USE_MPI
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections \
@@ -47,7 +50,6 @@ RUN    mkdir -p /root/.mujoco \
 COPY vendor/Xdummy /usr/local/bin/Xdummy
 RUN chmod +x /usr/local/bin/Xdummy
 
-ARG USE_MPI=True
 RUN if [ $USE_MPI = "True" ]; then \
     add-apt-repository --yes ppa:marmistrz/openmpi \
     && apt-get update -q \
@@ -63,6 +65,7 @@ ENV PATH="/adversarial-policies/venv/bin:$PATH"
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}
 
 FROM base as python-req
+ARG USE_MPI
 
 WORKDIR /adversarial-policies
 # Copy over just requirements.txt at first. That way, the Docker cache doesn't
