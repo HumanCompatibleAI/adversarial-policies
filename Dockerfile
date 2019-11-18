@@ -57,6 +57,11 @@ RUN if [ $USE_MPI = "True" ]; then \
     && rm -rf /var/lib/apt/lists/*; \
     fi
 
+# Set the PATH to the venv before we create the venv, so it's visible in base.
+# This is since we may create the venv outside of Docker, e.g. in CI
+# or by binding it in for local development.
+ENV PATH="/adversarial-policies/venv/bin:$PATH"
+
 FROM base as python-req
 
 WORKDIR /adversarial-policies
@@ -71,7 +76,6 @@ RUN    touch /root/.mujoco/mjkey.txt && ci/build_venv.sh && rm -rf $HOME/.cache/
 
 FROM python-req as full
 
-ENV PATH="/adversarial-policies/venv/bin:$PATH"
 # Delay copying (and installing) the code until the very end
 COPY . /adversarial-policies
 # Build a wheel then install to avoid copying whole directory (pip issue #2195)

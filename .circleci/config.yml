@@ -46,7 +46,6 @@ commands:
           name: install adversarial-policies
           # Build a wheel then install to avoid copying whole directory (pip issue #2195)
           command: |
-            . ./venv/bin/activate
             python setup.py sdist bdist_wheel
             pip install --upgrade dist/aprl-*.whl
 jobs:
