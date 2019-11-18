@@ -12,15 +12,8 @@ stable-baselines>=2.8.0
 ray[debug]>=0.7.6
 boto3>=1.9
 awscli>=1.16
-pytest>=4.1
-pytest-xdist>=1.30.0
-codecov>=2.0.15
-pytest-cov>=2.6.1
-flake8>=3.7
-isort>=4.3
 statsmodels>=0.9.0
 seaborn>=0.9.0
-pytype>=2019.10.17
 ilqr @ git+https://github.com/anassinator/ilqr.git
 gym>=0.15.4
 mujoco-py>=2.0,<2.1
