@@ -34,7 +34,6 @@ RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sc
     && chmod +x /usr/local/bin/patchelf
 
 ENV LANG C.UTF-8
-ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 
 RUN    mkdir -p /root/.mujoco \
     && curl -o mujoco200.zip https://www.roboti.us/download/mujoco200_linux.zip \
@@ -61,6 +60,7 @@ RUN if [ $USE_MPI = "True" ]; then \
 # This is since we may create the venv outside of Docker, e.g. in CI
 # or by binding it in for local development.
 ENV PATH="/adversarial-policies/venv/bin:$PATH"
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}
 
 FROM base as python-req
 
