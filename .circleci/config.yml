@@ -11,7 +11,7 @@ executors:
     environment:
       # If you change these, also change scripts/code_checks.sh
       SRC_FILES: src/ tests/ setup.py
-      TYPECHECK_FILES: src/  tests/ setup.py
+      TYPECHECK_FILES: src/ tests/ setup.py
       NUM_CPUS: 2  # more CPUs visible but we're throttled to 2, which breaks auto-detect
 
 commands:
@@ -25,8 +25,6 @@ commands:
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
-            # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
 
       - run:
           name: install dependencies
@@ -83,7 +81,7 @@ jobs:
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
                    --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
                     -n ${NUM_CPUS} -vv tests/
-            mv .coverage .coverage.eval
+            mv .coverage .coverage.aprl
             coverage combine  # rewrite paths from virtualenv to src/
       - codecov/upload
 
