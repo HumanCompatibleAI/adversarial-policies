@@ -126,15 +126,15 @@ def flatten_space(tuple_space):
     unique_types = set(type(space) for space in tuple_space.spaces)
     if len(unique_types) > 1:
         raise TypeError(f"Cannot flatten a space with more than one type: {unique_types}")
-    type = unique_types.pop()
+    uniq_type = unique_types.pop()
 
-    if isinstance(type, gym.spaces.Discrete):
+    if isinstance(uniq_type, gym.spaces.Discrete):
         flat_space = gym.spaces.MultiDiscrete([space.n for space in tuple_space.spaces])
         flatten = unflatten = lambda x: x
-    elif isinstance(type, gym.spaces.MultiDiscrete):
+    elif isinstance(uniq_type, gym.spaces.MultiDiscrete):
         flat_space = gym.spaces.MultiDiscrete([space.nvec for space in tuple_space.spaces])
         flatten = unflatten = lambda x: x
-    elif isinstance(type, gym.spaces.Box):
+    elif isinstance(uniq_type, gym.spaces.Box):
         low = np.concatenate(*[space.low for space in tuple_space.spaces], axis=0)
         high = np.concatenate(*[space.high for space in tuple_space.spaces], axis=0)
         flat_space = gym.spaces.Box(low=low, high=high)
@@ -310,17 +310,17 @@ make_dummy_vec_multi_env = _make_vec_multi_env(_DummyVecMultiEnv)
 make_subproc_vec_multi_env = _make_vec_multi_env(_SubprocVecMultiEnv)
 
 
-def _tuple_pop(input, i):
-    output = list(input)
-    elt = output.pop(i)
-    return tuple(output), elt
+def _tuple_pop(inp, i):
+    out = list(inp)
+    elt = out.pop(i)
+    return tuple(out), elt
 
 
-def _tuple_replace(input, i, obj):
-    output = list(input)
-    del output[i]
-    output.insert(i, obj)
-    return tuple(output)
+def _tuple_replace(inp, i, obj):
+    out = list(inp)
+    del out[i]
+    out.insert(i, obj)
+    return tuple(out)
 
 
 def _tuple_space_filter(tuple_space, filter_idx):

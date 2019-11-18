@@ -161,9 +161,9 @@ def lineplot_monolithic(
             ax = axs[i][j]
             if plot_cfg.get("aggregated", True):
                 group = subset.groupby(subset[xcol])[ycol]
-                min, median, max = group.min(), group.median(), group.max()
-                ax.fill_between(x=median.index, y1=min, y2=max, alpha=0.4)
-                median.plot(label=vis_styles.PRETTY_LABELS["Adv"], ax=ax)
+                group_min, group_median, group_max = group.min(), group.median(), group.max()
+                ax.fill_between(x=group_median.index, y1=group_min, y2=group_max, alpha=0.4)
+                group_median.plot(label=vis_styles.PRETTY_LABELS["Adv"], ax=ax)
             else:
                 sns.lineplot(
                     x=xcol,
@@ -217,7 +217,8 @@ def _win_rate_make_fig(x, lineplot_fn, fig_dir, **kwargs):
     return save_figs(fig_dir, figs)
 
 
-def _win_rate_labels(vars, ax):
+def _win_rate_labels(variables, ax):
+    del variables
     ax.set_xlabel("Timestep")
     ax.set_ylabel("Win rate (%)")
 
@@ -288,10 +289,10 @@ def plot_baselines(env_name, victim_path, ycol, ax, baseline):
         )
 
 
-def plot_baselines_multi_fig(vars, ax, baseline):
-    outer_key = vars["outer_key"]
+def plot_baselines_multi_fig(variables, ax, baseline):
+    outer_key = variables["outer_key"]
     env_name, victim_path = outer_key
-    ycol = vars["ycol"]
+    ycol = variables["ycol"]
     return plot_baselines(env_name, victim_path, ycol, ax, baseline)
 
 
@@ -325,11 +326,11 @@ def win_rate_per_env(tb_dir, baseline):
     )
 
 
-def plot_baselines_monolithic(vars, ax, baseline):
-    filter = vars["cfg"]["filter"]
-    env_name = filter["env_name"]
-    victim_path = filter["victim_path"]
-    ycol = vars["ycol"]
+def plot_baselines_monolithic(variables, ax, baseline):
+    var_filter = variables["cfg"]["filter"]
+    env_name = var_filter["env_name"]
+    victim_path = var_filter["victim_path"]
+    ycol = variables["ycol"]
     return plot_baselines(env_name, victim_path, ycol, ax, baseline)
 
 

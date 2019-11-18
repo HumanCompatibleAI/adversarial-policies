@@ -54,8 +54,8 @@ def receding(ilqr, x0, us_init, seed, step_size=1, horizon=None, **kwargs):
     us = np.zeros((horizon, ) + us_init[0].shape)
     i = 0
     for x, u in controller.control(us_init, step_size=step_size, **kwargs):
-        xs[i:i+step_size] = x[:-1]
-        us[i:i+step_size] = u
+        xs[i:i + step_size] = x[:-1]
+        us[i:i + step_size] = u
         print('iteration {} x = {}, u = {}'.format(i, x, u))
         i += step_size
         if i == horizon:

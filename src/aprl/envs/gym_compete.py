@@ -4,12 +4,12 @@ import os
 import pickle
 import pkgutil
 
-from gym_compete import policy
 import tensorflow as tf
 
 from aprl.common.utils import make_session
 from aprl.envs import multi_agent
 from aprl.policies import base, transparent
+from gym_compete import policy
 
 pylog = logging.getLogger("aprl.envs.gym_compete")
 
@@ -211,15 +211,15 @@ def load_zoo_agent_params(tag, env_name, index):
     :return a NumPy array of policy weights."""
     # Load parameters
     canonical_env = env_name_to_canonical(env_name)
-    dir = os.path.join("agent_zoo", canonical_env)
+    agent_dir = os.path.join("agent_zoo", canonical_env)
 
     if is_symmetric(env_name):  # asymmetric version, parameters tagged with agent id
         symmetric_fname = f"agent_parameters-v{tag}.pkl"
-        path = os.path.join(dir, symmetric_fname)
+        path = os.path.join(agent_dir, symmetric_fname)
         params_pkl = pkgutil.get_data("gym_compete", path)
     else:  # symmetric version, parameters not associated with a specific agent
         asymmetric_fname = f"agent{index + 1}_parameters-v{tag}.pkl"
-        path = os.path.join(dir, asymmetric_fname)
+        path = os.path.join(agent_dir, asymmetric_fname)
         params_pkl = pkgutil.get_data("gym_compete", path)
 
     pylog.info(f"Loaded zoo parameters from '{path}'")

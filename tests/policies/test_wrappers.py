@@ -162,8 +162,9 @@ def test_simple_multi_policy_switching():
     """Checks policy switching in simple environment."""
     num_steps = 5000
 
-    def extra_check(vars):
-        assert np.all(vars["actions"] == [p.constant for p in vars["new_current_policies"]])
+    def extra_check(local_vars):
+        constants = [p.constant for p in local_vars["new_current_policies"]]
+        assert np.all(local_vars["actions"] == constants)
 
     with create_simple_policy_wrapper(
         env_name="CartPole-v1", num_envs=2, state_shapes=[None, (5,), (10,)],
