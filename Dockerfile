@@ -1,60 +1,63 @@
 # Based on OpenAI's mujoco-py Dockerfile
 
-FROM nvidia/cuda:10.0-runtime-ubuntu18.04
+FROM nvidia/cuda:10.0-runtime-ubuntu18.04 AS base
 ARG DEBIAN_FRONTEND=noninteractive
-ARG USE_MPI=True
 
 RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections \
     && apt-get update -q \
-    && apt-get install -y \
+    && apt-get install -y --no-install-recommends \
+    build-essential \
     curl \
+    ffmpeg \
     git \
     libgl1-mesa-dev \
     libgl1-mesa-glx \
     libglew-dev \
     libosmesa6-dev \
-    ffmpeg \
-    software-properties-common \
     net-tools \
     parallel \
+    python3.7 \
+    python3.7-dev \
+    python3-pip \
     rsync \
+    software-properties-common \
     unzip \
     vim \
     virtualenv \
-    wget \
     xpra \
     xserver-xorg-dev \
     ttf-mscorefonts-installer \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN add-apt-repository --yes ppa:deadsnakes/ppa \
-    && apt-get update -q \
-    && apt-get install -y python3.7-dev python3.7 python3-pip
-
 RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
     && chmod +x /usr/local/bin/patchelf
-
-RUN if [ $USE_MPI = "True" ]; then \
-    add-apt-repository --yes ppa:marmistrz/openmpi \
-    && apt-get update -q \
-    && apt-get install -y libopenmpi3 libopenmpi-dev; \
-    fi
 
 ENV LANG C.UTF-8
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 
 RUN    mkdir -p /root/.mujoco \
-    && wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco200.zip \
+    && curl -o mujoco200.zip https://www.roboti.us/download/mujoco200_linux.zip \
     && unzip mujoco200.zip -d /root/.mujoco \
     && mv /root/.mujoco/mujoco200_linux /root/.mujoco/mujoco200 \
     && rm mujoco200.zip \
-    && wget https://www.roboti.us/download/mjpro131_linux.zip -O mujoco131.zip \
+    && curl -o mujoco131.zip https://www.roboti.us/download/mjpro131_linux.zip \
     && unzip mujoco131.zip -d /root/.mujoco \
     && rm mujoco131.zip
 
 COPY vendor/Xdummy /usr/local/bin/Xdummy
 RUN chmod +x /usr/local/bin/Xdummy
+
+ARG USE_MPI=True
+RUN if [ $USE_MPI = "True" ]; then \
+    add-apt-repository --yes ppa:marmistrz/openmpi \
+    && apt-get update -q \
+    && apt-get install -y libopenmpi3 libopenmpi-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+FROM base as python-req
 
 WORKDIR /adversarial-policies
 # Copy over just requirements.txt at first. That way, the Docker cache doesn't
@@ -63,7 +66,9 @@ COPY ./requirements-build.txt /adversarial-policies/
 COPY ./requirements.txt /adversarial-policies/
 COPY ./ci/build_venv.sh /adversarial-policies/ci/build_venv.sh
 # mjkey.txt needs to exist for build, but doesn't need to be a real key
-RUN    touch /root/.mujoco/mjkey.txt && ci/build_venv.sh
+RUN    touch /root/.mujoco/mjkey.txt && ci/build_venv.sh && rm -rf $HOME/.cache/pip
+
+FROM python-req as full
 
 ENV PATH="/adversarial-policies/venv/bin:$PATH"
 # Delay copying (and installing) the code until the very end
