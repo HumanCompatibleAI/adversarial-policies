@@ -71,7 +71,7 @@ jobs:
 
   unit-test:
     executor: my-executor
-    parallelism: 4
+    parallelism: 3
     steps:
       - dependencies
 
