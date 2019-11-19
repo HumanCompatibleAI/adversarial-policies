@@ -81,7 +81,7 @@ jobs:
             mkdir /tmp/resource-usage
             export FILE=/tmp/resource-usage/memory.txt
             while true; do
-              ps -u ubuntu eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE
+              ps -u root eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE
               echo "----------" >> $FILE
               sleep 1
             done
