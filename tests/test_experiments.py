@@ -173,14 +173,19 @@ TRAIN_CONFIGS += [
 ]
 
 
+# Choose hyperparameters to minimize resource consumption in tests
+TRAIN_SMALL_RESOURCES = {
+    "batch_size": 64,
+    "total_timesteps": 128,
+    "num_env": 2,
+}
+
+
 @pytest.mark.parametrize("config", TRAIN_CONFIGS)
 def test_train(config):
     config = dict(config)
-    # Use a small number of steps to keep things quick
-    config.setdefault("batch_size", 64)
-    config.setdefault("total_timesteps", 128)
-    # Limit # of parallel envs to avoid large memory consumption
-    config.setdefault("num_env", 2)
+    for k, v in TRAIN_SMALL_RESOURCES.items():
+        config.setdefault(k, v)
 
     run = train_ex.run(config_updates=config)
     assert run.status == "COMPLETED"
@@ -190,7 +195,7 @@ def test_train(config):
     assert os.path.isfile(os.path.join(final_dir, "model.pkl")), "model weights not saved"
 
 
-def _test_multi(ex):
+def _test_multi(ex, config_updates=None):
     multi_config = {
         "spec": {
             "run_kwargs": {
@@ -201,6 +206,8 @@ def _test_multi(ex):
         },
         "init_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
     }
+    if config_updates:
+        multi_config.update(config_updates)
 
     run = ex.run(config_updates=multi_config, named_configs=("debug_config",))
     assert run.status == "COMPLETED"
@@ -217,7 +224,10 @@ def test_multi_score():
 
 
 def test_multi_train():
-    run = _test_multi(multi_train_ex)
+    config_updates = {
+        "train": TRAIN_SMALL_RESOURCES,
+    }
+    run = _test_multi(multi_train_ex, config_updates=config_updates)
 
     analysis, exp_id = run.result
     assert isinstance(analysis, tune.analysis.ExperimentAnalysis)
