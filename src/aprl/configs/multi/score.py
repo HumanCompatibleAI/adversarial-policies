@@ -203,9 +203,7 @@ def make_configs(multi_score_ex):
         score["num_env"] = 1
         score["episodes"] = None
         score["timesteps"] = 60 * 60  # one minute of video @ 60 fps
-        score["video_params"] = {
-            "annotation_params": {"resolution": (1920, 1080), "font_size": 70}
-        }
+        score["video_params"] = {"annotation_params": {"resolution": (1920, 1080), "font_size": 70}}
         exp_prefix = {"video": None}  # noqa: F841
 
     # Observation masking
