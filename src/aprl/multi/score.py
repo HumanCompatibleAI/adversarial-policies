@@ -57,7 +57,7 @@ def debug_config(score):
     score["agent_a_type"] = "zoo"
     score["agent_b_type"] = "zoo"
     spec = {"config": {"agent_a_path": tune.grid_search(["1", "2"])}}
-    exp_name = "debug"
+    exp_suffix = "debug"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

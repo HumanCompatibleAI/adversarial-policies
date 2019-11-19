@@ -423,6 +423,7 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.config
     def prefix_exp_name(exp_suffix, exp_prefix):
-        exp_name = (  # noqa: F841
-            f"{':'.join(sorted(exp_prefix.keys()))}-" if exp_prefix else ""
-        ) + exp_suffix
+        exp_name = ""
+        if exp_prefix:
+            exp_name += f"{':'.join(sorted(exp_prefix.keys()))}-"
+        exp_name += exp_suffix
