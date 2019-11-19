@@ -154,7 +154,7 @@ _test_mc_single = check_monte_carlo(
     "single", MC_SINGLE_THRESHOLDS, total_horizon=20, planning_horizon=10, trajectories=100
 )
 _test_mc_parallel = check_monte_carlo(
-    "parallel", MC_PARALLEL_THRESHOLDS, total_horizon=30, planning_horizon=15, trajectories=4096
+    "parallel", MC_PARALLEL_THRESHOLDS, total_horizon=30, planning_horizon=15, trajectories=200
 )
 test_mc_single = pytest.mark.parametrize("env_name", MONTE_CARLO_ENVS)(_test_mc_single)
 test_mc_parallel = pytest.mark.parametrize("env_name", MONTE_CARLO_ENVS)(_test_mc_parallel)
