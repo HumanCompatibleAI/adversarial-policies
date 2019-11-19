@@ -143,6 +143,7 @@ TRAIN_CONFIGS = [
         # test TransparentMLPPolicyValue
         "env_name": "multicomp/YouShallNotPassHumans-v0",
         "transparent_params": ["ff_policy"],
+        "batch_size": 32,
     },
     {
         "env_name": "multicomp/SumoHumans-v0",
@@ -166,18 +167,25 @@ except ImportError:
     # skip GAIL test if algorithm not available
     pass
 TRAIN_CONFIGS += [
-    {"rl_algo": algo, "num_env": 1 if algo in NO_VECENV else 8}
+    {"rl_algo": algo, "num_env": 1 if algo in NO_VECENV else 2}
     for algo in RL_ALGOS.keys()
     if algo != "gail"
 ]
 
 
+# Choose hyperparameters to minimize resource consumption in tests
+TRAIN_SMALL_RESOURCES = {
+    "batch_size": 64,
+    "total_timesteps": 128,
+    "num_env": 2,
+}
+
+
 @pytest.mark.parametrize("config", TRAIN_CONFIGS)
 def test_train(config):
     config = dict(config)
-    # Use a small number of steps to keep things quick
-    config["batch_size"] = 512
-    config["total_timesteps"] = 1024
+    for k, v in TRAIN_SMALL_RESOURCES.items():
+        config.setdefault(k, v)
 
     run = train_ex.run(config_updates=config)
     assert run.status == "COMPLETED"
@@ -187,16 +195,19 @@ def test_train(config):
     assert os.path.isfile(os.path.join(final_dir, "model.pkl")), "model weights not saved"
 
 
-def _test_multi(ex):
+def _test_multi(ex, config_updates=None):
     multi_config = {
         "spec": {
             "run_kwargs": {
-                "resources_per_trial": {"cpu": 2},  # Travis only has 2 cores
+                "resources_per_trial": {"cpu": 2},  # CI build only has 2 cores
                 "upload_dir": None,  # do not upload test results anywhere
                 "sync_to_cloud": None,  # as above
             },
         },
+        "init_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
     }
+    if config_updates:
+        multi_config.update(config_updates)
 
     run = ex.run(config_updates=multi_config, named_configs=("debug_config",))
     assert run.status == "COMPLETED"
@@ -213,34 +224,43 @@ def test_multi_score():
 
 
 def test_multi_train():
-    run = _test_multi(multi_train_ex)
+    config_updates = {
+        "train": TRAIN_SMALL_RESOURCES,
+    }
+    run = _test_multi(multi_train_ex, config_updates=config_updates)
 
     analysis, exp_id = run.result
     assert isinstance(analysis, tune.analysis.ExperimentAnalysis)
     assert isinstance(exp_id, str)
 
 
-ACTIVATION_EXPERIMENTS = [density_ex, tsne_ex]
+ACTIVATION_EXPERIMENTS = [
+    (density_ex, "fit_density_model"),
+    (tsne_ex, "tsne_fit_model"),
+]
 
 
-@pytest.mark.parametrize("ex", ACTIVATION_EXPERIMENTS)
-def test_activation_pipeline(ex):
+@pytest.mark.parametrize("test_cfg", ACTIVATION_EXPERIMENTS)
+def test_activation_pipeline(test_cfg):
+    ex, inner_exp_name = test_cfg
     with tempfile.TemporaryDirectory(prefix="test_activation_pipeline") as tmpdir:
         config_updates = {
             "generate_activations": {
                 "score_update": {
                     "spec": {
                         "run_kwargs": {
-                            "resources_per_trial": {"cpu": 2},  # Travis only has 2 cores
+                            "resources_per_trial": {"cpu": 2},  # CI build only has 2 cores
                             "upload_dir": os.path.join(tmpdir, "ray"),
                             "sync_to_cloud": (
                                 "mkdir -p {target} && " "rsync -rlptv {source}/ {target}"
                             ),
                         },
                     },
+                    "init_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
                 },
                 "ray_upload_dir": os.path.join(tmpdir, "ray"),
             },
+            inner_exp_name: {"init_kwargs": {"num_cpus": 2}},  # CI build only has 2 cores
             "output_root": os.path.join(tmpdir, "main"),
         }
 

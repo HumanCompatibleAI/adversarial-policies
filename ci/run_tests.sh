@@ -2,7 +2,8 @@
 
 set -e  # exit immediately on any error
 
-. ci/prepare_env.sh
+echo "Downloading MuJoCo Key"
+curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
 
 set -o xtrace  # print commands
 
