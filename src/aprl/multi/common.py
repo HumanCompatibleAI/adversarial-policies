@@ -13,6 +13,7 @@ import os.path as osp
 import shlex
 import socket
 import subprocess
+from typing import Any, Dict
 import urllib
 import uuid
 
@@ -71,6 +72,7 @@ def make_sacred(ex, worker_name, worker_fn):
         local_dir = None  # results storage on 'local' platform
         ray_server = None  # if None, start cluster on local machine
         upload_root = None  # root of upload_dir
+        init_kwargs = {}  # options for ray.init
         exp_name = "default"  # experiment name
 
         _ = locals()  # quieten flake8 unused variable warning
@@ -140,8 +142,14 @@ def make_sacred(ex, worker_name, worker_fn):
             }
 
     @ex.capture
-    def run(base_config, ray_server, exp_name, spec):
-        ray.init(redis_address=ray_server)
+    def run(
+        base_config: Dict[str, Any],
+        ray_server: str,
+        init_kwargs: Dict[str, Any],
+        exp_name: str,
+        spec: Dict[str, Any],
+    ) -> ray.tune.ExperimentAnalysis:
+        ray.init(redis_address=ray_server, **init_kwargs)
 
         # We have to register the function we're going to call with Ray.
         # We partially apply worker_fn, so it's different for each experiment.

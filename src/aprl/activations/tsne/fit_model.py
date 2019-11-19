@@ -4,6 +4,7 @@ import os.path as osp
 import pickle
 import re
 import tempfile
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -21,6 +22,7 @@ logger = logging.getLogger("aprl.activations.tsne.fit_model")
 @fit_model_ex.config
 def base_config():
     ray_server = None  # by default will launch a server
+    init_kwargs = {}  # passed to ray.init()
     activation_dir = None
     output_root = None
     data_type = "ff_policy"
@@ -111,16 +113,17 @@ def fit_tsne_helper(
 @fit_model_ex.main
 def fit_model(
     _run,
-    ray_server,
-    activation_dir,
-    output_root,
-    num_components,
-    num_observations,
-    perplexity,
+    ray_server: str,
+    init_kwargs: Dict[str, Any],
+    activation_dir: str,
+    output_root: str,
+    num_components: int,
+    num_observations: int,
+    perplexity: int,
     data_type,
 ):
     try:
-        ray.init(redis_address=ray_server)
+        ray.init(redis_address=ray_server, **init_kwargs)
 
         # Find activation paths for each environment & victim-path tuple
         stem_pattern = re.compile(r"(.*)_opponent_.*\.npz")
