@@ -47,6 +47,7 @@ commands:
           command: |
             python setup.py sdist bdist_wheel
             pip install --upgrade dist/aprl-*.whl
+
 jobs:
   lintandtype:
     executor: my-executor
