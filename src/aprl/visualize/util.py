@@ -1,13 +1,18 @@
+import functools
 import json
 import logging
 import os.path
+import re
 
 import matplotlib.backends.backend_pdf
 from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from aprl import train
+from aprl.configs import DATA_LOCATION
 from aprl.envs import VICTIM_INDEX, gym_compete
 from aprl.visualize import styles
 
@@ -16,12 +21,12 @@ logger = logging.getLogger("aprl.visualize.util")
 # Data loading & manipulation
 
 
-def load_json(path):
+def load_json(path: str):
     with open(path, "r") as f:
         return json.load(f)
 
 
-def load_scores(path, reindex_victim=False):
+def load_scores(path: str) -> pd.DataFrame:
     raw = load_json(path)
     res = {}
     for d in raw:
@@ -41,110 +46,145 @@ def load_scores(path, reindex_victim=False):
         res[k] = v
 
     df = pd.DataFrame(res).T
-    df.index.names = ["env_name", "victim_type", "victim_path", "adversary_type", "adversary_path"]
+    df.index.names = ["env_name", "victim_type", "victim_path", "opponent_type", "opponent_path"]
     cols = ["Opponent Win", "Victim Win", "Ties"]
     return df.loc[:, cols].copy()
 
 
-def load_zoo_baseline(path):
-    """Returns DataFrame with index (env_name, agent 0 zoo path, agent 1 zoo path)."""
-    scores = load_scores(path)
-    # drop the 'types' which are always 'zoo'
-    scores.index = scores.index.droplevel(level=3).droplevel(level=1)
-    scores.index.names = ["Environment", "Agent 0", "Agent 1"]
-    assert scores.index.is_unique
-    return scores
+def abbreviate_agent_config(
+    env_name: str, agent_type: str, agent_path: str, suffix: str, victim: bool
+) -> str:
+    """Convert an agent configuration into a short abbreviation."""
+    if agent_type == "zoo":
+        prefix = f"Zoo{suffix}"
+        if not gym_compete.is_symmetric(env_name):
+            prefix += "V" if victim else "O"
+        assert isinstance(agent_path, str) and len(agent_path) == 1 and agent_path.isnumeric()
+        return f"{prefix}{agent_path}"
+    elif agent_type == "zero":
+        return f"Zero{suffix}"
+    elif agent_type == "random":
+        return f"Rand{suffix}"
+    elif agent_type == "ppo2":
+        components = agent_path.split(os.path.sep)
+        components = components[:-3]  # chop off baselines/*/final_model
+        components = components[components.index("multi_train") :]  # make relative
+        sacred_path = os.path.join(
+            DATA_LOCATION, *components, "sacred", "train", "1", "config.json"
+        )
+
+        with open(sacred_path, "r") as f:
+            cfg = json.load(f)
+
+        load_policy = cfg["load_policy"]
+        finetuned = load_policy["path"] is not None
+        if finetuned:
+            orig = abbreviate_agent_config(
+                env_name, load_policy["type"], load_policy["path"], suffix="", victim=victim
+            )
+
+        try:
+            embed_types, embed_paths, _ = train.resolve_embed(
+                cfg["embed_type"], cfg["embed_path"], cfg["embed_types"], cfg["embed_paths"], {}
+            )
+        except KeyError:
+            # TODO(adam): this is for backward compatibility, remove after retraining old policies
+            embed_types = [cfg["victim_type"]]
+            embed_paths = [str(cfg["victim_path"])]
+
+        if victim:
+            assert finetuned
+            assert load_policy["type"] == "zoo"
+
+            single = set(embed_types) == {"ppo2"}
+            dual = set(embed_types) == {"ppo2", "zoo"}
+            assert single or dual
+            defense_type = "S" if single else "D"
+            return orig.replace("Zoo", f"Zoo{suffix}{defense_type}")
+        else:  # opponent
+            assert len(embed_types) == 1
+            victim_abbv = abbreviate_agent_config(
+                env_name, embed_types[0], embed_paths[0], suffix="", victim=True
+            )
+            victim_abbv = re.sub(r"Zoo([SD]?)[OV]?(.*)", r"\1\2", victim_abbv)
+            prefix = "F" if finetuned else ""
+            return f"{prefix}Adv{suffix}{victim_abbv}"
+    else:
+        raise ValueError(f"Unknown agent_type '{agent_type}'")
 
 
-def load_fixed_baseline(path):
-    """Returns DataFrame with index (env_name, victim path, opponent type)."""
-    scores = load_scores(path)
-    # drop the always 'zoo' type for victim and the
-    scores.index = scores.index.droplevel(level=4).droplevel(level=1)
-    scores.index.names = ["Environment", "Victim", "Baseline"]
-    assert scores.index.is_unique
-    return scores
+def victim_abbrev(x, suffix) -> str:
+    env_name, victim_type, victim_path, _, _ = x
+    return abbreviate_agent_config(env_name, victim_type, victim_path, suffix=suffix, victim=True)
 
 
-def load_transfer_baseline(path):
-    """Returns DataFrame with index (env_name, victim path, adversary trained on victim path)."""
-    scores = load_scores(path)
-    # drop the always 'zoo' and 'ppo2' type for victim and adversary
-    scores.index = scores.index.droplevel(level=3).droplevel(level=1)
-    adversary_paths = scores.index.get_level_values(2)
-    trained_on = adversary_paths.str.replace(".*victim_path=", "").str.replace("[^0-9].*", "")
-    scores.index = pd.MultiIndex.from_tuples(
-        [(x[0], x[1], path) for x, path in zip(scores.index, trained_on)]
+def opponent_abbrev(x, suffix) -> str:
+    env_name, _, _, opponent_type, opponent_path = x
+    return abbreviate_agent_config(
+        env_name, opponent_type, opponent_path, suffix=suffix, victim=False
     )
-    scores.index.names = ["Environment", "Victim", "Adversary For"]
+
+
+# Longer description: for website
+FRIENDLY_AGENT_LABEL_LONG = {
+    "Rand": "Random",
+    "Zero": "Lifeless",
+    r"Zoo[VO]?[0-9]": "Normal",
+    r"ZooM[VO]?[0-9]": "Masked",
+    r"ZooMS[VO]?[0-9]": "Masked Single Fine-tuned",
+    r"ZooMD[VO]?[0-9]": "Masked Dual Fine-tuned",
+    r"ZooS[VO]?[0-9]": "Single Fine-tuned",
+    r"ZooD[VO]?[0-9]": "Dual Fine-tuned",
+    r"Adv([0-9])": "Adversary",
+    r"Adv[SD]([0-9])": "Retrained Adversary",
+}
+
+# Shorter description: for videos
+FRIENDLY_AGENT_LABEL_SHORT = {
+    "Rand": "Random",
+    "Zero": "Lifeless",
+    r"Zoo[VO]?[0-9]": "Normal",
+    r"ZooM[SD]?[VO]?[0-9]": "Masked",
+    r"Zoo[SD][VO]?[0-9]": "Fine-tuned",
+    r"Adv[SD]?([0-9])": "Adversary",
+}
+
+
+def friendly_agent_label(abbrev: str, short: bool = False) -> str:
+    labels = FRIENDLY_AGENT_LABEL_SHORT if short else FRIENDLY_AGENT_LABEL_LONG
+    matches = {pattern: label for pattern, label in labels.items() if re.match(pattern, abbrev)}
+    if len(matches) == 0:
+        raise ValueError(f"No friendly label for '{abbrev}'")
+    if len(matches) > 1:
+        raise ValueError(f"Ambiguous friendly label for '{abbrev}'")
+    return list(matches.values())[0]
+
+
+def load_datasets(path: str, victim_suffix: str = "", opponent_suffix: str = "") -> pd.DataFrame:
+    """Loads scores from path, using `abbreviate_agent_config` to pretty-print agents.
+
+    :param path: Path to a JSON file to load using `load_scores`.
+    :param victim_suffix: A suffix for victim agents.
+    :param opponent_suffix: A suffix for opponent agents.
+    :return A DataFrame containing columns "Opponent Win", "Victim Win" and "Ties" with MultiIndex
+        with levels "env_name", "victim_type", "victim_path", "opponent_type" and "opponent_path".
+    """
+    scores = load_scores(path)
+
     assert scores.index.is_unique
-    return scores
-
-
-def prefix_level(df, prefix, level):
-    levels = prefix + df.index.levels[level]
-    df.index = df.index.set_levels(levels, level=level)
-    return df
-
-
-def agent_index_suffix(env_name, victim_name, opponent_name):
-    if not gym_compete.is_symmetric(env_name):
-        if victim_name.startswith("Zoo"):
-            victim_name = f"{victim_name[:-1]}V{victim_name[-1]}"
-        if opponent_name.startswith("Zoo"):
-            opponent_name = f"{opponent_name[:-1]}O{opponent_name[-1]}"
-    return env_name, victim_name, opponent_name
-
-
-def combine_all(fixed, zoo, transfer, victim_suffix, opponent_suffix):
-    dfs = []
-
-    if transfer is not None:
-        transfer = transfer.copy()
-        transfer = prefix_level(transfer, "Adv" + opponent_suffix, 2)
-        dfs.append(transfer)
-
-    if zoo is not None:
-        zoo = zoo.copy()
-        zoo = prefix_level(zoo, "Zoo", 2)
-        dfs.append(zoo)
-
-    if fixed is not None:
-        fixed = fixed.copy()
-        fixed.index = fixed.index.set_levels(["Rand", "Zero"], level=2)
-        dfs.append(fixed)
-
-    combined = pd.concat(dfs, axis=0)
-    combined = prefix_level(combined, "Zoo" + victim_suffix, 1)
-    combined = combined.sort_index(level=0, sort_remaining=False)
-    combined.index = combined.index.set_names("Opponent", level=2)
-
-    new_index = [agent_index_suffix(*entry) for entry in combined.index]
-    combined.index = pd.MultiIndex.from_tuples(new_index)
-
-    return combined
-
-
-def load_datasets(timestamped_path, victim_suffix="", opponent_suffix=""):
-    score_dir = os.path.dirname(timestamped_path)
-    fixed_path = os.path.join(score_dir, "fixed_baseline.json")
-    try:
-        fixed = load_fixed_baseline(fixed_path)
-    except FileNotFoundError:
-        logger.warning(f"No fixed baseline at '{fixed_path}'")
-        fixed = None
-
-    zoo_path = os.path.join(score_dir, "zoo_baseline.json")
-    try:
-        zoo = load_zoo_baseline(zoo_path)
-    except FileNotFoundError:
-        logger.warning(f"No fixed baseline at '{zoo_path}'")
-        zoo = None
-
-    transfer = load_transfer_baseline(os.path.join(timestamped_path, "adversary_transfer.json"))
-    return combine_all(
-        fixed, zoo, transfer, victim_suffix=victim_suffix, opponent_suffix=opponent_suffix
+    idx = scores.index.to_frame()
+    victims = idx.apply(functools.partial(victim_abbrev, suffix=victim_suffix), axis="columns")
+    opponents = idx.apply(
+        functools.partial(opponent_abbrev, suffix=opponent_suffix), axis="columns"
     )
+    idx["victim_abbrev"] = victims
+    idx["opponent_abbrev"] = opponents
+    idx = idx.drop(columns=["victim_type", "victim_path", "opponent_type", "opponent_path"])
+    idx = pd.MultiIndex.from_frame(idx)
+    assert idx.is_unique, "two distinct agents mapped to same abbreviation"
+    scores.index = idx
+
+    return scores
 
 
 # Visualization
@@ -227,8 +267,8 @@ def outside_legend(
 
 
 GROUPS = {
-    "rows": [r"ZooV?[0-9]", r"ZooMV?[0-9]"],
-    "cols": [r"^Adv[0-9]", r"^ZooO?[0-9]", r"Zero|Rand"],
+    "rows": [r"^ZooV?[0-9]", r"^ZooSV?[0-9]", r"^ZooDV?[0-9]", r"^ZooMV?[0-9]"],
+    "cols": [r"^Adv[0-9]", r"^F?AdvS[0-9]", r"^F?AdvD[0-9]", r"^ZooO?[0-9]", r"^Zero|^Rand"],
 }
 
 
@@ -240,8 +280,8 @@ def _split_groups(df):
         level = 1 if kind == "cols" else 0
         level_values = index.levels[level]
         masks = [level_values.str.contains(pattern) for pattern in groups]
-        group_members[kind] = [level_values[mask] for mask in masks]
-        num_matches[kind] = [mask.sum() for mask in masks]
+        group_members[kind] = [level_values[mask] for mask in masks if np.any(mask)]
+        num_matches[kind] = [mask.sum() for mask in masks if np.any(mask)]
     return group_members, num_matches
 
 
@@ -269,6 +309,10 @@ DIRECTIONS = {  # Which way is better?
 def _pretty_heatmap(
     single_env, col, cmap, fig, gridspec_kw, xlabel=False, ylabel=False, cbar_width=0.0, yaxis=True
 ):
+    single_env = pd.DataFrame(single_env)
+    # Blank out names so Seaborn doesn't plot them
+    single_env.index.names = [None for _ in single_env.index.names]
+
     group_members, num_matches = _split_groups(single_env)
     single_kind = single_env[col].unstack()
     direction = DIRECTIONS[col]
@@ -278,7 +322,7 @@ def _pretty_heatmap(
         {
             "width_ratios": num_matches["cols"],
             "height_ratios": num_matches["rows"],
-            "bottom": gridspec_kw["bottom"] + (0.02 if xlabel else 0.0),
+            "bottom": gridspec_kw["bottom"] + (0.03 if xlabel else 0.01),
             "left": gridspec_kw["left"] + (0.05 if ylabel else 0.0),
         }
     )
@@ -319,6 +363,8 @@ def _pretty_heatmap(
                 annot=True,
                 fmt=".0f",
                 ax=ax,
+                xticklabels=True,
+                yticklabels=True,
             )
 
             # Red border around maximal entries

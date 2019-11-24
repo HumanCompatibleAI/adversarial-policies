@@ -24,19 +24,37 @@ def heatmap_opponent(single_env, cmap, row_starts, row_ends, col_ends):
     )
 
 
-SMALL_TRANSFER_SCORE_PATHS = [
-    {"victim_suffix": "", "path": os.path.join("normal", "2019-05-05T18:12:24+00:00")},
-    {
-        "victim_suffix": "M",
-        "path": os.path.join("victim_masked_init", "2019-05-05T18:12:24+00:00"),
-    },
+def _make_old_paths(timestamped_path, **kwargs):
+    """Paths in traditional format, before refactoring multi.score.
+
+    Specifically, expects a timestamped directory containing `adversary_transfer.json`.
+    In the same directory as the timestamped directory, there should be `fixed_baseline.json` and
+    `zoo_baseline.json`.
+    """
+    score_dir = os.path.dirname(timestamped_path)
+    paths = [
+        os.path.join(timestamped_path, "adversary_transfer.json"),
+        os.path.join(score_dir, "fixed_baseline.json"),
+        os.path.join(score_dir, "zoo_baseline.json"),
+    ]
+    return [dict(path=path, **kwargs) for path in paths]
+
+
+SMALL_SCORE_PATHS = _make_old_paths(
+    os.path.join("normal", "2019-05-05T18:12:24+00:00")
+) + _make_old_paths(
+    os.path.join("victim_masked_init", "2019-05-05T18:12:24+00:00"), victim_suffix="M"
+)
+DEFENSE_SCORE_PATHS = [
+    {"path": os.path.join("defenses", "normal.json")},
+    {"path": os.path.join("defenses", "victim_masked_init.json"), "victim_suffix": "M"},
 ]
 
 
 @visualize_score_ex.config
 def default_config():
-    transfer_score_root = os.path.join("data", "aws", "score_agents")
-    transfer_score_paths = [{"path": os.path.join("normal", "2019-05-05T18:12:24+00:00")}]
+    score_root = os.path.join("data", "aws", "score_agents")
+    score_paths = _make_old_paths(os.path.join("normal", "2019-05-05T18:12:24+00:00"))
 
     command = util.heatmap_full
     styles = ["paper", "a4"]
@@ -53,29 +71,39 @@ def default_config():
 
 @visualize_score_ex.named_config
 def full_masked_config():
-    transfer_score_paths = [  # noqa: F841
-        {"victim_suffix": "N", "path": os.path.join("normal", "2019-05-05T18:12:24+00:00")},
-        {
-            "victim_suffix": "BI",
-            "path": os.path.join("victim_masked_init", "2019-05-05T18:12:24+00:00"),
-        },
-        {
-            "victim_suffix": "BZ",
-            "path": os.path.join("victim_masked_zero", "2019-05-05T18:12:24+00:00"),
-        },
-        {
-            "victim_suffix": "N",
-            "opponent_suffix": "BI",
-            "path": os.path.join("adversary_masked_init", "2019-05-05T18:12:24+00:00"),
-        },
-    ]
+    score_paths = (  # noqa: F841
+        _make_old_paths(
+            os.path.join("normal", "2019-05-05T18:12:24+00:00"),
+            victim_suffix="N",
+            opponent_suffix="N",
+        )
+        + _make_old_paths(
+            os.path.join("victim_masked_init", "2019-05-05T18:12:24+00:00"),
+            victim_suffix="BI",
+            opponent_suffix="N",
+        )
+        + _make_old_paths(
+            os.path.join("victim_masked_zero", "2019-05-05T18:12:24+00:00"),
+            victim_suffix="BZ",
+            opponent_suffix="N",
+        )
+        + [
+            {
+                "path": os.path.join(
+                    "adversary_masked_init", "2019-05-05T18:12:24+00:00", "adversary_transfer.json"
+                ),
+                "victim_suffix": "N",
+                "opponent_suffix": "BI",
+            }
+        ]
+    )
 
 
 @visualize_score_ex.named_config
 def paper_config():
-    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+    score_paths = SMALL_SCORE_PATHS
 
-    styles = ["paper", "scores_twocol"]
+    styles = ["paper", "scores", "scores_twocol"]
     row_starts = ["multicomp/KickAndDefend-v0", "multicomp/SumoHumansAutoContact-v0"]
     row_ends = ["multicomp/YouShallNotPassHumans-v0", "multicomp/SumoAntsAutoContact-v0"]
     col_ends = ["multicomp/SumoHumansAutoContact-v0", "multicomp/SumoAntsAutoContact-v0"]
@@ -90,9 +118,9 @@ def paper_config():
 
 @visualize_score_ex.named_config
 def supplementary_config():
-    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+    score_paths = SMALL_SCORE_PATHS
 
-    styles = ["paper", "scores_monolithic"]
+    styles = ["paper", "scores", "scores_monolithic"]
     publication = True
 
     fig_dir = os.path.expanduser("~/dev/adversarial-policies-paper/figs/scores")
@@ -102,8 +130,43 @@ def supplementary_config():
 
 
 @visualize_score_ex.named_config
+def defense_paper_config():
+    score_paths = [
+        {"path": os.path.join("defenses", "normal.json")},
+        {"path": os.path.join("defenses", "victim_masked_init.json"), "victim_suffix": "M"},
+    ]
+    styles = ["paper", "scores", "scores_twocol"]
+    row_starts = []
+    row_ends = ["multicomp/YouShallNotPassHumans-v0"]
+    col_ends = []
+    command = heatmap_opponent
+    publication = True
+
+    fig_dir = os.path.expanduser("~/dev/adversarial-policies-paper/figs/scores_defense_single")
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
+def defense_supplementary_config():
+    score_paths = [
+        {"path": os.path.join("defenses", "normal.json")},
+        {"path": os.path.join("defenses", "victim_masked_init.json"), "victim_suffix": "M"},
+    ]
+    # can use short as currently just YSNP environment
+    styles = ["paper", "scores", "scores_monolithic_short"]
+    publication = True
+
+    fig_dir = os.path.expanduser("~/dev/adversarial-policies-paper/figs/scores_defense")
+
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@visualize_score_ex.named_config
 def poster_config():
-    transfer_score_paths = SMALL_TRANSFER_SCORE_PATHS
+    score_paths = SMALL_SCORE_PATHS
 
     styles = ["poster", "scores_poster_threecol"]
     row_starts = ["multicomp/KickAndDefend-v0"]
@@ -123,16 +186,14 @@ def poster_config():
 
 
 @visualize_score_ex.main
-def visualize_score(
-    command, styles, palette, publication, fig_dir, transfer_score_root, transfer_score_paths
-):
+def visualize_score(command, styles, palette, publication, fig_dir, score_root, score_paths):
     datasets = [
         util.load_datasets(
-            os.path.join(transfer_score_root, item["path"]),
+            os.path.join(score_root, item["path"]),
             victim_suffix=item.get("victim_suffix", ""),
             opponent_suffix=item.get("opponent_suffix", ""),
         )
-        for item in transfer_score_paths
+        for item in score_paths
     ]
     dataset = pd.concat(datasets)
 

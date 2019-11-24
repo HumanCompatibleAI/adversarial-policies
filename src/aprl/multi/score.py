@@ -6,6 +6,7 @@ import math
 import os
 import os.path as osp
 import shutil
+import tempfile
 
 from ray import tune
 from sacred import Experiment
@@ -56,7 +57,7 @@ def debug_config(score):
     score["agent_a_type"] = "zoo"
     score["agent_b_type"] = "zoo"
     spec = {"config": {"agent_a_path": tune.grid_search(["1", "2"])}}
-    exp_name = "debug"
+    exp_suffix = "debug"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -69,8 +70,13 @@ def _remap_keys(d):
 def multi_score(score, save_path):
     f = None
     try:
+        tmp_path = None
         if save_path is not None:
             f = open(save_path, "w")  # open it now so we fail fast if file is unwriteable
+        else:
+            fd, tmp_path = tempfile.mkstemp(prefix="multi_score")
+            f = os.fdopen(fd, mode="w")
+            save_path = tmp_path
 
         analysis, exp_id = run(base_config=score)
         trials = analysis.trials
@@ -83,11 +89,13 @@ def multi_score(score, save_path):
             key = tuple(idx[col] for col in cols)
             results[key] = trial.last_result["score"]
 
-        if f is not None:
-            json.dump(_remap_keys(results), f)
+        json.dump(_remap_keys(results), f)
     finally:
         if f is not None:
             f.close()
+            multi_score_ex.add_artifact(save_path, name="scores.json")
+        if tmp_path is not None:
+            os.unlink(tmp_path)
 
     return {"scores": results, "exp_id": exp_id}
 
@@ -154,19 +162,10 @@ def extract_data(path_generator, out_dir, experiment_dirs, ray_upload_dir):
                 env_name = env_name_to_canonical(env_name)
             env_name = env_name.replace("/", "-")  # sanitize
 
-            if opponent_path.startswith("/"):  # is path name
-                opponent_root = osp.sep.join(opponent_path.split(osp.sep)[:-3])
-                opponent_sacred = osp.join(opponent_root, "sacred", "train", "1", "config.json")
-
-                with open(opponent_sacred, "r") as f:
-                    opponent_cfg = json.load(f)
-
-                opponent_path = opponent_cfg["victim_path"]
-
             src_path, new_name, suffix = path_generator(
                 trial_root=trial_root,
                 cfg=cfg,
-                env_name=env_name,
+                env_sanitized=env_name,
                 victim_index=victim_index,
                 victim_type=victim_type,
                 victim_path=victim_path,
