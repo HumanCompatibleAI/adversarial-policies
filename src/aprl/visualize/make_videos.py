@@ -7,32 +7,33 @@ import os.path as osp
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
-from aprl.common import utils
+from aprl.common.utils import make_timestamp
+from aprl.configs import DATA_LOCATION
 from aprl.multi.score import extract_data, run_external
+from aprl.visualize import util
 
 make_videos_ex = Experiment("make_videos")
 make_videos_logger = logging.getLogger("make_videos")
 
 
-BASIC_CONFIGS = ["adversary_transfer", "zoo_baseline", "fixed_baseline"]
-
-
 @make_videos_ex.config
 def default_config():
     adversary_path = osp.join(
-        "data",
-        "aws",
-        "score_agents",
-        "normal",
-        "2019-05-05T18:12:24+00:00",
-        "best_adversaries.json",
+        DATA_LOCATION, "multi_train", "paper", "highest_win_policies_and_rates.json"
     )
     ray_upload_dir = "data"  # where Ray will upload multi.score outputs. 'data' works on baremetal
-    score_configs = [(x,) for x in BASIC_CONFIGS]
-    score_configs += [(x, "mask_observations_of_victim") for x in BASIC_CONFIGS]
+    score_configs = [("normal",), ("normal", "mask_observations_of_victim")]
     multi_score = {}
     root_dir = "data/videos"
     exp_name = "default"
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@make_videos_ex.named_config
+def defense_config():
+    score_configs = [("defenses",), ("defenses", "mask_observations_of_victim")]
+    exp_name = "defense"
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -90,7 +91,7 @@ def generate_videos(score_configs, multi_score, adversary_path):
 def extract_videos(out_dir, video_dirs, ray_upload_dir):
     def path_generator(
         trial_root,
-        env_name,
+        env_sanitized,
         victim_index,
         victim_type,
         victim_path,
@@ -102,17 +103,23 @@ def extract_videos(out_dir, video_dirs, ray_upload_dir):
             trial_root, "data", "sacred", "score", "1", "videos", "env_0_episode_0_recording.mp4"
         )
 
+        victim_suffix = ""
+        opponent_suffix = ""
         mask_index = cfg["mask_agent_index"]
         if mask_index is not None:
             if mask_index == victim_index:
-                victim_type += "-masked"
+                victim_suffix = "M"
             else:
-                opponent_type += "-masked"
+                opponent_suffix == "M"
 
-        new_name = (
-            f"{env_name}_victim_{victim_type}_{victim_path}"
-            f"_opponent_{opponent_type}_{opponent_path}"
+        victim = util.abbreviate_agent_config(
+            cfg["env_name"], victim_type, victim_path, victim_suffix, victim=True
         )
+        opponent = util.abbreviate_agent_config(
+            cfg["env_name"], opponent_type, opponent_path, opponent_suffix, victim=False
+        )
+
+        new_name = f"{env_sanitized}_victim_{victim}_opponent_{opponent}"
         return src_path, new_name, "mp4"
 
     return extract_data(path_generator, out_dir, video_dirs, ray_upload_dir)
@@ -120,7 +127,7 @@ def extract_videos(out_dir, video_dirs, ray_upload_dir):
 
 @make_videos_ex.main
 def make_videos(root_dir, exp_name):
-    out_dir = osp.join(root_dir, exp_name, utils.make_timestamp())
+    out_dir = osp.join(root_dir, exp_name, make_timestamp())
     os.makedirs(out_dir)
 
     video_dirs = generate_videos()

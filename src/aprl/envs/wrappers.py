@@ -43,7 +43,7 @@ class VideoWrapper(Wrapper):
         assert not os.path.exists(self.directory), error_msg
         os.makedirs(self.directory, exist_ok=True)
 
-    def _step(self, action):
+    def step(self, action):
         obs, rew, done, info = self.env.step(action)
         if done:
             winners = [i for i, d in info.items() if "winner" in d]
@@ -52,7 +52,7 @@ class VideoWrapper(Wrapper):
         self.video_recorder.capture_frame()
         return obs, rew, done, info
 
-    def _reset(self):
+    def reset(self):
         self._reset_video_recorder()
         self.episode_id += 1
         return self.env.reset()
@@ -76,11 +76,11 @@ class VideoWrapper(Wrapper):
                 metadata={"episode_id": self.episode_id},
             )
 
-    def _close(self):
+    def close(self):
         if self.video_recorder is not None:
             self.video_recorder.close()
             self.video_recorder = None
-        super(VideoWrapper, self)._close()
+        super(VideoWrapper, self).close()
 
 
 def _filter_dict(d, keys):

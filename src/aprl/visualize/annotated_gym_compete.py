@@ -1,7 +1,6 @@
 import collections
 import ctypes
 import math
-import os.path as osp
 import re
 
 from PIL import Image, ImageDraw, ImageFont
@@ -10,8 +9,8 @@ import mujoco_py_131
 import numpy as np
 
 from aprl.envs import VICTIM_INDEX
-from aprl.envs.gym_compete import env_name_to_canonical, game_outcome, is_symmetric
-from aprl.visualize import tb
+from aprl.envs.gym_compete import env_name_to_canonical, game_outcome
+from aprl.visualize import util
 
 VICTIM_OPPONENT_COLORS = {
     "Victim": (55, 126, 184, 255),
@@ -101,37 +100,18 @@ CAMERA_CONFIGS = {
 }
 
 
-def pretty_policy_type(env_name, short, is_victim, is_masked, policy_type, policy_path):
-    if policy_type == "zero":
-        friendly, code = "Lifeless", "Zero"
-    elif policy_type == "random":
-        friendly, code = "Random", "Rand"
-    elif policy_type == "ppo2":
-        try:
-            path_components = policy_path.split(osp.sep)
-            experiment_root = osp.sep.join(path_components[:-4])
-            cfg = tb.read_sacred_config(experiment_root, "train")
-            victim_path = cfg["victim_path"]
-        except (IndexError, FileNotFoundError):
-            victim_path = ""
-        friendly, code = "Adversary", f"Adv{victim_path}"
-    elif policy_type == "zoo":
-        if not is_symmetric(env_name):
-            prefix = "ZooV" if is_victim else "ZooO"
-        else:
-            prefix = "Zoo"
-        friendly = "Normal"
-        if is_masked:
-            prefix += "M"
-            friendly = "Masked"
-        code = f"{prefix}{policy_path}"
-    else:
-        raise ValueError(f"Unrecognized policy type '{policy_type}'")
+def pretty_policy_type(
+    env_name: str, short: bool, is_victim: bool, is_masked: bool, policy_type: str, policy_path: str
+) -> str:
+    abbrev = util.abbreviate_agent_config(
+        env_name, policy_type, policy_path, suffix="M" if is_masked else "", victim=is_victim
+    )
+    friendly = util.friendly_agent_label(abbrev, short=True)
 
     if short:
         return friendly
     else:
-        return f"{friendly} ({code})"
+        return f"{friendly} ({abbrev})"
 
 
 class AnnotatedGymCompete(gym.Wrapper):
@@ -244,15 +224,15 @@ class AnnotatedGymCompete(gym.Wrapper):
         for k, v in camera_cfg.items():
             setattr(viewer.cam, k, v)
 
-    def _reset(self):
-        ob = super(AnnotatedGymCompete, self)._reset()
+    def reset(self):
+        ob = super(AnnotatedGymCompete, self).reset()
 
         if self.env.unwrapped.env_scene.viewer is not None:
             self.camera_setup()
 
         return ob
 
-    def _step(self, action):
+    def step(self, action):
         obs, rew, done, info = self.env.step(action)
         if done:
             # TODO: code duplication
@@ -267,7 +247,7 @@ class AnnotatedGymCompete(gym.Wrapper):
         self.changed[self.last_won] -= 1
         return obs, rew, done, info
 
-    def _render(self, mode="human", close=False):
+    def render(self, mode="human", close=False):
         res = self.env.render(mode, close)
 
         if mode == "rgb_array":

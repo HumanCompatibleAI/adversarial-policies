@@ -9,7 +9,8 @@ from typing import Callable, Iterable, List, NamedTuple, Optional, Tuple
 import numpy as np
 from ray import tune
 
-from aprl.configs.multi.common import BANSAL_GOOD_ENVS, DATA_LOCATION, get_adversary_paths
+from aprl.configs import DATA_LOCATION
+from aprl.configs.multi.common import BANSAL_GOOD_ENVS, get_adversary_paths
 from aprl.envs import VICTIM_INDEX, gym_compete
 
 AgentConfigGenFn = Callable[[str, int], Iterable[Tuple[str, str]]]
@@ -53,6 +54,9 @@ def _from_paths(policy_paths):
 
 def _from_json(json_path):
     """Returns a function that returns policies from the specified JSON."""
+    json_path = os.path.join(DATA_LOCATION, json_path)
+    if os.path.isdir(json_path):
+        json_path = os.path.join(json_path, "highest_win_policies_and_rates.json")
     with open(json_path, "r") as f:
         policy_paths = json.load(f)["policies"]
     return _from_paths(policy_paths)
@@ -134,6 +138,12 @@ def _gen_configs(
                     configs.append(cfg)
 
     return configs
+
+
+def _make_default_exp_suffix(victims, opponents):
+    victims = [x.replace("/", "_") for x in victims]
+    opponents = [x.replace("/", "_") for x in opponents]
+    return f"{':'.join(victims)}_vs_{':'.join(opponents)}"
 
 
 def make_configs(multi_score_ex):
@@ -301,14 +311,18 @@ def make_configs(multi_score_ex):
                         for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_zoo])
                         if cfg.agent_a_path == "1" and cfg.agent_b_path == "1"
                     ]
-                    + [cfg for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])]
+                    + [
+                        cfg
+                        for cfg in _gen_configs(victim_fns=[_zoo], opponent_fns=[_fixed])
+                        if cfg.agent_a_path == "1" or cfg.agent_b_path == "1"
+                    ]
                     + _gen_configs(
-                        victim_fns=[_zoo], opponent_fns=[_from_json(get_adversary_paths())],
+                        victim_fns=[_zoo], opponent_fns=[_from_paths(get_adversary_paths())],
                     )[0:1],
                 ),
             },
         }
-        exp_name = "debug_one_each_type"
+        exp_suffix = "debug_one_each_type"
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
@@ -330,8 +344,35 @@ def make_configs(multi_score_ex):
                 ),
             }
         }
-        exp_name = "debug_two_agents"
+        exp_suffix = "debug_two_agents"
 
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
+    def normal():
+        victims = ["zoo"]
+        opponents = ["zoo", "fixed", "adversary"]
+        exp_suffix = "normal"
+        _ = locals()  # quieten flake8 unused variable warning
+        del _
+
+    @multi_score_ex.named_config
+    def defenses():
+        victims = [
+            "zoo",
+            "json:multi_train/finetune_defense_single_mlp/",
+            "json:multi_train/finetune_defense_dual_mlp/",
+        ]
+        opponents = [
+            "zoo",
+            "fixed",
+            "json:multi_train/paper/",
+            "json:multi_train/adv_from_scratch_against_finetune_defense_single_mlp/",
+            "json:multi_train/adv_from_scratch_against_finetune_defense_dual_mlp/",
+        ]
+        envs = ["multicomp/YouShallNotPassHumans-v0"]
+        exp_suffix = "defense"
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
@@ -339,42 +380,50 @@ def make_configs(multi_score_ex):
 
     @multi_score_ex.config
     def default_placeholders():
-        spec = None
+        exp_name = None
         envs = None
         victims = []
         opponents = []
         exp_prefix = {}
+        exp_suffix = None
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
 
     @multi_score_ex.config
-    def default_spec(spec, envs, victims, opponents, exp_prefix):
+    def default_spec(spec, exp_suffix, envs, victims, opponents, exp_prefix):
         """Compare victims to opponents."""
-        if spec is None:
-            if not victims:
-                raise ValueError(
-                    "You must use a modifier config to specify the " "victim policies to compare."
-                )
-            if not opponents:
-                raise ValueError(
-                    "You must use a modifier config to specify the " "opponent policies to compare."
-                )
+        if "config" not in spec and not victims:
+            raise ValueError(
+                "You must use a modifier config to specify the " "victim policies to compare."
+            )
+        if "config" not in spec and not opponents:
+            raise ValueError(
+                "You must use a modifier config to specify the " "opponent policies to compare."
+            )
 
+        if victims and opponents:
             spec = {
                 "config": {
                     PATHS_AND_TYPES: tune.grid_search(
                         _gen_configs(
                             victim_fns=[_to_fn(cfg) for cfg in victims],
                             opponent_fns=[_to_fn(cfg) for cfg in opponents],
-                            envs=None if envs is None else envs.split(":"),
+                            envs=None if envs is None else envs,
                         )
                     ),
                 }
             }
-            exp_name = (
-                f"{':'.join(sorted(exp_prefix.keys()))}_" if exp_prefix else ""
-            ) + f"{':'.join(victims)}_vs_{':'.join(opponents)}"
+
+            if exp_suffix is None:
+                exp_suffix = _make_default_exp_suffix(victims, opponents)
 
         _ = locals()  # quieten flake8 unused variable warning
         del _
+
+    @multi_score_ex.config
+    def prefix_exp_name(exp_suffix, exp_prefix):
+        exp_name = ""
+        if exp_prefix:
+            exp_name += f"{':'.join(sorted(exp_prefix.keys()))}-"
+        exp_name += exp_suffix

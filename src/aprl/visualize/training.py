@@ -5,6 +5,7 @@ import os.path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import sacred
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import seaborn as sns
@@ -13,6 +14,9 @@ from aprl.envs import VICTIM_INDEX
 from aprl.envs.gym_compete import is_symmetric
 from aprl.visualize import styles as vis_styles
 from aprl.visualize import tb, util
+
+# TODO(adam): remove once sacred issue #499 closed
+sacred.SETTINGS.CONFIG.READ_ONLY_CONFIG = False
 
 logger = logging.getLogger("aprl.visualize.training")
 visualize_training_ex = Experiment("visualize_training")
@@ -218,7 +222,6 @@ def _win_rate_make_fig(x, lineplot_fn, fig_dir, **kwargs):
 
 
 def _win_rate_labels(variables, ax):
-    del variables
     ax.set_xlabel("Timestep")
     ax.set_ylabel("Win rate (%)")
 
@@ -358,9 +361,10 @@ def default_config():
     command = win_rate_per_victim_env
     fig_dir = os.path.join("data", "figs", "training")
     plot_cfg = None
-    transfer_score_path = os.path.join(
-        "data", "aws", "score_agents", "normal", "2019-05-05T18:12:24+00:00"
-    )
+    score_paths = [
+        os.path.join("data", "aws", "score_agents", "normal", x)
+        for x in ["fixed_baseline.json", "zoo_baseline.json"]
+    ]
     tb_dir = None
     styles = ["paper", "a4"]
     xcol = "step"
@@ -490,8 +494,9 @@ def debug_paper_config():
 
 
 @visualize_training_ex.main
-def visualize_score(command, styles, tb_dir, transfer_score_path, fig_dir):
-    baseline = util.load_datasets(transfer_score_path)
+def visualize_score(command, styles, tb_dir, score_paths, fig_dir):
+    baseline = [util.load_datasets(path) for path in score_paths]
+    baseline = pd.concat(baseline)
 
     sns.set_style("whitegrid")
     for style in styles:

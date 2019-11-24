@@ -607,6 +607,21 @@ except ImportError:
 NO_VECENV = ["ddpg", "dqn", "gail", "her", "ppo1", "sac"]
 
 
+def resolve_embed(embed_type, embed_path, embed_types, embed_paths, adv_noise_params):
+    adv_noise_params = dict(adv_noise_params)
+    if embed_type is None:
+        embed_type = "zoo"
+        adv_noise_params["base_type"] = embed_type
+    if embed_path is None:
+        embed_path = "1"
+        adv_noise_params["base_path"] = embed_path
+    if embed_types is None and embed_paths is None:
+        embed_types = [embed_type]
+        embed_paths = [embed_path]
+
+    return embed_types, embed_paths, adv_noise_params
+
+
 @train_ex.main
 def train(
     _run,
@@ -616,22 +631,15 @@ def train(
     rl_algo,
     learning_rate,
     log_output_formats,
-    embed_path,
     embed_type,
-    embed_paths,
+    embed_path,
     embed_types,
+    embed_paths,
     adv_noise_params,
 ):
-    resolved_adv_noise_params = dict(adv_noise_params)
-    if embed_type is None:
-        embed_type = "zoo"
-        resolved_adv_noise_params["base_type"] = embed_type
-    if embed_path is None:
-        embed_path = "1"
-        resolved_adv_noise_params["base_path"] = embed_path
-    if embed_types is None and embed_paths is None:
-        embed_types = [embed_type]
-        embed_paths = [embed_path]
+    embed_types, embed_paths, adv_noise_params = resolve_embed(
+        embed_type, embed_path, embed_types, embed_paths, adv_noise_params
+    )
 
     scheduler = Scheduler(annealer_dict={"lr": ConstantAnnealer(learning_rate)})
     out_dir, logger = setup_logger(root_dir, exp_name, output_formats=log_output_formats)
@@ -649,7 +657,7 @@ def train(
         log_callbacks=log_callbacks,
         embed_types=embed_types,
         embed_paths=embed_paths,
-        adv_noise_params=resolved_adv_noise_params,
+        adv_noise_params=adv_noise_params,
     )
     single_venv = FlattenSingletonVecEnv(multi_venv)
     single_venv = single_wrappers(
