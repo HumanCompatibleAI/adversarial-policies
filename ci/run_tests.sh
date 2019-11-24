@@ -14,7 +14,7 @@ if [[ ${num_cpus} == "" ]]; then
 fi
 
 export LD_LIBRARY_PATH=/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}
-COV_FLAGS="--cov=tests --cov=${venv}/lib/python3.7/site-packages/aprl"
+COV_FLAGS="--cov=tests --cov=/venv/lib/python3.7/site-packages/aprl"
 pytest -vv -n ${num_cpus} ${COV_FLAGS} tests/
 
 mv .coverage .coverage.tmp
