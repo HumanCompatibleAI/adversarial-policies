@@ -60,7 +60,7 @@ def test_env(env_from_spec):
         assert isinstance(env_from_spec.action_space, Tuple), "Actions should be Tuples"
         assert len(env_from_spec.observation_space.spaces) == env_from_spec.num_agents
         assert len(env_from_spec.action_space.spaces) == env_from_spec.num_agents
-    else:
+    else:  # pragma: no cover
         assert np.isscalar(reward), "{} is not a scalar for {}".format(reward, env_from_spec)
 
     for mode in env_from_spec.metadata.get("render.modes", []):
@@ -94,14 +94,14 @@ def assert_envs_equal(env1, env2, num_steps, check_info: bool = True):
             for x, y in zip(obs1, obs2):
                 assert x.shape == y.shape
                 assert np.allclose(x, y)
-        else:
+        else:  # pragma: no cover
             assert np.array(obs1).shape == np.array(obs2).shape
             assert np.allclose(obs1, obs2)
 
         if isinstance(env1.action_space, Tuple):
             for space in env1.action_space.spaces:
                 space.np_random.seed(1337)
-        else:
+        else:  # pragma: no cover
             env1.action_space.np_random.seed(1337)
 
         for _ in range(num_steps):
