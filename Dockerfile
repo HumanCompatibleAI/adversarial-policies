@@ -77,9 +77,9 @@ WORKDIR /adversarial-policies
 COPY ./requirements-build.txt /adversarial-policies/
 COPY ./requirements.txt /adversarial-policies/
 COPY ./requirements-dev.txt /adversarial-policies/
-COPY ./ci/build_venv.sh /adversarial-policies/ci/build_venv.sh /venv
+COPY ./ci/build_venv.sh /adversarial-policies/ci/build_venv.sh
 # mjkey.txt needs to exist for build, but doesn't need to be a real key
-RUN    touch /root/.mujoco/mjkey.txt && ci/build_venv.sh && rm -rf $HOME/.cache/pip
+RUN    touch /root/.mujoco/mjkey.txt && ci/build_venv.sh /venv && rm -rf $HOME/.cache/pip
 
 # full stage contains everything.
 # Can be used for deployment and local testing.
