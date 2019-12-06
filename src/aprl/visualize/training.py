@@ -375,7 +375,7 @@ def default_config():
     del _
 
 
-def _summary_plot():
+def _summary_plot(order=None):
     command = opponent_win_rate_per_victim_env
     # Plot for each environment against victim with median (adversary win rate - best zoo win rate)
     plot_cfg = {
@@ -396,6 +396,10 @@ def _summary_plot():
             ],
         ]
     }
+    if order is not None:
+        plot_cfg["subplots"][0] = [plot_cfg["subplots"][0][i] for i in order]
+    del order
+
     ci = None
     tb_dir = os.path.join("data", "aws", "multi_train", "paper", "20190429_011349")
     return locals()
@@ -412,7 +416,8 @@ def paper_config():
 
 @visualize_training_ex.named_config
 def slides_config():
-    locals().update(_summary_plot())
+    # put YSNP first for slides
+    locals().update(_summary_plot(order=[1, 0, 2]))
     fig_dir = os.path.expanduser("~/tmp/adversarial_slides")
     styles = ["paper", "slides"]
     _ = locals()  # quieten flake8 unused variable warning
