@@ -131,10 +131,7 @@ def supplementary_config():
 
 @visualize_score_ex.named_config
 def defense_paper_config():
-    score_paths = [
-        {"path": os.path.join("defenses", "normal.json")},
-        {"path": os.path.join("defenses", "victim_masked_init.json"), "victim_suffix": "M"},
-    ]
+    score_paths = DEFENSE_SCORE_PATHS
     styles = ["paper", "scores", "scores_twocol"]
     row_starts = []
     row_ends = ["multicomp/YouShallNotPassHumans-v0"]
@@ -150,10 +147,7 @@ def defense_paper_config():
 
 @visualize_score_ex.named_config
 def defense_supplementary_config():
-    score_paths = [
-        {"path": os.path.join("defenses", "normal.json")},
-        {"path": os.path.join("defenses", "victim_masked_init.json"), "victim_suffix": "M"},
-    ]
+    score_paths = DEFENSE_SCORE_PATHS
     # can use short as currently just YSNP environment
     styles = ["paper", "scores", "scores_monolithic_short"]
     publication = True
@@ -166,7 +160,7 @@ def defense_supplementary_config():
 
 @visualize_score_ex.named_config
 def poster_config():
-    score_paths = SMALL_SCORE_PATHS
+    score_paths = DEFENSE_SCORE_PATHS
 
     styles = ["poster", "scores_poster_threecol"]
     row_starts = ["multicomp/KickAndDefend-v0"]
