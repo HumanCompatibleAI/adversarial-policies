@@ -149,7 +149,7 @@ def _stable(
             # We do not need to restore train_model, since it shares params with act_model
             model.act_model.restore(params)
     else:
-        model = cls(policy=policy, **kwargs)
+        model = cls(policy=policy, seed=_seed, **kwargs)
 
     last_checkpoint = 0
     last_log = 0
@@ -169,7 +169,7 @@ def _stable(
 
         return True  # keep training
 
-    model.learn(total_timesteps=total_timesteps, log_interval=1, seed=_seed, callback=callback)
+    model.learn(total_timesteps=total_timesteps, log_interval=1, callback=callback)
     final_path = osp.join(out_dir, "final_model")
     _save(model, final_path, save_callbacks)
     model.sess.close()
