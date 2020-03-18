@@ -66,7 +66,7 @@ We similarly use `aprl.multi.score` to evaluate multiple pairs of policies in pa
 To reproduce all the evaluations used in the paper, run the following bash scripts, which call
 `aprl.multi.score` internally:
   - `experiments/modelfree/baselines.sh`: fixed baselines (no adversarial policies).
-  - `experiments/modelfree/attack_transfers.sh <path-to-trained-adversaries>`. To use our
+  - `experiments/modelfree/attack_transfer.sh <path-to-trained-adversaries>`. To use our
      pre-trained policies, use the path `data/aws-public/multi_train/paper/20190429_011349`
      after syncing against S3.
 
