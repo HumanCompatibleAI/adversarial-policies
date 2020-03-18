@@ -6,7 +6,7 @@ import pickle
 import sys
 
 import stable_baselines
-from stable_baselines.common.vec_env.vec_normalize import VecNormalize
+from stable_baselines.common import vec_env
 import tensorflow as tf
 
 from aprl.envs.gym_compete import load_zoo_agent
@@ -24,19 +24,38 @@ pylog = logging.getLogger("aprl.policy_loader")
 
 class NormalizeModel(ModelWrapper):
     def __init__(
-        self, model: stable_baselines.common.base_class.BaseRLModel, vec_normalize: VecNormalize
+        self,
+        model: stable_baselines.common.base_class.BaseRLModel,
+        vec_normalize: vec_env.VecNormalize,
     ):
         super().__init__(model=model)
         self.vec_normalize = vec_normalize
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
-        norm_obs = self.vec_normalize._normalize_observation(observation)
+        norm_obs = self.vec_normalize.normalize_obs(observation)
         return self.model.predict(norm_obs, state, mask, deterministic)
 
     def predict_transparent(self, observation, state=None, mask=None, deterministic=False):
         """Returns same values as predict, as well as a dictionary with transparent data."""
-        norm_obs = self.vec_normalize._normalize_observation(observation)
+        norm_obs = self.vec_normalize.normalize_obs(observation)
         return self.model.predict_transparent(norm_obs, state, mask, deterministic)
+
+
+def load_vec_normalize(root_dir: str, venv: vec_env.VecEnv) -> vec_env.VecNormalize:
+    try:
+        normalize_path = os.path.join(root_dir, "vec_normalize.pkl")
+        vec_normalize = vec_env.VecNormalize.load(normalize_path, venv)
+        vec_normalize.training = False
+        pylog.info(f"Loaded normalization statistics from '{normalize_path}'")
+        return vec_normalize
+    except FileNotFoundError:
+        pass
+
+    # Could not find vec_normalize.pkl: try loading old-style vec normalize.
+    vec_normalize = vec_env.VecNormalize(venv, training=False)
+    vec_normalize.load_running_average(root_dir)
+    pylog.info(f"Loaded normalization statistics from '{root_dir}'")
+    return vec_normalize
 
 
 def load_stable_baselines(cls):
@@ -44,13 +63,12 @@ def load_stable_baselines(cls):
         denv = FakeSingleSpacesVec(env, agent_id=index)
         pylog.info(f"Loading Stable Baselines policy for '{cls}' from '{root_dir}'")
         model = load_backward_compatible_model(cls, root_dir, denv)
+
         try:
-            vec_normalize = VecNormalize(denv, training=False)
-            vec_normalize.load_running_average(root_dir)
+            vec_normalize = load_vec_normalize(root_dir, denv)
             model = NormalizeModel(model, vec_normalize)
-            pylog.info(f"Loaded normalization statistics from '{root_dir}'")
         except FileNotFoundError:
-            # We did not use VecNormalize during training, skip
+            # No saved VecNormalize, must have not trained with normalization.
             pass
 
         return model
@@ -101,7 +119,7 @@ def load_old_ppo2(root_dir, env, env_name, index, transparent_params):
         normalize_path = os.path.join(root_dir, "normalize.pkl")
         with open(normalize_path, "rb") as f:
             old_vec_normalize = pickle.load(f)
-        vec_normalize = VecNormalize(denv, training=False)
+        vec_normalize = vec_env.VecNormalize(denv, training=False)
         vec_normalize.obs_rms = old_vec_normalize.ob_rms
         vec_normalize.ret_rms = old_vec_normalize.ret_rms
         model = NormalizeModel(model, vec_normalize)
