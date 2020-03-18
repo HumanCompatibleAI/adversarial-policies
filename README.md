@@ -40,11 +40,11 @@ experiment configuration.
 
 `aprl.train` trains a single adversarial policy. By default it will train on `SumoAnts` for
 a brief period of time. You can override any of config parameters, defined in `train_config`, at
-the command line. For example:
+the command line. For example, to replicate one of the experiments in the paper, run:
 
   ```bash
-  # Train on Sumo Humans for 10M timesteps
-  python -m aprl.train with env_name=multicomp/SumoHumans-v0 total_timesteps=10000000
+  # Train on Sumo Humans for 20M timesteps
+  python -m aprl.train with env_name=multicomp/SumoHumans-v0 paper
   ```
 
 `aprl.multi.train` trains multiple adversarial policies, using Ray (see below) for

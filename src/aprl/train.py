@@ -384,6 +384,23 @@ def no_embed():
     del _
 
 
+PAPER_HYPERPARAMS = dict(
+    total_timesteps=int(20e6),
+    batch_size=16384,
+    learning_rate=3e-4,
+    rl_args=dict(ent_coef=0.0, nminibatches=4, noptepochs=4),
+)
+
+SPARSE_REWARD = dict(rew_shape=True, rew_shape_params=dict(anneal_frac=0.0))
+
+
+@train_ex.named_config
+def paper():
+    """Same hyperparameters as ICLR 2020 paper."""
+    locals().update(**PAPER_HYPERPARAMS)
+    locals().update(**SPARSE_REWARD)
+
+
 @train_ex.capture
 def build_env(
     out_dir,
