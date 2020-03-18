@@ -3,7 +3,6 @@ coverage:
     project:
       default: false
       main:
-        target: 80%
         paths:
           - "src/"
           - "!src/imitation/envs/examples/"
@@ -11,7 +10,6 @@ coverage:
       auxiliary:
         target: 0%
         paths:
-          - "src/aprl/beta/"
           - "src/aprl/configs/"
       tests:
         # Should not have dead code in our tests
