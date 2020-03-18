@@ -320,7 +320,7 @@ def fit_model(
                 paths,
                 output_dir,
                 model_class,
-                model_kwargs,
+                utils.sacred_copy(model_kwargs),
                 max_timesteps,
                 data_type,
                 train_opponent,
