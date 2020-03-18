@@ -375,7 +375,7 @@ def _pretty_heatmap(
                 for m in range(subplot_rows):
                     for n in range(subplot_cols):
                         if best.iloc[m, n]:
-                            rectangle = Rectangle((m, n), 1, 1, fill=False, edgecolor="red", lw=1)
+                            rectangle = Rectangle((n, m), 1, 1, fill=False, edgecolor="red", lw=1)
                             ax.add_patch(rectangle)
 
             ax.get_yaxis().set_visible(yaxis and first_col)

@@ -19,6 +19,7 @@ STYLES = {
         "figure.figsize": (5.5, 7.5),
         "font.family": "serif",
         "font.serif": "Times New Roman",
+        "font.weight": "bold",
         "font.size": 9,
         "legend.fontsize": 9,
         "axes.unicode_minus": False,  # workaround bug with Unicode minus signs not appearing
