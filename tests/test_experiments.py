@@ -163,7 +163,7 @@ try:
             "expert_dataset_path": os.path.join(BASE_DIR, "SumoAnts_traj/agent_0.npz"),
         }
     )
-except ImportError:
+except ImportError:  # pragma: no cover
     # skip GAIL test if algorithm not available
     pass
 TRAIN_CONFIGS += [

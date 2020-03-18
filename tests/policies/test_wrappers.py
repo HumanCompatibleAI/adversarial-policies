@@ -46,8 +46,8 @@ class ConstantStatefulPolicy(BasePolicy):
         actions = np.array([self.constant] * self.n_env)
         return actions, None, state, None
 
-    def proba_step(self, obs, state=None, mask=None):
-        return self.step(obs, state=state, mask=mask)
+    def proba_step(self, obs, state=None, mask=None):  # pragma: no cover
+        raise NotImplementedError()
 
 
 def _get_constant_policy(venv, constant_value, state_shape=None):

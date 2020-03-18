@@ -90,7 +90,7 @@ def check_monte_carlo(
         elif kind == "parallel":
             env_fns = [lambda: make_mujoco_env(env_name, seed) for _ in range(2)]
             mc = MonteCarloParallel(env_fns, planning_horizon, trajectories)
-        else:
+        else:  # pragma: no cover
             raise ValueError("Unrecognized kind '{}'".format(kind))
         mc.seed(seed)
 
