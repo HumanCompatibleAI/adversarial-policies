@@ -6,11 +6,13 @@ import logging
 import os
 import os.path as osp
 import pkgutil
+from typing import Callable, Iterable
 
 from gym.spaces import Box
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 import stable_baselines
+from stable_baselines.common import callbacks
 from stable_baselines.common.vec_env.vec_normalize import VecNormalize
 import tensorflow as tf
 
@@ -40,12 +42,51 @@ train_ex = Experiment("train")
 pylog = logging.getLogger("aprl.train")
 
 
-def _save(model, root_dir, save_callbacks):
+SaveCallback = Callable[[str], None]
+
+
+def _save(model, root_dir: str, save_callbacks: Iterable[SaveCallback]) -> None:
     os.makedirs(root_dir, exist_ok=True)
     model_path = osp.join(root_dir, "model.pkl")
     model.save(model_path)
     for f in save_callbacks:
         f(root_dir)
+
+
+class CheckpointCallback(callbacks.BaseCallback):
+    """Custom checkpointing, saving model in directory and recursively calling `save_callbacks`.
+    """
+
+    def __init__(self, out_dir: str, save_callbacks: Iterable[SaveCallback], *args, **kwargs):
+        """
+        Builds a CheckpointCallback.
+
+        `save_callbacks` used to save auxiliary information, e.g. `VecNormalize` instances.
+
+        :param out_dir: directory to save checkpoints to.
+        :param save_callbacks: callbacks to recursively invoke.
+        """
+        super(CheckpointCallback, self).__init__(*args, **kwargs)
+        self.out_dir = out_dir
+        self.save_callbacks = save_callbacks
+
+    def _on_step(self) -> bool:
+        checkpoint_dir = osp.join(self.out_dir, "checkpoint", f"{self.num_timesteps:012}")
+        _save(self.model, checkpoint_dir, self.save_callbacks)
+        return True
+
+
+class LoggerOnlyLogCallback(callbacks.BaseCallback):
+    """Calls `obj.log_callback(self.logger)`."""
+
+    def __init__(self, obj, *args, **kwargs):
+        super(LoggerOnlyLogCallback, self).__init__(*args, **kwargs)
+        assert hasattr(obj, "log_callback")
+        self.obj = obj
+
+    def _on_step(self) -> bool:
+        self.obj.log_callback(self.logger)
+        return True
 
 
 @train_ex.capture
@@ -133,6 +174,7 @@ def _stable(
     **kwargs,
 ):
     kwargs = dict(env=env, verbose=1 if not debug else 2, **kwargs, **rl_args)
+
     if load_policy["path"] is not None:
         if load_policy["type"] == our_type:
             # SOMEDAY: Counterintuitively this inherits any extra arguments saved in the policy
@@ -151,23 +193,13 @@ def _stable(
     else:
         model = cls(policy=policy, seed=_seed, **kwargs)
 
-    last_checkpoint = 0
-    last_log = 0
-
-    def callback(local_vars, global_vars):
-        nonlocal last_checkpoint, last_log
-        step = local_vars[callback_key] * callback_mul
-        if step - checkpoint_interval > last_checkpoint:
-            checkpoint_dir = osp.join(out_dir, "checkpoint", f"{step:012}")
-            _save(model, checkpoint_dir, save_callbacks)
-            last_checkpoint = step
-
-        if step - log_interval > last_log:
-            for f in log_callbacks:
-                f(logger, local_vars, global_vars)
-            last_log = step
-
-        return True  # keep training
+    checkpoint_callback = callbacks.EveryNTimesteps(
+        n_steps=checkpoint_interval, callback=CheckpointCallback(out_dir, save_callbacks)
+    )
+    log_callback = callbacks.EveryNTimesteps(
+        n_steps=log_interval, callback=callbacks.CallbackList(log_callbacks)
+    )
+    callback = callbacks.CallbackList([checkpoint_callback, log_callback])
 
     model.learn(total_timesteps=total_timesteps, log_interval=1, callback=callback)
     final_path = osp.join(out_dir, "final_model")
@@ -409,8 +441,8 @@ def build_env(
 def multi_wrappers(multi_venv, env_name, log_callbacks):
     if env_name.startswith("multicomp/"):
         game_outcome = GameOutcomeMonitor(multi_venv)
-        # Need game_outcome as separate variable as Python closures bind late
-        log_callbacks.append(lambda logger, locals, globals: game_outcome.log_callback(logger))
+        log_callback = LoggerOnlyLogCallback(game_outcome)
+        log_callbacks.append(log_callback)
         multi_venv = game_outcome
 
     return multi_venv
@@ -492,10 +524,8 @@ def maybe_embed_agent(
                     noise_params=embed_noise_params,
                     scheduler=scheduler,
                 )
+                log_callbacks.append(LoggerOnlyLogCallback(embedded))
                 embedded_policies[i] = embedded
-                log_callbacks.append(
-                    lambda logger, locals, globals: embedded_policies[i].log_callback(logger)
-                )
 
         if len(embedded_policies) > 1:
             embedded_policy = MultiPolicyWrapper(embedded_policies, num_envs=multi_venv.num_envs)
@@ -540,7 +570,7 @@ def single_wrappers(
             shaping_params=rew_shape_params,
             agent_idx=our_idx,
         )
-        log_callbacks.append(lambda logger, locals, globals: rew_shape_venv.log_callback(logger))
+        log_callbacks.append(LoggerOnlyLogCallback(rew_shape_venv))
         single_venv = rew_shape_venv
 
         for anneal_type in ["noise", "rew_shape"]:
@@ -579,7 +609,9 @@ def single_wrappers(
         if load_policy["path"] is not None and load_policy["type"] != "zoo":
             normalized_venv.load_running_average(load_policy["path"])
 
-        save_callbacks.append(lambda root_dir: normalized_venv.save_running_average(root_dir))
+        save_callbacks.append(
+            lambda root_dir: normalized_venv.save(os.path.join(root_dir, "vec_normalize.pkl"))
+        )
         single_venv = normalized_venv
 
     return single_venv
