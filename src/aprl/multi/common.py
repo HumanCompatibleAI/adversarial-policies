@@ -149,7 +149,7 @@ def make_sacred(ex, worker_name, worker_fn):
         exp_name: str,
         spec: Dict[str, Any],
     ) -> ray.tune.ExperimentAnalysis:
-        ray.init(redis_address=ray_server, **init_kwargs)
+        ray.init(address=ray_server, **init_kwargs)
 
         # We have to register the function we're going to call with Ray.
         # We partially apply worker_fn, so it's different for each experiment.

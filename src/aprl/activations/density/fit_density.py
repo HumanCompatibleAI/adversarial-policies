@@ -280,7 +280,7 @@ def fit_model(
        saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
        running in parallel via Ray."""
     try:
-        ray.init(redis_address=ray_server, **init_kwargs)
+        ray.init(address=ray_server, **init_kwargs)
 
         # Find activation paths for each environment & victim-path tuple
         stem_pattern = re.compile(r"(.*)_opponent_.*\.npz")
