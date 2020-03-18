@@ -11,6 +11,7 @@ from ray import tune
 from aprl.configs import DATA_LOCATION
 from aprl.configs.multi.common import BANSAL_ENVS, BANSAL_GOOD_ENVS, get_adversary_paths
 from aprl.envs import VICTIM_INDEX, gym_compete
+from aprl.train import PAPER_HYPERPARAMS
 
 MLP_ENVS = [env for env in BANSAL_ENVS if not gym_compete.is_stateful(env)]
 LSTM_ENVS = [env for env in BANSAL_ENVS if gym_compete.is_stateful(env)]
@@ -51,14 +52,7 @@ def _sparse_reward(train):
 
 
 def _best_guess_train(train):
-    train["total_timesteps"] = int(10e6)
-    train["batch_size"] = 16384
-    train["learning_rate"] = 3e-4
-    train["rl_args"] = {
-        "ent_coef": 0.0,
-        "nminibatches": 4,
-        "noptepochs": 4,
-    }
+    train.update(**PAPER_HYPERPARAMS)
 
 
 def _best_guess_spec(envs=None):
