@@ -7,23 +7,23 @@ function multi_score {
   python -m aprl.multi.score with "$@" high_accuracy
 }
 
-OUT_DIR=data/aws/score_agents
+OUT_DIR=data/aws/score_agents.tmp
 
 mkdir -p ${OUT_DIR}
 for kind in zoo fixed; do
     mkdir -p ${OUT_DIR}/normal
-    multi_score victims="[zoo]" opponents="[${kind}]" \
+    multi_score victims='["zoo"]' opponents="[\"${kind}\"]" \
                 save_path=${OUT_DIR}/normal/${kind}_baseline.json&
     wait_proc
 
     mkdir -p ${OUT_DIR}/victim_masked_init
-    multi_score victims="[zoo]" opponents="[${kind}]" \
+    multi_score victims='["zoo"]' opponents="[\"${kind}\"]" \
                 mask_observations_of_victim \
                 save_path=${OUT_DIR}/victim_masked_init/${kind}_baseline.json&
     wait_proc
 
     mkdir -p ${OUT_DIR}/victim_masked_zero
-    multi_score victims="[zoo]" opponents="[${kind}]" \
+    multi_score victims='["zoo"]' opponents="[\"${kind}\"]" \
                 mask_observations_of_victim mask_observations_with_zeros \
                 save_path=${OUT_DIR}/victim_masked_zero/${kind}_baseline.json&
     wait_proc

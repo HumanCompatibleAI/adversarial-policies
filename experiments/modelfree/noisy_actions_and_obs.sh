@@ -17,7 +17,7 @@ function multi_score {
     noise_type=$2
     extra_configs=$3
 
-    python -m aprl.multi.score with victims="[zoo]" opponents="[${opponent_type}]" \
+    python -m aprl.multi.score with victims='["zoo"]' opponents="[\"${opponent_type}\"]" \
               ${noise_type} ${extra_configs} medium_accuracy \
               save_path=${OUT_ROOT}/${noise_type}/${TIMESTAMP}/${opponent_type}.json
     wait_proc
