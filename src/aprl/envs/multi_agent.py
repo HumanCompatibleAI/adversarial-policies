@@ -89,7 +89,7 @@ class FakeSingleSpacesVec(VecEnv):
         raise NotImplementedError()
 
     def seed(self, seed):
-        raise NotImplementedError()
+        return
 
     def get_attr(self, attr_name, indices=None):
         raise NotImplementedError()
