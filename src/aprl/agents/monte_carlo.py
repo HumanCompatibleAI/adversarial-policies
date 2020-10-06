@@ -45,8 +45,8 @@ class MujocoResettableWrapper(ResettableEnv, gym.Wrapper):
 
 class MonteCarlo(ABC):
     """Selects an action for a ResettableEnv by random search. Randomly samples
-     fixed-length sequences of actions. Evaluates each trajectory in the
-     environment, resetting the state to the original after each trajectory."""
+    fixed-length sequences of actions. Evaluates each trajectory in the
+    environment, resetting the state to the original after each trajectory."""
 
     @abstractmethod
     def __init__(self, horizon, trajectories):
@@ -78,7 +78,7 @@ class MonteCarlo(ABC):
 
 class MonteCarloSingle(MonteCarlo):
     """Selects an action for a ResettableEnv by random search.
-       See base class for details. This implementation is not parallelized."""
+    See base class for details. This implementation is not parallelized."""
 
     def __init__(self, env, horizon, trajectories):
         """See base class."""

@@ -59,8 +59,8 @@ class VideoWrapper(Wrapper):
 
     def _reset_video_recorder(self):
         """Called at the start of each episode (by _reset). Always creates a video recorder
-           if one does not already exist. When a video recorder is already present, it will only
-           create a new one if `self.single_video == False`."""
+        if one does not already exist. When a video recorder is already present, it will only
+        create a new one if `self.single_video == False`."""
         if self.video_recorder is not None:
             # Video recorder already started.
             if not self.single_video:
@@ -151,11 +151,11 @@ class TrajectoryRecorder(VecMultiWrapper):
 
     def record_extra_data(self, data, agent_idx):
         """Record extra data for the specified agents. `record_timestep_data` will automatically
-           record observations, actions, rewards and info dicts. This function is an alternative
-           to placing extra information in the info dicts, which can sometimes be more convenient.
+        record observations, actions, rewards and info dicts. This function is an alternative
+        to placing extra information in the info dicts, which can sometimes be more convenient.
 
-           :param data: (dict) treated like an info dict in `record_timestep_data.
-           :param agent_idx: (int) index of the agent to record data for."""
+        :param data: (dict) treated like an info dict in `record_timestep_data.
+        :param agent_idx: (int) index of the agent to record data for."""
         # Not traj_dicts[agent_idx] because there may not be a traj_dict for every agent
         if agent_idx not in self.agent_indices:
             return

@@ -74,7 +74,7 @@ def generate_activations(
     _run, out_dir, score_configs, score_update, adversary_path, ray_upload_dir
 ):
     """Uses multi.score to generate activations, then extracts them into a convenient
-       directory structure."""
+    directory structure."""
     logger.info("Generating activations")
     activation_dirs = run_external(
         score_configs,

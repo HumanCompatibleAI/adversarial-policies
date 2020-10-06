@@ -300,7 +300,7 @@ def make_configs(multi_score_ex):
     @multi_score_ex.named_config
     def debug_one_each_type(score):
         """One Zoo agent from each environment, plus one opponent of each type.
-           Intended for debugging purposes as a quick experiment that is still diverse.."""
+        Intended for debugging purposes as a quick experiment that is still diverse.."""
         score = dict(score)
         score["episodes"] = 2
         spec = {
@@ -317,7 +317,8 @@ def make_configs(multi_score_ex):
                         if cfg.agent_a_path == "1" or cfg.agent_b_path == "1"
                     ]
                     + _gen_configs(
-                        victim_fns=[_zoo], opponent_fns=[_from_paths(get_adversary_paths())],
+                        victim_fns=[_zoo],
+                        opponent_fns=[_from_paths(get_adversary_paths())],
                     )[0:1],
                 ),
             },

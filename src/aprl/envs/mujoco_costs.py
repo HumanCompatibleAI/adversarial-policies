@@ -10,7 +10,7 @@ from theano import tensor as T
 
 class ReacherCost(BatchAutoDiffCost):
     """Differentiable cost for the Reacher-v2 Gym environment.
-       See base class for more details."""
+    See base class for more details."""
 
     def __init__(self):
         def f(x, u, i, terminal):
@@ -40,14 +40,14 @@ class ReacherCost(BatchAutoDiffCost):
 
 class InvertedPendulumCost(BatchAutoDiffCost):
     """Differentiable cost for the InvertedPendulum-v2 Gym environment.
-       InvertedPendulum-v2 has a +1 reward while pendulum is upright, and 0
-       otherwise (with the episode terminating). This is problematic to use with
-       iLQG: the cost is not differentiable (indeed, it is discontinuous on the
-       state), and handling episode termination is awkward (effectively the
-       dynamics include transition into a zero-reward absorbing state). Instead,
-       I use a cost function penalizing the square of the: angle from y-axis,
-       velocity and control. (The control penalty seems to be unnecessary to get
-       good performance, but the velocity term is needed.)"""
+    InvertedPendulum-v2 has a +1 reward while pendulum is upright, and 0
+    otherwise (with the episode terminating). This is problematic to use with
+    iLQG: the cost is not differentiable (indeed, it is discontinuous on the
+    state), and handling episode termination is awkward (effectively the
+    dynamics include transition into a zero-reward absorbing state). Instead,
+    I use a cost function penalizing the square of the: angle from y-axis,
+    velocity and control. (The control penalty seems to be unnecessary to get
+    good performance, but the velocity term is needed.)"""
 
     def __init__(self):
         def f(x, u, i, terminal):

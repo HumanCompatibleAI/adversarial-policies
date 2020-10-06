@@ -5,9 +5,9 @@ import sacred
 
 def flatten_config(config):
     """Take dict with ':'-separated keys and values or tuples of values,
-       flattening to single key-value pairs.
+    flattening to single key-value pairs.
 
-       Example: _flatten_config({'a:b': (1, 2), 'c': 3}) -> {'a: 1, 'b': 2, 'c': 3}."""
+    Example: _flatten_config({'a:b': (1, 2), 'c': 3}) -> {'a: 1, 'b': 2, 'c': 3}."""
     new_config = {}
     for ks, vs in config.items():
         ks = ks.split(":")

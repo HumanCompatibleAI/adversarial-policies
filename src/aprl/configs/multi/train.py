@@ -589,7 +589,7 @@ def make_configs(multi_train_ex):
     @multi_train_ex.named_config
     def finetune_nolearn(train):
         """Sanity check finetuning: with a learning rate of 0.0, do we get performance the
-           same as that given by `score_agent`? Tests the training-specific loading pipeline."""
+        same as that given by `score_agent`? Tests the training-specific loading pipeline."""
         train = dict(train)
         _finetune_train(train)
         train["total_timesteps"] = int(1e6)
@@ -608,10 +608,10 @@ def make_configs(multi_train_ex):
     @multi_train_ex.named_config
     def gym_compete_from_scratch(train):
         """Use the policy architecture in gym_compete, but training from random initialization
-           (i.e. not loading one of their zoo agents). There's no reason to actually do this
-           (there are nicer implementations of these architectures in Stable Baselines),
-           but it confirms that training works, and together with `finetune_nolearn` gives
-           confidence that finetuning is operating correctly."""
+        (i.e. not loading one of their zoo agents). There's no reason to actually do this
+        (there are nicer implementations of these architectures in Stable Baselines),
+        but it confirms that training works, and together with `finetune_nolearn` gives
+        confidence that finetuning is operating correctly."""
         train = dict(train)
         _sparse_reward(train)
         train["total_timesteps"] = int(5e6)
@@ -700,7 +700,7 @@ def make_configs(multi_train_ex):
     @multi_train_ex.named_config
     def lstm_policies(train):
         """Do LSTM policies work? This is likely to require some hyperparameter tuning;
-           just my best guess."""
+        just my best guess."""
         train = dict(train)
         _sparse_reward(train)
         train["total_timesteps"] = int(10e6)

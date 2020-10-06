@@ -167,7 +167,9 @@ def test_simple_multi_policy_switching():
         assert np.all(local_vars["actions"] == constants)
 
     with create_simple_policy_wrapper(
-        env_name="CartPole-v1", num_envs=2, state_shapes=[None, (5,), (10,)],
+        env_name="CartPole-v1",
+        num_envs=2,
+        state_shapes=[None, (5,), (10,)],
     ) as (vec_env, policy_wrapper):
         _check_switching(
             vec_env=vec_env,

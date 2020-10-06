@@ -10,16 +10,16 @@ from aprl.common.utils import getattr_unwrapped
 
 class MultiAgentEnv(Env):
     """Abstract class for multi-agent environments.
-       This differs from the normal gym.Env in two ways:
-         + step returns a tuple of observations, each a numpy array, and a tuple of rewards.
-         + It has an additional attribute num_agents.
-       Moreover, we guarantee that observation_space and action_space are a Tuple, with the
-       i'th element corresponding to the i'th agents observation and action space.
+    This differs from the normal gym.Env in two ways:
+      + step returns a tuple of observations, each a numpy array, and a tuple of rewards.
+      + It has an additional attribute num_agents.
+    Moreover, we guarantee that observation_space and action_space are a Tuple, with the
+    i'th element corresponding to the i'th agents observation and action space.
 
-       This should really be a different class since it is-not a gym.Env,
-       however it's very convenient to have it interoperate with the rest of the
-       Gym infrastructure, so we'll abuse this. Sadly there is still no standard
-       for multi-agent environments in Gym, issue #934 is working on it."""
+    This should really be a different class since it is-not a gym.Env,
+    however it's very convenient to have it interoperate with the rest of the
+    Gym infrastructure, so we'll abuse this. Sadly there is still no standard
+    for multi-agent environments in Gym, issue #934 is working on it."""
 
     def __init__(self, num_agents):
         self.num_agents = num_agents
@@ -28,14 +28,14 @@ class MultiAgentEnv(Env):
 
     def step(self, action_n):
         """Run one timestep of the environment's dynamics.
-           Accepts an action_n consisting of a self.num_agents length list.
+        Accepts an action_n consisting of a self.num_agents length list.
 
-           :param action_n (list<ndarray>): actions per agent.
-           :return a tuple containing:
-                obs_n (tuple<ndarray>): observations per agent.
-                reward_n (tuple<float>): reward per agent.
-                done (bool): episode over.
-                info (dict): auxiliary diagnostic info."""
+        :param action_n (list<ndarray>): actions per agent.
+        :return a tuple containing:
+             obs_n (tuple<ndarray>): observations per agent.
+             reward_n (tuple<float>): reward per agent.
+             done (bool): episode over.
+             info (dict): auxiliary diagnostic info."""
         raise NotImplementedError
 
     def reset(self):
@@ -52,9 +52,9 @@ class MultiWrapper(Wrapper, MultiAgentEnv):
 
 class FakeSingleSpaces(gym.Env):
     """Creates a fake gym.Env that has action and observation spaces corresponding to
-       those of agent_id in a MultiEnv env. This is useful for functions that construct
-       policy or reward networks given an environment. It will throw an error if reset,
-       step or other methods are called."""
+    those of agent_id in a MultiEnv env. This is useful for functions that construct
+    policy or reward networks given an environment. It will throw an error if reset,
+    step or other methods are called."""
 
     def __init__(self, env, agent_id=0):
         self.observation_space = env.observation_space.spaces[agent_id]
@@ -123,9 +123,9 @@ class FlattenSingletonEnv(Wrapper):
 
 def flatten_space(tuple_space):
     """Flattens a Tuple of like-spaces into a single bigger space of the appropriate type.
-       The spaces do not have to have the same shape, but do need to be of compatible types.
-       For example, we can flatten a (Box(10), Box(5)) into Box(15) or a (Discrete(2), Discrete(2))
-       into a MultiDiscrete([2, 2]), but cannot flatten a (Box(10), Discrete(2))."""
+    The spaces do not have to have the same shape, but do need to be of compatible types.
+    For example, we can flatten a (Box(10), Box(5)) into Box(15) or a (Discrete(2), Discrete(2))
+    into a MultiDiscrete([2, 2]), but cannot flatten a (Box(10), Discrete(2))."""
     unique_types = set(type(space) for space in tuple_space.spaces)
     if len(unique_types) > 1:
         raise TypeError(f"Cannot flatten a space with more than one type: {unique_types}")
@@ -214,9 +214,9 @@ class SingleToMulti(Wrapper, MultiAgentEnv):
 class VecMultiEnv(VecEnv):
     """Like a VecEnv, but each environment is a MultiEnv. Adds extra attribute, num_agents.
 
-       Observations and actions are a num_agents-length tuple, with the i'th entry of shape
-       (num_envs, ) + {observation,action}_space.spaces[i].shape. Rewards are a ndarray of shape
-       (num_agents, num_envs)."""
+    Observations and actions are a num_agents-length tuple, with the i'th entry of shape
+    (num_envs, ) + {observation,action}_space.spaces[i].shape. Rewards are a ndarray of shape
+    (num_agents, num_envs)."""
 
     def __init__(self, num_envs, num_agents, observation_space, action_space):
         VecEnv.__init__(self, num_envs, observation_space, action_space)
@@ -279,8 +279,8 @@ def _make_vec_multi_env(cls):
 
 class _DummyVecMultiEnv(DummyVecEnv, VecMultiEnv):
     """Like DummyVecEnv but implements VecMultiEnv interface.
-       Handles the larger reward size.
-       Note SubprocVecEnv works out of the box."""
+    Handles the larger reward size.
+    Note SubprocVecEnv works out of the box."""
 
     def __init__(self, env_fns):
         DummyVecEnv.__init__(self, env_fns)
@@ -351,7 +351,7 @@ def _tuple_space_augment(tuple_space, augment_idx, augment_space):
 
 class MergeAgentVecEnv(VecMultiWrapper):
     """Allows merging of two agents into a pseudo-agent by merging their actions.
-       The observation space is augmented with the actions of the fixed policy."""
+    The observation space is augmented with the actions of the fixed policy."""
 
     def __init__(self, venv, policy, replace_action_space, merge_agent_idx, deterministic=False):
         """Expands one of the players in a VecMultiEnv.
