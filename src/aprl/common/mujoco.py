@@ -8,7 +8,7 @@ import numpy as np
 # TODO: Cythonize
 class MujocoState(namedtuple("MujocoStateBase", "qpos qvel")):
     """Represents state from the MuJoCo simulator needed for planning,
-       namely position and velocity."""
+    namely position and velocity."""
 
     @staticmethod
     def from_mjdata(data):

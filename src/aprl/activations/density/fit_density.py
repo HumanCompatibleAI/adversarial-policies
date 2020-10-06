@@ -277,8 +277,8 @@ def fit_model(
     train_percentage,
 ):
     """Fits density models for each environment and victim type in activation_dir,
-       saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
-       running in parallel via Ray."""
+    saving resulting models to output_root. Works by repeatedly calling `density_fitter`,
+    running in parallel via Ray."""
     try:
         ray.init(address=ray_server, **init_kwargs)
 

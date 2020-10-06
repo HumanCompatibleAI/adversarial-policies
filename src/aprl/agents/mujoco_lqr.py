@@ -276,8 +276,8 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
 
     def _warmstart(self):
         """Calculate qacc_warmstart. Initializing qacc_warmstart in the
-           simulator will result in a more rapid computation of qacc when
-           other fields (e.g. qpos, qvel, ctrl) are only slightly changed."""
+        simulator will result in a more rapid computation of qacc when
+        other fields (e.g. qpos, qvel, ctrl) are only slightly changed."""
         # TODO: This is largely undocumented in MuJoCo; I'm following the lead
         # of derivative.cpp. Does this have any implications for correctness,
         # or just performance?
@@ -302,10 +302,10 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
 
     def f_x(self, x, u, i):
         """Partial derivative of dynamics model w.r.t. to x.
-           See base class Dynamics.
+        See base class Dynamics.
 
-           Assumes that the control input u is mapped into raw control ctrl
-           in the simulator by a function that does not depend on x."""
+        Assumes that the control input u is mapped into raw control ctrl
+        in the simulator by a function that does not depend on x."""
         with _consistent_solver(self.sim) as sim:
             self._set_state_action(x, u)
             self._warmstart()
@@ -334,10 +334,10 @@ class MujocoFiniteDiffDynamicsPerformance(MujocoFiniteDiff, Dynamics):
 
     def f_u(self, x, u, i):
         """Partial derivative of dynamics model w.r.t. to u.
-           See base class Dynamics.
+        See base class Dynamics.
 
-           Assumes that the control input u is mapped into raw control ctrl
-           in the simulator by a function that does not depend on x."""
+        Assumes that the control input u is mapped into raw control ctrl
+        in the simulator by a function that does not depend on x."""
         with _consistent_solver(self.sim) as sim:
             self._set_state_action(x, u)
             self._warmstart()

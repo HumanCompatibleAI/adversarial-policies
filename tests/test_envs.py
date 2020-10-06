@@ -124,7 +124,7 @@ def assert_envs_equal(env1, env2, num_steps, check_info: bool = True):
 @pytest.mark.parametrize("spec", spec_list)
 def test_vec_env(spec):
     """Test that our {Dummy,Subproc}VecMultiEnv gives the same results as
-       each other."""
+    each other."""
     env_fns = [lambda: make_env(spec, i) for i in range(4)]
     venv1 = multi_agent.make_dummy_vec_multi_env(env_fns)
     venv2 = multi_agent.make_subproc_vec_multi_env(env_fns)

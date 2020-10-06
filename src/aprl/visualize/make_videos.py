@@ -41,7 +41,7 @@ def defense_config():
 @make_videos_ex.named_config
 def slides_config():
     """Generate a subset of videos, with tighter-cropped camera.
-       Intended for slideshows/demos."""
+    Intended for slideshows/demos."""
     score_configs = [("summary",), ("summary", "mask_observations_of_victim")]
     multi_score = {
         "score": {

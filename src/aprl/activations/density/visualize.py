@@ -62,7 +62,7 @@ def get_full_directory(env, victim_id, n_components, covariance):
 
 def load_metadata(env, victim_id, n_components, covariance):
     """Load metadata for specified environment and parameters.
-     Parameters are the same as get_full_directory."""
+    Parameters are the same as get_full_directory."""
     full_env_dir = get_full_directory(env, victim_id, n_components, covariance)
     metadata_path = os.path.join(full_env_dir, "metadata.csv")
     logger.debug(f"Loading from {metadata_path}")
@@ -83,7 +83,7 @@ def load_metadata(env, victim_id, n_components, covariance):
 
 def load_metrics_dict(env, victim_id, n_components, covariance):
     """Load metrics for specified environment and parameters.
-       See get_full_directory for argument descriptions."""
+    See get_full_directory for argument descriptions."""
     full_env_dir = get_full_directory(env, victim_id, n_components, covariance)
     metrics_path = os.path.join(full_env_dir, "metrics.json")
     logger.debug(f"Loading from {metrics_path}")

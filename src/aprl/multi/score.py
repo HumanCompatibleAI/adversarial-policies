@@ -102,14 +102,14 @@ def multi_score(score, save_path):
 
 def run_external(named_configs, post_named_configs, config_updates, adversary_path=None):
     """Run multiple multi_score experiments. Intended for use by external scripts,
-       not accessible from commandline.
+    not accessible from commandline.
 
-       :param named_configs: (list<str>) list of named configs, executed one by one
-       :param post_named_configs: (list<str>) list of base named configs, applied after the
-                                              current config from `named_configs`.
-       :param config_updates: (dict) a dict of config options, overriding the named config.
-       :param adversary_path: (str or None) path to JSON, needed by adversary_transfer config.
-       :return (dict) mapping from named configs to their output directory
+    :param named_configs: (list<str>) list of named configs, executed one by one
+    :param post_named_configs: (list<str>) list of base named configs, applied after the
+                                           current config from `named_configs`.
+    :param config_updates: (dict) a dict of config options, overriding the named config.
+    :param adversary_path: (str or None) path to JSON, needed by adversary_transfer config.
+    :return (dict) mapping from named configs to their output directory
     """
     # Sad workaround for Sacred config limitation,
     # see aprl.configs.multi.score:_get_adversary_paths

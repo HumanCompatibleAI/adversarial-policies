@@ -54,8 +54,7 @@ def _save(model, root_dir: str, save_callbacks: Iterable[SaveCallback]) -> None:
 
 
 class CheckpointCallback(callbacks.BaseCallback):
-    """Custom checkpointing, saving model in directory and recursively calling `save_callbacks`.
-    """
+    """Custom checkpointing, saving model in directory and recursively calling `save_callbacks`."""
 
     def __init__(self, out_dir: str, save_callbacks: Iterable[SaveCallback], *args, **kwargs):
         """
@@ -375,7 +374,7 @@ def wrappers_config(env_name):
 @train_ex.named_config
 def no_embed():
     """Does not load and embed another agent. Useful for debugging, allowing training in a
-       single-agent environment.
+    single-agent environment.
     """
     embed_types = []
     embed_paths = []
