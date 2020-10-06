@@ -92,7 +92,7 @@ def make_sacred(ex, worker_name, worker_fn):
             if s3_bucket is None:
                 s3_bucket = "adversarial-policies"
 
-            spec["run_kwargs"] = {"upload_dir": f"s3://{s3_bucket}/"}
+            spec["sync_config"] = {"upload_dir": f"s3://{s3_bucket}/"}
             ray_server = "localhost:6379"
 
         _ = locals()  # quieten flake8 unused variable warning
@@ -118,7 +118,7 @@ def make_sacred(ex, worker_name, worker_fn):
             if "dir" not in baremetal:
                 baremetal["dir"] = osp.expanduser("~/adversarial-policies/data")
 
-            spec["run_kwargs"] = {
+            spec["sync_config"] = {
                 "upload_dir": ":".join([baremetal["host"], baremetal["ssh_key"], baremetal["dir"]]),
                 "sync_to_cloud": tune.function(_rsync_func),
             }
@@ -136,7 +136,7 @@ def make_sacred(ex, worker_name, worker_fn):
         if platform == "local":
             if local_dir is None:
                 local_dir = osp.abspath(osp.join(os.getcwd(), "data"))
-            spec["run_kwargs"] = {
+            spec["sync_config"] = {
                 "sync_to_cloud": ("mkdir -p {target} && " "rsync -rlptv {source}/ {target}"),
                 "upload_dir": local_dir,
             }
@@ -176,11 +176,15 @@ def make_sacred(ex, worker_name, worker_fn):
 
         # Disable TensorBoard logger: fails due to the spec containing string variables.
         tune_loggers = [tune.logger.JsonLogger, tune.logger.CSVLogger]
+        sync_config = None
+        if "sync_config" in spec:
+            sync_config = tune.SyncConfig(**spec["sync_config"])
         try:
             result = tune.run(
                 trainable_name,
                 name=exp_id,
                 config=spec["config"],
+                sync_config=sync_config,
                 loggers=tune_loggers,
                 **spec["run_kwargs"],
             )
