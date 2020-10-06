@@ -9,7 +9,7 @@ pymongo>=3.8.0
 GitPython>=2.1
 baselines @ git+https://github.com/HumanCompatibleAI/baselines.git@f70377
 stable-baselines @ git+https://github.com/hill-a/stable-baselines.git@6fbc9a9
-ray[debug,tune]>=0.8.2
+ray[debug,tune]>=1.0.0
 boto3>=1.9
 awscli>=1.16
 statsmodels>=0.9.0
