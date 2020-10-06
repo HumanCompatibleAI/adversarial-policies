@@ -7,6 +7,9 @@ executors:
   my-executor:
     docker:
       - image: humancompatibleai/adversarial_policies:base
+        auth:
+          username: $DOCKERHUB_USERNAME
+          password: $DOCKERHUB_PASSWORD
     working_directory: /adversarial-policies
     environment:
       # If you change these, also change scripts/code_checks.sh
@@ -120,6 +123,10 @@ workflows:
   test:
     jobs:
       - lintandtype:
-          context: MuJoCo
+          context:
+          - MuJoCo
+          - docker-hub-creds
       - unit-test:
-          context: MuJoCo
+          context:
+          - MuJoCo
+          - docker-hub-creds
