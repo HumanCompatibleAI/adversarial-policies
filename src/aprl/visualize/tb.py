@@ -39,7 +39,7 @@ def read_events_file(events_filename, keys=None):
                     continue
                 row[value.tag] = value.simple_value
             events.append(row)
-    except Exception:
+    except Exception:  # noqa:B902
         logger.error(f"While reading '{events_filename}': {traceback.print_exc()}")
     return events
 
