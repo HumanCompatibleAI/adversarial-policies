@@ -213,7 +213,7 @@ def _test_multi(ex, config_updates=None):
 
     run = ex.run(config_updates=multi_config, named_configs=("debug_config",))
     assert run.status == "COMPLETED"
-    assert ray.state.state.redis_client is None, "ray has not been shutdown"
+    assert ray.state.state.redis_address is None, "ray has not been shutdown"
 
     return run
 
