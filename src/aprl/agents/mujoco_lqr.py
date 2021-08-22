@@ -143,10 +143,10 @@ def _finite_diff(sim, qacc_warmstart, vary, eps):
     center = np.copy(sim.data.qacc)
 
     if vary in [VaryValue.VEL, VaryValue.CTRL]:
-        nin = len(variable)
-        nout = len(center)
-        jacobian = np.zeros((nout, nin), dtype=np.float64)
-        for j in range(nin):
+        n_in = len(variable)
+        n_out = len(center)
+        jacobian = np.zeros((n_out, n_in), dtype=np.float64)
+        for j in range(n_in):
             # perturb
             variable[j] += eps
             # compute finite-difference

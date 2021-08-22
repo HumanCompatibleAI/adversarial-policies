@@ -30,7 +30,7 @@ class NestedDict(OrderedDict):
 
     def __getitem__(self, item):
         try:
-            return dict.__getitem__(self, item)
+            return super().__getitem__(item)  # pytype:disable=unsupported-operands
         except KeyError:
             value = self[item] = type(self)()
             return value
@@ -78,7 +78,7 @@ def get_videos(video_files: Iterable[str]) -> NestedDict:
         env_name = ENV_NAME_LOOKUP.get(env_name)
         victim = f"{util.friendly_agent_label(victim_abbrev)} ({victim_abbrev})"
         opponent = f"{util.friendly_agent_label(opponent_abbrev)} ({opponent_abbrev})"
-        nested[env_name][opponent][victim] = stem
+        nested[env_name][opponent][victim] = stem  # pytype:disable=unsupported-operands
 
     return nested
 
