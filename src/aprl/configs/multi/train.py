@@ -291,7 +291,7 @@ def make_configs(multi_train_ex):
         train = dict(train)
         _sparse_reward(train)
         # Checkpoints take up a lot of disk space, only save every ~500k steps
-        train["checkpoint_interval"] = 2 ** 19
+        train["checkpoint_interval"] = 2**19
         train["total_timesteps"] = int(3e6)
         spec = {
             "config": {
